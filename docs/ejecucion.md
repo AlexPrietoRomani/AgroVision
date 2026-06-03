@@ -1,10 +1,15 @@
-# Guía de Ejecución y Despliegue: AgroVisión MVP
+# Guía de Ejecución y Despliegue: AgroVisión (Plataforma)
 
-> **Proyecto:** `agrovision-mvp` (UI Shiny + backend FastAPI)
+> **Proyecto:** AgroVisión — UI Shiny (6 módulos) + backend FastAPI (monolito modular).
 > **Fecha de Actualización:** 2026-06-03
-> **Objetivo:** Runbook para clonar, levantar el entorno local y (a futuro) desplegar el MVP sin fricciones.
+> **Objetivo:** Runbook para clonar, levantar el entorno local y (a futuro) desplegar la plataforma sin fricciones.
 >
-> **Estado del conteo:** el módulo de **conteo de plantas está EN DESARROLLO** (standby). La app abre y funciona; la pestaña de Conteo muestra el aviso *"Módulo en preparación"*. El conteo real se habilita cuando el [repo del modelo](reference/description_proyecto_modelo_conteo_plantas.md) publique el artefacto. Para **demostrar el flujo** hay un modo *mock* (datos de prueba) — ver §3.5.
+> **Módulos de la UI (6):** Resumen de Campo · Creación de Parcelas · Teledetección · **Conteo por Dron (EN DESARROLLO)** · Asistente Agéntico · Credenciales.
+>
+> **La app abre SIN credenciales** (verás los 6 módulos). Para *usar* cada módulo necesitas las llaves BYOK (todas de capa gratuita), que pones en `.env` (local) o en la pestaña **Credenciales** (sesión):
+> - **Parcelas / Teledetección / Resumen** → Supabase (`DATABASE_URL`) y, para NDVI, **Copernicus** (`DEV_COPERNICUS_CLIENT_ID/SECRET`). El clima (Open-Meteo) no necesita llave.
+> - **Asistente** → **Groq** (`DEV_GROQ_API_KEY`).
+> - **Conteo** → **EN DESARROLLO** (standby): la pestaña muestra *"Módulo en preparación"*. Se habilita cuando el [repo del modelo](reference/description_proyecto_modelo_conteo_plantas.md) publique el artefacto. Para demostrar el flujo con datos de prueba (mock) — ver §3.5.
 
 ---
 
@@ -20,16 +25,20 @@
 
 > No se requiere Docker para el desarrollo local (se ejecuta con `uv`). Docker es opcional (ver §4).
 
-### 1.2 Cuentas y Accesos
+### 1.2 Cuentas y Accesos (BYOK, capa gratuita)
 
-Solo necesarias **a futuro** para desplegar o activar el conteo real (no para correr en local):
+Para **abrir** la app no necesitas nada. Para **usar** cada módulo en local, crea estas cuentas gratuitas y pon sus llaves en `.env`:
 
-- **ShinyApps.io**: cuenta + token (deploy de la UI).
-- **Render**: cuenta (deploy del backend).
-- **Supabase**: proyecto (plataforma completa: BD/Storage/Colas).
-- **Hugging Face Hub**: token (descargar el modelo de conteo cuando se publique).
+| Servicio | Habilita | Cómo obtenerlo | Variable(s) en `.env` |
+|----------|----------|----------------|------------------------|
+| **Supabase** (BD PostGIS) | Parcelas, Teledetección, Resumen | Crea proyecto → Settings (API + Database). Usa el **Session pooler** para `DATABASE_URL` (IPv4). | `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` |
+| **Copernicus CDSE** | NDVI satelital + heatmap | dataspace.copernicus.eu → OAuth client (id/secret) | `DEV_COPERNICUS_CLIENT_ID`, `DEV_COPERNICUS_CLIENT_SECRET` |
+| **Groq** | Asistente Agéntico (RAG) | console.groq.com/keys (`gsk_...`) | `DEV_GROQ_API_KEY` |
+| Open-Meteo | Clima | — (sin llave) | — |
 
-Las variables para estos servicios ya están declaradas (vacías) en `.env.example`.
+**Migraciones de BD** (una vez, tras configurar `DATABASE_URL`): `uv run python -m backend.db.migrate` crea tablas, índices, RLS y la extensión PGMQ.
+
+A futuro, para **desplegar**: ShinyApps.io (UI) + Render (backend) + Supabase (BD); y Hugging Face Hub para el modelo de conteo cuando se publique. Todas las variables están declaradas en `.env.example`.
 
 ---
 
@@ -100,10 +109,14 @@ uv run python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8001 --reload
 
 ### 3.4 Checklist de Verificación Rápida (Sanity Check)
 
-1. [ ] Abrir `http://127.0.0.1:8001` y ver la UI con sus 2 pestañas (Conteo, Credenciales).
-2. [ ] La pestaña **Conteo** muestra el aviso *"Módulo en preparación (standby)"*.
-3. [ ] La pestaña **Credenciales** muestra el aviso de efimeralidad; al recargar (F5) los campos quedan vacíos.
-4. [ ] `curl http://127.0.0.1:8000/api/status` responde `200` con `"counting_enabled": false`.
+1. [ ] Abrir `http://127.0.0.1:8001` y ver la UI con sus **6 pestañas** (Resumen, Creación de Parcelas, Teledetección, Conteo, Asistente, Credenciales).
+2. [ ] `curl http://127.0.0.1:8000/api/status` responde `200` con `"counting_enabled": false`.
+3. [ ] La pestaña **Conteo** muestra *"Módulo en desarrollo (standby)"*.
+4. [ ] La pestaña **Credenciales** muestra el aviso de efimeralidad; al recargar (F5) los campos quedan vacíos.
+5. [ ] (Con `DATABASE_URL` + Copernicus configurados) **Creación de Parcelas**: dibujar un polígono, nombrarlo y *Guardar* → aparece en la lista; tras unos segundos, en **Teledetección** se ve la serie NDVI de 5 años.
+6. [ ] (Con Groq) **Asistente**: preguntar *"¿cómo evolucionó el NDVI de \<parcela\>?"* → responde citando la herramienta usada.
+
+> **Pruebas en vivo del backend** (sin la UI): `http://127.0.0.1:8000/docs` (Swagger) lista `/api/fields`, `/api/ndvi`, `/api/ndvi/raster`, `/api/weather`, `/api/chat`. Recuerda aplicar migraciones (`uv run python -m backend.db.migrate`) antes de usar parcelas.
 
 ### 3.5 (Opcional) Demostrar el Conteo con Datos Mock
 
@@ -187,6 +200,9 @@ uv run rsconnect deploy shiny ./frontend --name <cuenta> --title AgroVision-MVP
 # Suite completa (unitarias + integración)
 uv run python -m pytest
 
+# Solo unitarias (rápidas, sin red ni credenciales)
+uv run python -m pytest tests/unit -q
+
 # Calidad de código
 uv run ruff check .
 uv run ruff format --check backend frontend tests scripts
@@ -195,4 +211,9 @@ uv run ruff format --check backend frontend tests scripts
 uv run python -m pytest tests/e2e -v
 ```
 
-> Nota: se usa `python -m pytest` (no el shim `pytest.exe`) por el tema de OneDrive descrito en §6.
+> **Integración:** los tests de `tests/integration/` golpean servicios reales y **se omiten (skip) si faltan sus credenciales** en `.env`:
+> - `test_db.py` → requiere `DATABASE_URL` (Supabase).
+> - `test_teledeteccion.py` → requiere `DATABASE_URL` + Copernicus.
+> - `test_agent.py` → requiere `DATABASE_URL` + Groq.
+>
+> Con todas las llaves puestas corren ~58 pruebas en verde. Se usa `python -m pytest` (no el shim `pytest.exe`) por el tema de OneDrive descrito en §6.
