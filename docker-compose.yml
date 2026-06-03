@@ -1,0 +1,32 @@
+# Stack local del MVP: backend FastAPI (api) + UI Shiny (ui).
+# El conteo arranca en standby (COUNTING_ENABLED=false); la app levanta igual.
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - COUNTING_ENABLED=false
+      - ALLOWED_ORIGINS=http://localhost:8001
+    volumes:
+      - ./models:/app/models:ro
+      - ./sample_data:/app/sample_data:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/status')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ui:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - API_BASE_URL=http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy

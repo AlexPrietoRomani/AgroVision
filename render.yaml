@@ -1,0 +1,16 @@
+# Despliegue del backend del MVP en Render (capa gratuita).
+# La UI Shiny se despliega aparte en ShinyApps.io (rsconnect deploy shiny ./frontend).
+services:
+  - type: web
+    name: agrovision-mvp-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    plan: free
+    healthCheckPath: /api/status
+    envVars:
+      - key: COUNTING_ENABLED
+        value: "false"                       # true cuando el modelo esté publicado
+      - key: ALLOWED_ORIGINS
+        value: https://<tu-app>.shinyapps.io
+      - key: MODEL_VERSION
+        value: "2.0.0"

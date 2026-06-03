@@ -1,0 +1,2 @@
+# Carpeta para el artefacto del modelo (agrovision-plantcount-*.onnx).
+# Los pesos NO se versionan: se descargan de Hugging Face Hub en el build.
