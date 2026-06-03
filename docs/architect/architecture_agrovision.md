@@ -7,6 +7,8 @@
 >
 > **Módulos de UI (6):** Resumen de Campo · **Creación de Parcelas** (nuevo: dibujo del polígono) · Teledetección (solo gráficos + heatmap NDVI) · Conteo por Dron (**en desarrollo / standby**) · Asistente Agéntico · Credenciales.
 >
+> **Frontend (Fase 8 — Agro-Stack):** la UI migra de **Shiny** a **Astro + Tailwind** (SPA estática, hash-routing, responsive, sidebar/footer plegables) que replica el [mockup](../investigation/agrovisi_n_spa_prototype.html) y consume `/api/*` directo (Leaflet-draw para el mapa, Chart.js para NDVI/clima). El gateway **FastAPI sirve el build estático en `/`** y mantiene `/api`. **Shiny queda como _legacy_** (opcional en `/shiny`). Sigue la "Regla de Oro" de [`plan_replication.md`](../doc_guia/plan_replication.md) (una página, hash, rutas relativas, CSS inline).
+>
 > **Estado del Conteo:** el módulo de visión arranca **en desarrollo** (`COUNTING_ENABLED=false`); se construye **todo lo demás** ahora. La tabla `plant_counts`, la cola PGMQ y el worker se crean pero quedan inactivos hasta publicar el modelo.
 
 ---
@@ -261,3 +263,4 @@ flowchart LR
 | **NDVI por defecto a 5 años con agregación mensual** | Rango corto fijo / sin agregación (todas las escenas) | Da histórico útil para "Resumen de campo" y el agente, y mantiene el volumen bajo el límite de Supabase Free; el backfill incremental evita recalcular. |
 | **Heatmap NDVI satelital (~10 m/px) on-demand, sin persistir** | Persistir rásters NDVI / heatmap cm/px desde RGB | El ráster es pesado y efímero (se regenera); cm/px exige dron multiespectral (NIR), no disponible con RGB → se difiere con el módulo de Conteo. |
 | **Conteo por dron arranca EN DESARROLLO (toda la infra creada, inactiva)** | Bloquear la plataforma hasta tener el modelo | Permite entregar parcelas/teledetección/agente ya; la cola/worker/tabla existen para activarse con solo `COUNTING_ENABLED=true` cuando el repo del modelo publique el artefacto. |
+| **(Fase 8) UI migra a Astro + Tailwind (Agro-Stack); Shiny → legacy** | Mantener Shiny como UI principal / shell híbrido con iframe | La UI Shiny por defecto se ve básica; el objetivo es replicar el mockup (estética, **responsive**, plegables). Astro+Tailwind+JS (Leaflet/Chart.js) consumiendo `/api` da control total del look y deploy estático. **Revisa el ADR previo** ("Shiny sobre Astro"): el problema de enrutamiento SPA se mitiga con la **Regla de Oro** (una página, hash-routing, rutas relativas, CSS inline). Shiny se conserva como *legacy* (`/shiny`) por si se requiere reactividad Python. |
