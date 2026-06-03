@@ -39,6 +39,9 @@ class StatusResponse(BaseModel):
     model: str = Field(description="Nombre de marca del modelo de conteo")
     version: str = Field(description="Versión semántica del modelo predeterminado")
     counting_enabled: bool = Field(description="Indica si el conteo está activo o en standby")
+    model_backend: str = Field(
+        default="standby", description="Backend activo: 'mock', 'onnx' o 'standby'"
+    )
 
 
 class CountResponse(BaseModel):

@@ -101,8 +101,13 @@ def server(input, output, session) -> None:  # noqa: ANN001 - firma fijada por S
         """Muestra el aviso de standby cuando el conteo no está habilitado."""
         status_info = backend_status.get()
         if status_info.get("counting_enabled"):
+            mock_note = (
+                " <b>(datos de prueba / mock)</b>"
+                if status_info.get("model_backend") == "mock"
+                else ""
+            )
             return ui.HTML(
-                '<div class="alert alert-success">Modelo de conteo activo. '
+                f'<div class="alert alert-success">Modelo de conteo activo.{mock_note} '
                 "Sube un ortomosaico para contar.</div>"
             )
         return ui.HTML(

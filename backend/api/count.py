@@ -81,6 +81,7 @@ def get_status() -> StatusResponse:
         model="agrovision-plantcount",
         version=settings.model_version,
         counting_enabled=settings.counting_enabled,
+        model_backend=settings.model_backend if settings.counting_enabled else "standby",
     )
 
 

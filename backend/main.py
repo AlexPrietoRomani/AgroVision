@@ -41,7 +41,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.api.count import router as count_router
 from backend.config import get_settings
-from backend.core.inference import ModelNotAvailableError, load_adapter
+from backend.core.inference import ModelNotAvailableError, create_adapter
 
 _logger = logging.getLogger("agrovision.backend")
 
@@ -65,8 +65,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     if settings.counting_enabled:
         try:
-            app.state.adapter = load_adapter(settings.model_path, settings.model_architecture)
-            _logger.info("Modelo de conteo cargado: %s", settings.model_architecture)
+            app.state.adapter = create_adapter(
+                settings.model_backend, settings.model_path, settings.model_architecture
+            )
+            _logger.info("Adaptador de conteo activo: backend=%s", settings.model_backend)
         except ModelNotAvailableError as error:
             _logger.warning("Conteo en standby (modelo no disponible): %s", error)
     else:

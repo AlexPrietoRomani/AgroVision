@@ -14,6 +14,8 @@ Ejemplo de Integración:
 
 from __future__ import annotations
 
+import cv2
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
@@ -50,3 +52,26 @@ def test_count_en_standby_devuelve_503() -> None:
             data={"area_ha": "1.0"},
         )
     assert response.status_code == 503
+
+
+def test_count_mock_devuelve_metricas(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verifica el flujo completo con datos mock: 200 + conteo + overlay."""
+    monkeypatch.setenv("COUNTING_ENABLED", "true")
+    monkeypatch.setenv("MODEL_BACKEND", "mock")
+    get_settings.cache_clear()
+
+    image = np.full((200, 200, 3), 100, dtype=np.uint8)
+    _, buffer = cv2.imencode(".png", image)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/count",
+            files={"file": ("orto.png", buffer.tobytes(), "image/png")},
+            data={"area_ha": "1.0"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["count"] > 0
+    assert body["overlay_b64"]
+    get_settings.cache_clear()

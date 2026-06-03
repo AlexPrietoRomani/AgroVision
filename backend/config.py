@@ -42,6 +42,7 @@ DEFAULT_MAX_UPLOAD_MB: int = 50
 DEFAULT_MODEL_PATH: str = "./models/agrovision-plantcount-v2.0.0.onnx"
 DEFAULT_MODEL_VERSION: str = "2.0.0"
 DEFAULT_MODEL_ARCHITECTURE: str = "yolo26n"
+DEFAULT_MODEL_BACKEND: str = "mock"  # mock (datos falsos para probar) | onnx (modelo real)
 
 
 def _parse_bool(raw: str | None, default: bool = False) -> bool:
@@ -68,6 +69,7 @@ class Settings:
     model_path: str
     model_version: str
     model_architecture: str
+    model_backend: str
     allowed_origins: tuple[str, ...]
     counting_enabled: bool
     max_upload_mb: int
@@ -89,6 +91,7 @@ def get_settings() -> Settings:
         model_path=os.getenv("MODEL_PATH", DEFAULT_MODEL_PATH),
         model_version=os.getenv("MODEL_VERSION", DEFAULT_MODEL_VERSION),
         model_architecture=os.getenv("MODEL_ARCHITECTURE", DEFAULT_MODEL_ARCHITECTURE),
+        model_backend=os.getenv("MODEL_BACKEND", DEFAULT_MODEL_BACKEND),
         allowed_origins=origins,
         counting_enabled=_parse_bool(os.getenv("COUNTING_ENABLED"), default=False),
         max_upload_mb=int(os.getenv("MAX_UPLOAD_MB", str(DEFAULT_MAX_UPLOAD_MB))),
