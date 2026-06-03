@@ -94,20 +94,14 @@ cp .env.example .env
 ```powershell
 $env:UV_PROJECT_ENVIRONMENT = "$env:LOCALAPPDATA\agrovision-venv"
 $env:PYTHONUNBUFFERED = "1"
-uv run python -u -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload --log-level info `
-  --reload-exclude ".venv" --reload-exclude "frontend" --reload-exclude "docs" `
-  --reload-exclude "tests" --reload-exclude "scripts" --reload-exclude "supabase" `
-  --reload-exclude "models" --reload-exclude "sample_data" --reload-exclude "scratch"
+uv run python -u -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload --log-level info --reload-exclude ".venv" --reload-exclude "frontend" --reload-exclude "docs" --reload-exclude "tests" --reload-exclude "scripts" --reload-exclude "supabase" --reload-exclude "models" --reload-exclude "sample_data" --reload-exclude "scratch"
 ```
 
 **Terminal 2 — UI (Shiny):**
 ```powershell
 $env:UV_PROJECT_ENVIRONMENT = "$env:LOCALAPPDATA\agrovision-venv"
 $env:PYTHONUNBUFFERED = "1"
-uv run python -u -m uvicorn frontend.app:app --host 127.0.0.1 --port 8001 --reload --log-level info `
-  --reload-exclude ".venv" --reload-exclude "backend" --reload-exclude "docs" `
-  --reload-exclude "tests" --reload-exclude "scripts" --reload-exclude "supabase" `
-  --reload-exclude "models" --reload-exclude "sample_data" --reload-exclude "scratch"
+uv run python -u -m uvicorn frontend.app:app --host 127.0.0.1 --port 8001 --reload --log-level info --reload-exclude ".venv" --reload-exclude "backend" --reload-exclude "docs" --reload-exclude "tests" --reload-exclude "scripts" --reload-exclude "supabase" --reload-exclude "models" --reload-exclude "sample_data" --reload-exclude "scratch"
 ```
 
 ### 3.3 Puertos y Accesos Locales
