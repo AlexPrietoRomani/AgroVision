@@ -42,9 +42,10 @@ class NdviRequest(BaseModel):
 
 
 class NdviRasterRequest(BaseModel):
-    """Petición de heatmap NDVI (PNG) para una geometría."""
+    """Petición de heatmap NDVI (PNG) por parcela (`field_id`) o geometría directa."""
 
-    geojson: dict
+    field_id: str | None = None
+    geojson: dict | None = None
     start: str | None = None
     end: str | None = None
 
@@ -78,11 +79,18 @@ async def ndvi_series(
 
 @router.post("/raster")
 async def ndvi_raster(
-    body: NdviRasterRequest, keys: UserKeys = Depends(get_user_keys)
+    body: NdviRasterRequest,
+    keys: UserKeys = Depends(get_user_keys),
+    session: AsyncSession = Depends(get_db),
 ) -> Response:
-    """Devuelve el heatmap NDVI (PNG ~10 m/px) recortado al polígono."""
+    """Devuelve el heatmap NDVI (PNG ~10 m/px) por parcela (`field_id`) o geometría."""
     _require_copernicus(keys)
+    geojson = body.geojson
+    if geojson is None and body.field_id:
+        geojson = await repo.get_field_geojson(session, body.field_id)
+    if geojson is None:
+        raise HTTPException(status_code=422, detail="Indica 'field_id' o 'geojson'.")
     png = await remote_sensing.ndvi_heatmap_png(
-        body.geojson, keys.copernicus_id, keys.copernicus_secret, body.start, body.end
+        geojson, keys.copernicus_id, keys.copernicus_secret, body.start, body.end
     )
     return Response(content=png, media_type="image/png")

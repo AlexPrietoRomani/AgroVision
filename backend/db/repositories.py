@@ -77,15 +77,26 @@ async def create_field(
 
 
 async def get_field(session: AsyncSession, field_id: Any) -> Row | None:
-    """Devuelve la parcela por id (id, name, área ha) o None."""
+    """Devuelve la parcela por id (id, name, área ha, centroide lon/lat) o None."""
     result = await session.execute(
         text(
-            "select id, name, (ST_Area(geom::geography) / 10000.0) as area_ha "
+            "select id, name, (ST_Area(geom::geography) / 10000.0) as area_ha, "
+            "ST_X(ST_Centroid(geom)) as lon, ST_Y(ST_Centroid(geom)) as lat "
             "from fields where id = :id"
         ),
         {"id": str(field_id)},
     )
     return result.first()
+
+
+async def get_field_geojson(session: AsyncSession, field_id: Any) -> dict | None:
+    """Devuelve la geometría de la parcela como dict GeoJSON (para el heatmap), o None."""
+    result = await session.execute(
+        text("select ST_AsGeoJSON(geom) as gj from fields where id = :id"),
+        {"id": str(field_id)},
+    )
+    row = result.first()
+    return json.loads(row.gj) if row and row.gj else None
 
 
 async def get_field_by_name(session: AsyncSession, name: str) -> Row | None:
@@ -108,14 +119,15 @@ async def get_field_by_name(session: AsyncSession, name: str) -> Row | None:
 
 async def list_fields(session: AsyncSession, user_id: str | None = None) -> list[Row]:
     """Lista las parcelas (filtradas por usuario si se indica), ordenadas por nombre."""
+    cols = (
+        "select id, name, ST_X(ST_Centroid(geom)) as lon, "
+        "ST_Y(ST_Centroid(geom)) as lat from fields"
+    )
     if user_id is None:
-        result = await session.execute(
-            text("select id, name from fields order by name")
-        )
+        result = await session.execute(text(f"{cols} order by name"))
     else:
         result = await session.execute(
-            text("select id, name from fields where user_id = :uid order by name"),
-            {"uid": user_id},
+            text(f"{cols} where user_id = :uid order by name"), {"uid": user_id}
         )
     return list(result.all())
 

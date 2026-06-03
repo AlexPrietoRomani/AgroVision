@@ -47,7 +47,7 @@ async def create_field(
 async def list_fields(session: AsyncSession = Depends(get_db)) -> list[dict]:
     """Lista las parcelas registradas."""
     rows = await parcels.list_parcels(session)
-    return [{"id": str(r.id), "name": r.name} for r in rows]
+    return [{"id": str(r.id), "name": r.name, "lon": r.lon, "lat": r.lat} for r in rows]
 
 
 @router.get("/{field_id}")
@@ -56,7 +56,13 @@ async def get_field(field_id: str, session: AsyncSession = Depends(get_db)) -> d
     row = await parcels.get_parcel(session, field_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Parcela no encontrada")
-    return {"id": str(row.id), "name": row.name, "area_ha": row.area_ha}
+    return {
+        "id": str(row.id),
+        "name": row.name,
+        "area_ha": row.area_ha,
+        "lon": row.lon,
+        "lat": row.lat,
+    }
 
 
 @router.delete("/{field_id}")

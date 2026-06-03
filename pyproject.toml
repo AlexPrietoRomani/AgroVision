@@ -23,6 +23,10 @@ dependencies = [
     "geoalchemy2>=0.15",             # tipo Geometry para PostGIS
     "shapely>=2.0",                  # geometría: GeoJSON -> WKT, área
     "python-dateutil>=2.9",          # relativedelta para el rango de 5 años (Fase 3)
+    # --- UI plataforma (Fase 6) ---
+    "shinywidgets>=0.3",             # integra widgets (ipyleaflet/plotly) en Shiny
+    "ipyleaflet>=0.19",              # mapa interactivo + DrawControl (parcelas)
+    "plotly>=5.24",                  # gráficos NDVI vs clima
 ]
 
 [dependency-groups]
