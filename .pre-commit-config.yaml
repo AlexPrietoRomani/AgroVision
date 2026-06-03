@@ -1,0 +1,9 @@
+# Hooks de calidad: ejecutan Ruff (lint + formato) antes de cada commit.
+# Instalar una vez: uv run pre-commit install
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff          # linter (con autocorrección)
+        args: [--fix]
+      - id: ruff-format   # formateador

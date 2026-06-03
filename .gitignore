@@ -1,0 +1,117 @@
+# ===== AgroVision =====
+
+# --- Environment & Secrets ---
+.env
+.env.local
+.env.*.local
+*.secret
+.pnpm-debug.log*
+
+# --- Python & Backend ---
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.cache/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+build/
+dist/
+*.egg-info/
+
+# --- Astro & Node.js (Frontend) ---
+frontend/node_modules/
+frontend/dist/
+frontend/.astro/
+frontend/.vercel/
+frontend/.netlify/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+
+# --- Build Artifacts ---
+backend/static/
+backend/static/*
+!backend/static/.gitkeep
+
+# --- Data & SQLite ---
+data/*
+!data/README.md
+var/*.db
+var/*.sqlite
+*.db
+*.sqlite
+*.csv
+*.xlsx
+*.parquet
+*.json
+!package.json
+!tsconfig.json
+!docs/**/*.csv
+!docs/**/*.json
+
+# --- Model artifacts (descargados de Hugging Face Hub; NO versionar) ---
+models/*.onnx
+models/*.pt
+!models/.gitkeep
+
+# --- OS & IDE ---
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+.idea/
+*.swp
+*.swo
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# --- AI Agents & Tools ---
+.claude/
+.agents/
+.opencode/
+graphify-out/
+CLAUDE.md
+AGENTS.md
+.antigravityignore
+.claudeignore
+.graphifyignore
+opencode.json
+
+# --- Multimedia & Docs Exceptions ---
+*.jpg
+*.png
+*.jpeg
+*.mp4
+*.webp
+*.gif
+!/docs/image/
+!/docs/image/*.png
+!/docs/image/*.jpg
+!/docs/image/*.jpeg
+!/docs/image/*.csv
+
+# --- Temporary & Scratch ---
+scratch/
+.hypothesis/
+
+# --- Docs internos: NO versionar en git, pero SÍ legibles localmente / por Claude ---
+# (El .gitignore solo afecta a git; la lectura de archivos por herramientas/Claude es independiente.)
+docs/doc_guia/
+docs/investigation/
+docs/plan/
+docs/task/
+
+# Playwright MCP artifacts
+.playwright-mcp/
+localhost-*.png
+section5*.png
+desactivar-*.png
+download-*.png
