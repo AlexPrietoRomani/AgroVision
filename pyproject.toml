@@ -17,6 +17,12 @@ dependencies = [
     "numpy>=2.1",                    # >=2.1 trae wheels para Python 3.13
     "supervision>=0.20",             # tiling/anotación de cajas (uso futuro al activar el conteo)
     "huggingface_hub>=0.24",         # descarga del modelo desde HF Hub en el build
+    # --- Plataforma completa: persistencia (Fase 2) ---
+    "sqlalchemy>=2.0",               # ORM/Core async
+    "asyncpg>=0.29",                 # driver async PostgreSQL (Supabase)
+    "geoalchemy2>=0.15",             # tipo Geometry para PostGIS
+    "shapely>=2.0",                  # geometría: GeoJSON -> WKT, área
+    "python-dateutil>=2.9",          # relativedelta para el rango de 5 años (Fase 3)
 ]
 
 [dependency-groups]
