@@ -88,6 +88,24 @@ async def get_field(session: AsyncSession, field_id: Any) -> Row | None:
     return result.first()
 
 
+async def get_field_by_name(session: AsyncSession, name: str) -> Row | None:
+    """
+    Busca una parcela por nombre (case-insensitive) y devuelve id, nombre, área y centroide.
+
+    Returns:
+        Row | None: Fila con `id`, `name`, `area_ha`, `lon`, `lat` (centroide), o None.
+    """
+    result = await session.execute(
+        text(
+            "select id, name, (ST_Area(geom::geography) / 10000.0) as area_ha, "
+            "ST_X(ST_Centroid(geom)) as lon, ST_Y(ST_Centroid(geom)) as lat "
+            "from fields where lower(name) = lower(:name) order by created_at desc limit 1"
+        ),
+        {"name": name},
+    )
+    return result.first()
+
+
 async def list_fields(session: AsyncSession, user_id: str | None = None) -> list[Row]:
     """Lista las parcelas (filtradas por usuario si se indica), ordenadas por nombre."""
     if user_id is None:

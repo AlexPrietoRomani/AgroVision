@@ -39,6 +39,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.api.chat import router as chat_router
 from backend.api.count import router as count_router
 from backend.api.fields import router as fields_router
 from backend.api.ndvi import router as ndvi_router
@@ -103,6 +104,7 @@ def create_app() -> FastAPI:
     app.include_router(fields_router)  # Creación de Parcelas
     app.include_router(ndvi_router)  # Teledetección NDVI
     app.include_router(weather_router)  # Clima
+    app.include_router(chat_router)  # Asistente Agéntico (RAG)
     app.include_router(count_router)  # Conteo (en desarrollo / standby)
     return app
 
