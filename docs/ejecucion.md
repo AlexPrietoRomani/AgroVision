@@ -87,17 +87,27 @@ cp .env.example .env
 
 > Se usa `python -m uvicorn` (no los shims `uvicorn.exe`/`shiny.exe`, que OneDrive bloquea).
 > La app Shiny es ASGI, por lo que `uvicorn frontend.app:app` equivale a `shiny run frontend/app.py`.
+>
+> **Flags útiles:** `PYTHONUNBUFFERED=1` + `python -u` → logs en vivo sin buffer. `--log-level info` → trazas de cada request. `--reload-exclude` → evita reinicios por cambios en carpetas que no son código de ese servicio (cada servicio **excluye la capa del otro**: el backend ignora `frontend/` y viceversa, además de `docs/`, `tests/`, etc.). *(No usamos `alembic`; las migraciones son SQL en `supabase/migrations`.)*
 
 **Terminal 1 — Backend / API:**
 ```powershell
 $env:UV_PROJECT_ENVIRONMENT = "$env:LOCALAPPDATA\agrovision-venv"
-uv run python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+$env:PYTHONUNBUFFERED = "1"
+uv run python -u -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload --log-level info `
+  --reload-exclude ".venv" --reload-exclude "frontend" --reload-exclude "docs" `
+  --reload-exclude "tests" --reload-exclude "scripts" --reload-exclude "supabase" `
+  --reload-exclude "models" --reload-exclude "sample_data" --reload-exclude "scratch"
 ```
 
 **Terminal 2 — UI (Shiny):**
 ```powershell
 $env:UV_PROJECT_ENVIRONMENT = "$env:LOCALAPPDATA\agrovision-venv"
-uv run python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8001 --reload
+$env:PYTHONUNBUFFERED = "1"
+uv run python -u -m uvicorn frontend.app:app --host 127.0.0.1 --port 8001 --reload --log-level info `
+  --reload-exclude ".venv" --reload-exclude "backend" --reload-exclude "docs" `
+  --reload-exclude "tests" --reload-exclude "scripts" --reload-exclude "supabase" `
+  --reload-exclude "models" --reload-exclude "sample_data" --reload-exclude "scratch"
 ```
 
 ### 3.3 Puertos y Accesos Locales
