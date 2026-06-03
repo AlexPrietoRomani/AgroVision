@@ -40,6 +40,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.api.count import router as count_router
+from backend.api.fields import router as fields_router
+from backend.api.ndvi import router as ndvi_router
+from backend.api.weather import router as weather_router
 from backend.config import get_settings
 from backend.core.inference import ModelNotAvailableError, create_adapter
 
@@ -87,7 +90,7 @@ def create_app() -> FastAPI:
     """
     settings = get_settings()
     app = FastAPI(
-        title="AgroVisión MVP — Backend",
+        title="AgroVisión — Backend (plataforma)",
         version=settings.model_version,
         lifespan=lifespan,
     )
@@ -95,9 +98,12 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=list(settings.allowed_origins),
         allow_methods=["*"],
-        allow_headers=["*"],
+        allow_headers=["*"],  # necesario para las cabeceras BYOK X-User-*
     )
-    app.include_router(count_router)
+    app.include_router(fields_router)  # Creación de Parcelas
+    app.include_router(ndvi_router)  # Teledetección NDVI
+    app.include_router(weather_router)  # Clima
+    app.include_router(count_router)  # Conteo (en desarrollo / standby)
     return app
 
 

@@ -108,6 +108,16 @@ async def delete_fields_for_user(session: AsyncSession, user_id: str) -> None:
     await session.commit()
 
 
+async def delete_field(session: AsyncSession, field_id: Any) -> bool:
+    """Borra una parcela por id (cascada borra su NDVI). Devuelve True si existía."""
+    result = await session.execute(
+        text("delete from fields where id = :id returning id"), {"id": str(field_id)}
+    )
+    deleted = result.first() is not None
+    await session.commit()
+    return deleted
+
+
 async def upsert_ndvi_points(
     session: AsyncSession, field_id: Any, points: list[dict]
 ) -> int:
