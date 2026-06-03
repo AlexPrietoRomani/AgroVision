@@ -1,7 +1,13 @@
 # Arquitectura — AgroVisión (Plataforma Completa)
 
 > **Audiencia:** Arquitectos de solución, líderes técnicos, desarrolladores.
-> **Alcance:** Estructura fundamental del sistema, interacciones de alto nivel (C4), esquema de datos y modelo de despliegue de la **plataforma completa** (5 módulos). Para especificaciones funcionales, ver [`description_proyecto_agrovision.md`](../reference/description_proyecto_agrovision.md). Para el alcance reducido, ver [`architecture_agrovision_mvp.md`](architecture_agrovision_mvp.md).
+> **Alcance:** Estructura fundamental del sistema, interacciones de alto nivel (C4), esquema de datos y modelo de despliegue de la **plataforma completa** (**6 módulos**). Para especificaciones funcionales, ver [`description_proyecto_agrovision.md`](../reference/description_proyecto_agrovision.md). Para el alcance reducido, ver [`architecture_agrovision_mvp.md`](architecture_agrovision_mvp.md).
+>
+> **Estilo arquitectónico:** **monolito modular** (un solo backend FastAPI con límites por dominio bien aislados — `api/` HTTP + `services/` negocio), **microservices-ready**: cada dominio puede extraerse a un servicio propio sin reescribir la UI. Elegido sobre microservicios reales por la realidad de la **capa gratuita** (Render free duerme a 15 min y multiplica cold-starts/CORS por servicio). Ver ADR en §7.
+>
+> **Módulos de UI (6):** Resumen de Campo · **Creación de Parcelas** (nuevo: dibujo del polígono) · Teledetección (solo gráficos + heatmap NDVI) · Conteo por Dron (**en desarrollo / standby**) · Asistente Agéntico · Credenciales.
+>
+> **Estado del Conteo:** el módulo de visión arranca **en desarrollo** (`COUNTING_ENABLED=false`); se construye **todo lo demás** ahora. La tabla `plant_counts`, la cola PGMQ y el worker se crean pero quedan inactivos hasta publicar el modelo.
 
 ---
 
@@ -16,7 +22,7 @@ flowchart TB
 
     subgraph Sistema["Sistema Central"]
         direction TB
-        APP["AgroVisión<br/>─────────────────<br/>Monitoreo agronómico: teledetección NDVI,<br/>conteo de plantas por dron (RF-DETR-Nano)<br/>y agente conversacional (RAG)"]
+        APP["AgroVisión<br/>─────────────────<br/>Monitoreo agronómico: gestión de parcelas,<br/>teledetección NDVI (Sentinel-2, 5 años),<br/>agente conversacional (RAG)<br/>· conteo por dron EN DESARROLLO"]
     end
 
     subgraph Externos["Dependencias Externas (BYOK)"]
@@ -47,17 +53,17 @@ flowchart TB
 ```mermaid
 flowchart LR
     subgraph Cliente["Capa de Presentación"]
-        UI["UI — Shiny for Python (ASGI)<br/>──────────<br/>5 nav_panel · ipyleaflet · Plotly<br/>Estado efímero en reactive.value<br/>Host: ShinyApps.io"]
+        UI["UI — Shiny for Python (ASGI)<br/>──────────<br/>6 nav_panel · ipyleaflet · Plotly<br/>Estado efímero en reactive.value<br/>Host: ShinyApps.io"]
     end
 
-    subgraph Backend["Capa de Aplicación"]
+    subgraph Backend["Capa de Aplicación — Monolito Modular (FastAPI)"]
         direction TB
-        API["API Gateway — FastAPI<br/>──────────<br/>CORS · proxy efímero de llaves<br/>/api/ndvi /count /chat /weather"]
-        LOGIC["Servicios de Negocio<br/>──────────<br/>RemoteSensing · Count · Agent · Fields"]
-        subgraph Infra["Infraestructura de Soporte"]
+        API["API (routers por dominio)<br/>──────────<br/>CORS · proxy efímero de llaves<br/>/fields /ndvi /ndvi/raster /weather /chat<br/>/count (en desarrollo)"]
+        LOGIC["services/ (negocio por dominio)<br/>──────────<br/>Parcels · RemoteSensing · Weather · Agent<br/>· Count (en desarrollo)"]
+        subgraph Infra["Infraestructura de Soporte (inactiva hasta activar conteo)"]
             QUEUE["Cola — Supabase Queues (PGMQ)<br/>count_tasks (vt=120)"]
-            WORKER["Worker Asíncrono<br/>Inferencia RF-DETR-Nano (CPU)"]
-            MODEL["Modelo predeterminado<br/>agrovision-plantcount-v2.0.0.onnx (empaquetado)"]
+            WORKER["Worker Asíncrono<br/>Inferencia del modelo agnóstico (CPU)"]
+            MODEL["Modelo predeterminado<br/>agrovision-plantcount (ONNX, HF Hub)"]
         end
     end
 
@@ -76,20 +82,28 @@ flowchart LR
     WORKER <-->|"lee/escribe imágenes"| ST
 ```
 
-**Flujo de una interacción típica (conteo por dron):**
-1. El agrónomo sube un ortomosaico en la UI (`ui.input_file`); la UI llama `POST /api/count` con las cabeceras BYOK.
+**Flujo principal (crear parcela → teledetección), el que se construye ahora:**
+1. En **Creación de Parcelas** el agrónomo dibuja el polígono (`ipyleaflet` + `DrawControl`), lo nombra y guarda: `POST /api/fields` (con cabeceras BYOK) → `RemoteSensing`/`Parcels` persisten en `fields` (Supabase del usuario).
+2. Al guardar, se dispara un **backfill** (background task) que consulta los **últimos 5 años** de NDVI (Sentinel-2, **agregado mensual**) y los persiste en `ndvi_timeseries`.
+3. En **Teledetección** el usuario elige la parcela; la UI pide `POST /api/ndvi` (serie persistida + fechas nuevas) y `POST /api/weather` (Open-Meteo, on-demand) y los grafica (Plotly doble eje). No se dibuja aquí.
+4. Opcional: `POST /api/ndvi/raster` devuelve un PNG colorizado del **heatmap NDVI** (~10 m/px, Sentinel-2) recortado a la parcela; la UI lo pinta como `ImageOverlay` (read-only).
+5. En **Resumen de Campo** los KPIs por parcela se leen de lo persistido; el **Asistente** consulta esas mismas tablas vía function calling.
+
+**Flujo diferido (conteo por dron) — EN DESARROLLO, no se activa todavía:**
+1. El agrónomo sube un ortomosaico (`ui.input_file`); la UI llama `POST /api/count` con cabeceras BYOK.
 2. El gateway sube la imagen a Storage y envía un mensaje a la cola `count_tasks` (PGMQ).
-3. El worker lee el mensaje (`vt=120`), carga RF-DETR-Nano y ejecuta la inferencia (con *tiling* si es grande).
+3. El worker lee el mensaje (`vt=120`), carga el modelo agnóstico (`agrovision-plantcount`) y ejecuta la inferencia (con *tiling* si es grande).
 4. El worker persiste el resultado en `plant_counts` y genera una **Signed URL** del overlay.
 5. La UI sondea `GET /api/count/{id}` y, al estar `done`, renderiza conteo, densidad y overlay.
+> Mientras `COUNTING_ENABLED=false`, la pestaña muestra "Módulo en preparación"; toda la infraestructura (cola/worker/tabla) existe pero está inactiva.
 
 ---
 
 ## 3. Lógica Core / Procesos Críticos
 
-AgroVisión tiene tres motores internos relevantes:
+AgroVisión tiene tres motores internos relevantes (el de visión queda **en desarrollo**):
 
-### 3.1 Pipeline de Visión (conteo)
+### 3.1 Pipeline de Visión (conteo) — EN DESARROLLO
 
 ```mermaid
 flowchart TB
@@ -102,18 +116,25 @@ flowchart TB
     IN --> P1 --> P2 --> P3 --> P4 --> OUT
 ```
 
-### 3.2 Estadística Zonal NDVI
+### 3.2 Estadística Zonal NDVI (con default de 5 años y agregación mensual)
 
 ```mermaid
 flowchart TB
-    G(["GeoJSON del polígono + rango fechas"])
-    S1["pystac-client: buscar escenas Sentinel-2 L2A"]
+    G(["GeoJSON del polígono + rango (default: últimos 5 años)"])
+    S1["pystac-client: buscar escenas Sentinel-2 L2A<br/>(filtro eo:cloud_cover)"]
     S2["Recortar bandas B08/B04 al polígono"]
     S3["NDVI = (NIR-Red)/(NIR+Red) por píxel"]
-    S4["Agregación zonal: mean/min/max + cloud_cover"]
-    O(["ndvi_timeseries"])
-    G --> S1 --> S2 --> S3 --> S4 --> O
+    S4["Agregación zonal por escena: mean/min/max + cloud_cover"]
+    S5["Agregación temporal MENSUAL (1 punto/mes, menor % nubes)"]
+    O(["ndvi_timeseries (persistido)"])
+    R(["/api/ndvi/raster → PNG heatmap NDVI<br/>~10 m/px, recortado a la parcela (no se persiste)"])
+    G --> S1 --> S2 --> S3 --> S4 --> S5 --> O
+    S3 --> R
 ```
+
+> **Default de rango:** si la petición no trae fechas, el motor usa `[hoy − 5 años, última escena disponible]`. La **agregación mensual** mantiene 5 años por debajo del límite de Supabase Free (500 MB) y produce gráficos legibles. El **backfill** se ejecuta una vez al crear la parcela (background task); luego solo se añaden meses nuevos (incremental por `UNIQUE(field_id, date)`).
+>
+> **Heatmap NDVI:** la rama `/api/ndvi/raster` coloriza el array NDVI de una escena y lo devuelve como imagen para `ImageOverlay`. Resolución **satelital ~10 m/px** (Sentinel-2); el detalle cm/px solo es posible con dron **multiespectral** y queda ligado al módulo de Conteo (en desarrollo).
 
 ### 3.3 Agente RAG (Function Calling)
 
@@ -235,3 +256,8 @@ flowchart LR
 | **Modelo agnóstico (multi-candidato) desde repo separado, en HF Hub; AGPL-3.0 aceptada** | Entrenar dentro de AgroVisión / fijar un solo modelo | Desacopla el ML de la app; **AGPL-3.0 aceptada** (AgroVisión open-source) habilita **YOLO26**; la app descarga `agrovision-plantcount` y lo infiere vía **adaptador** (onnxruntime o `ultralytics` según la arquitectura). El **módulo de conteo arranca en standby** hasta la publicación del modelo. |
 | **PostgreSQL + PostGIS** | NoSQL documental | El dominio es geoespacial y relacional (joins del agente, integridad referencial); JSONB cubre la parte flexible. |
 | **Hosting gratuito (ShinyApps.io+Render+Supabase)** | Cloud administrado de pago (AWS/GCP) | Objetivo de costo cero y reproducibilidad; se asumen *caveats* (cold start, pausa, horas activas). |
+| **Monolito modular (un FastAPI, `api/` + `services/`), microservices-ready** | Microservicios reales (un servicio por dominio) | En Render free cada servicio extra duerme a 15 min, suma cold-starts y complica CORS/operación. Un solo proceso con límites por dominio da la misma separación lógica ("cada uno específico") y se puede dividir luego sin tocar la UI. |
+| **Creación de Parcelas como módulo propio (separado de Teledetección)** | Dibujar el polígono dentro de Teledetección (diseño previo, 5 módulos) | Separa responsabilidades: *delimitar* (escribe `fields`) vs *analizar* (solo lee/grafica). Teledetección queda read-only y enfocada en gráficos + heatmap. Pasa la UI a **6 módulos**. |
+| **NDVI por defecto a 5 años con agregación mensual** | Rango corto fijo / sin agregación (todas las escenas) | Da histórico útil para "Resumen de campo" y el agente, y mantiene el volumen bajo el límite de Supabase Free; el backfill incremental evita recalcular. |
+| **Heatmap NDVI satelital (~10 m/px) on-demand, sin persistir** | Persistir rásters NDVI / heatmap cm/px desde RGB | El ráster es pesado y efímero (se regenera); cm/px exige dron multiespectral (NIR), no disponible con RGB → se difiere con el módulo de Conteo. |
+| **Conteo por dron arranca EN DESARROLLO (toda la infra creada, inactiva)** | Bloquear la plataforma hasta tener el modelo | Permite entregar parcelas/teledetección/agente ya; la cola/worker/tabla existen para activarse con solo `COUNTING_ENABLED=true` cuando el repo del modelo publique el artefacto. |

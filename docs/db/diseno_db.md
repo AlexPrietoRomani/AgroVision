@@ -3,6 +3,13 @@
 > **Propósito:** Definir el modelo físico y lógico de persistencia de AgroVisión, justificar la elección del motor y servir como mapa de referencia para migraciones e implementación.
 > **Origen:** Se construye a partir de [`docs/reference/description_proyecto_agrovision.md`](../reference/description_proyecto_agrovision.md).
 > **Aplicabilidad:** Solo la **plataforma completa**. El [MVP](../reference/description_proyecto_agrovision_mvp.md) opera en **modo efímero sin base de datos** (todo en memoria de sesión).
+>
+> **Alcance de construcción (esta iteración):** se implementan **todas** las tablas, pero con dos matices:
+> - **`fields`, `ndvi_timeseries`, `chat_messages`** se usan activamente (parcelas, teledetección 5 años, agente).
+> - **`plant_counts`** y la **cola PGMQ `count_tasks`** se crean en la migración pero quedan **inactivas** (el módulo de Conteo está **en desarrollo**); se activan con `COUNTING_ENABLED=true`.
+> - **Clima:** se consulta **on-demand** (Open-Meteo, sin llave) y **no se persiste** en esta versión (cacheable a futuro si hace falta). No hay tabla de clima por ahora (YAGNI).
+>
+> **Persistencia de credenciales:** ninguna. Las llaves del usuario (Supabase URL/anon, Copernicus, Groq) son **efímeras** (memoria de sesión); la BD es BYOK (proyecto Supabase del propio usuario).
 
 ---
 
@@ -91,7 +98,7 @@ erDiagram
 *   **Restricciones:** `ST_IsValid(geom)` debe ser verdadero; SRID siempre 4326.
 
 ### 3.2 Tabla: `ndvi_timeseries`
-*   **Descripción:** Serie temporal histórica de índices vegetativos derivados de Sentinel-2.
+*   **Descripción:** Serie temporal histórica de índices vegetativos derivados de Sentinel-2. Se persiste **agregada por mes** (un punto por mes, la escena de menor nubosidad), con un **backfill inicial de 5 años** al crear la parcela y refresco **incremental** después.
 
 | Campo | Tipo de Dato | Modificadores | Descripción / Regla de Negocio |
 | :--- | :--- | :--- | :--- |
@@ -103,10 +110,10 @@ erDiagram
 | `cloud_cover` | `FLOAT` | — | % de nubes; > 60 % marca baja confianza. |
 | `source` | `TEXT` | `DEFAULT 'sentinel2'` | Origen (minúsculas). |
 
-*   **Restricciones:** `UNIQUE (field_id, date)` — una observación por lote/día.
+*   **Restricciones:** `UNIQUE (field_id, date)` — una observación por lote y fecha (con agregación mensual, `date` se normaliza al primer día del mes, p. ej. `2026-04-01`); el `UNIQUE` hace **idempotente** el backfill/refresco incremental (`ON CONFLICT DO NOTHING/UPDATE`).
 
-### 3.3 Tabla: `plant_counts`
-*   **Descripción:** Resultados de conteo por dron (inferencia RF-DETR-Nano, vía onnxruntime).
+### 3.3 Tabla: `plant_counts` (creada, **inactiva** — Conteo en desarrollo)
+*   **Descripción:** Resultados de conteo por dron (inferencia del modelo **agnóstico** `agrovision-plantcount`, vía adaptador onnxruntime/ultralytics). La tabla se crea en la migración inicial pero **no recibe escrituras** hasta activar `COUNTING_ENABLED=true`.
 
 | Campo | Tipo de Dato | Modificadores | Descripción / Regla de Negocio |
 | :--- | :--- | :--- | :--- |
@@ -138,11 +145,13 @@ erDiagram
 
 | Tabla | Gateway (FastAPI) | Worker Asíncrono | UI (Shiny) | Permisos | Notas de Diseño |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `fields` | `FieldsService` | *Ninguno* | vía API | `API: CRUD` | La UI nunca toca la BD directo; pasa por el gateway. |
-| `ndvi_timeseries` | `RemoteSensingService` (write) | *Ninguno* | lectura vía API | `API: Read/Write` | Escritura tras calcular estadística zonal. |
-| `plant_counts` | `CountService` (read) | `InferenceWorker` (write) | lectura vía API | `API: Read` <br> `Worker: Write` | El worker persiste el resultado al terminar la inferencia. |
-| `chat_messages` | `AgentService` | *Ninguno* | lectura vía API | `API: Read/Write` | Memoria del agente (Memory Buffer). |
-| `pgmq.count_tasks` (cola) | `CountService` (produce) | `InferenceWorker` (consume) | — | `API: send` <br> `Worker: read/archive` | Cola PGMQ desacopla subida de inferencia. |
+| `fields` | `ParcelsService` (CRUD) + dispara backfill | *Ninguno* | vía API (módulo *Creación de Parcelas*) | `API: CRUD` | La UI nunca toca la BD directo; pasa por el gateway. Al crear, encola/lanza el backfill NDVI de 5 años. |
+| `ndvi_timeseries` | `RemoteSensingService` (write, mensual) | *Ninguno* | lectura vía API (*Teledetección*, *Resumen*) | `API: Read/Write` | Escritura tras estadística zonal + agregación mensual; idempotente por `UNIQUE(field_id,date)`. |
+| `plant_counts` | `CountService` (read) | `InferenceWorker` (write) | lectura vía API | `API: Read` <br> `Worker: Write` | **En desarrollo:** sin escrituras hasta `COUNTING_ENABLED=true`. |
+| `chat_messages` | `AgentService` | *Ninguno* | lectura vía API (*Asistente*) | `API: Read/Write` | Memoria del agente (Memory Buffer). |
+| `pgmq.count_tasks` (cola) | `CountService` (produce) | `InferenceWorker` (consume) | — | `API: send` <br> `Worker: read/archive` | **En desarrollo:** cola creada pero inactiva hasta activar el conteo. |
+
+> **NDVI raster / heatmap:** el endpoint `POST /api/ndvi/raster` genera un PNG colorizado **on-demand** (no escribe en BD ni en Storage; se regenera). No aparece en la matriz por no tocar persistencia.
 
 > **Regla de aislamiento:** la UI Shiny **no** posee credenciales de BD propias; el acceso es siempre mediado por el gateway, que recibe las llaves del usuario por cabecera y las descarta.
 
