@@ -194,7 +194,29 @@ uv run rsconnect deploy shiny ./frontend --name <cuenta> --title AgroVision-MVP
 | `Failed to spawn: uvicorn/shiny/pytest` (`os error 5`) | Los shims `.exe` se bloquean en OneDrive | Usar la forma de módulo: `uv run python -m uvicorn ...` / `uv run python -m pytest`. |
 | UI muestra "backend no disponible" | El backend (:8000) no está arriba | Levantar primero el backend o usar `.\scripts\dev.ps1`. |
 | `POST /api/count` devuelve `503` | Conteo en standby (esperado) | Es el comportamiento en desarrollo. Para probar: `COUNTING_ENABLED=true` + `MODEL_BACKEND=mock` (§3.5). |
-| Puerto en uso | Otro proceso ocupa 8000/8001 | Cambiar `--port` o cerrar el proceso. |
+| `[WinError 10013]` al arrancar (bind) | El puerto (8000/8001) **ya está ocupado** por otro proceso (típico: un `uvicorn` previo que quedó vivo). En Windows esto se reporta como **10013 (acceso denegado)**, no como 10048 (en uso). | Liberar el puerto (ver **§6.1**) o usar otro `--port`. |
+
+### 6.1 Liberar un puerto ocupado (WinError 10013 en Windows)
+
+`[WinError 10013] Intento de acceso a un socket no permitido por sus permisos de acceso` al arrancar **no es un problema de permisos ni de rangos reservados**: el puerto ya está tomado en exclusiva por otro proceso (casi siempre un `uvicorn` anterior con `--reload` que no se cerró). Para liberarlo:
+
+```powershell
+# 1) Ver qué ocupa el puerto (el PID es la última columna)
+netstat -ano | findstr :8000        # usa :8001 para la UI
+
+# 2) Identificar el proceso de ese PID
+tasklist /FI "PID eq <PID>"
+
+# 3) Matarlo (incluido su árbol de hijos)
+taskkill /F /T /PID <PID>
+
+# Atajo: matar TODOS los uvicorn del proyecto de una vez
+Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
+  Where-Object { $_.CommandLine -match 'uvicorn' } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+```
+
+> **Evita huérfanos:** cierra el servidor con **Ctrl+C** (o cierra su ventana); no lo dejes corriendo entre reinicios. `--reload` deja un proceso supervisor + worker, así que pueden acumularse si solo cierras la terminal a la fuerza. Alternativa rápida: arrancar en otro puerto (`--port 8010`). Verifica que quedó libre repitiendo el paso 1.
 
 ---
 
