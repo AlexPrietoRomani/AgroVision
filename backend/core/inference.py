@@ -7,9 +7,9 @@ Descripción:
 Adaptadores de inferencia del MVP, **agnósticos a la arquitectura**. Define una
 interfaz común y dos implementaciones: `OnnxInferenceAdapter` (carga el artefacto
 ONNX real con onnxruntime y delega el decode por arquitectura) y
-`MockInferenceAdapter` (genera detecciones **falsas** plausibles para probar el
-flujo completo sin el modelo real). La fábrica `create_adapter` selecciona la
-implementación según el backend configurado (`mock` | `onnx`).
+`MockInferenceAdapter` (genera detecciones de prueba para validar el flujo sin el
+modelo real). La fábrica `create_adapter` selecciona la implementación según el
+backend configurado (`mock` | `onnx`).
 
 Sustentación Científica: [Opcional]
 Los detectores objetivo (YOLO26, RF-DETR) son NMS-free, por lo que el conteo
@@ -21,12 +21,12 @@ Acciones Principales:
 Estructura Interna:
     - `ModelNotAvailableError`: error cuando el modelo real no está disponible.
     - `InferenceAdapter`: protocolo común (`predict`).
-    - `MockInferenceAdapter`: detecciones falsas deterministas por imagen.
+    - `MockInferenceAdapter`: detecta arbustos por color (blobs) o genera cajas aleatorias.
     - `OnnxInferenceAdapter`: inferencia ONNX real (decode pendiente de publicación).
     - `create_adapter`: fábrica que devuelve el adaptador según el backend.
 
 Entradas / Dependencias:
-    - `numpy`, `onnxruntime` (import diferido), `backend.core.detection.Detection`.
+    - `cv2`, `numpy`, `onnxruntime` (import diferido), `backend.core.detection.Detection`.
 
 Salidas / Efectos:
     - Ninguno persistente; ejecuta inferencia en memoria.
@@ -43,16 +43,27 @@ import random
 from pathlib import Path
 from typing import Protocol
 
+import cv2
 import numpy as np
 
 from backend.core.detection import CLASS_PLANT, CLASS_WEED, Detection
 
 SUPPORTED_ARCHITECTURES: frozenset[str] = frozenset({"yolo26n", "rfdetr_nano"})
 
+# Parámetros del fallback aleatorio (imágenes sin arbustos verdes reconocibles)
 _MOCK_MIN_PLANTS: int = 40
 _MOCK_MAX_PLANTS: int = 130
 _MOCK_BOX_SIZE_PX: int = 18
 _MOCK_WEED_RATIO: float = 0.08  # malezas como fracción aproximada de las plantas
+
+# Parámetros de la detección por color (para el ortomosaico de arándano simulado)
+_MOCK_MIN_DETECTED_BLOBS: int = 8  # mínimo de arbustos para usar el modo "blobs"
+_BLOB_MIN_AREA_PX: int = 30  # área mínima de un blob válido
+# Rangos HSV (OpenCV: H en [0,179]). Verde = arbusto; amarillo = maleza.
+_GREEN_HSV_LOWER: np.ndarray = np.array([35, 40, 40], dtype=np.uint8)
+_GREEN_HSV_UPPER: np.ndarray = np.array([85, 255, 255], dtype=np.uint8)
+_YELLOW_HSV_LOWER: np.ndarray = np.array([20, 60, 60], dtype=np.uint8)
+_YELLOW_HSV_UPPER: np.ndarray = np.array([34, 255, 255], dtype=np.uint8)
 
 
 class ModelNotAvailableError(RuntimeError):
@@ -71,64 +82,134 @@ class MockInferenceAdapter:
     """
     Adaptador de inferencia **simulado** para validar el flujo sin el modelo real.
 
-    Genera detecciones falsas pero plausibles (plantas y algunas malezas) dentro de
-    las dimensiones de la imagen. Es **determinista por imagen** (la semilla deriva
-    del contenido), respetando la convención de inferencia idempotente.
+    Si la imagen contiene suficientes arbustos verdes reconocibles (p. ej. el
+    ortomosaico de arándano simulado), los detecta por color (blobs) para que las
+    cajas caigan sobre los arbustos. En cualquier otra imagen recurre a cajas
+    aleatorias plausibles. Es **determinista por imagen** (la semilla deriva del
+    contenido), respetando la convención de inferencia idempotente.
     """
 
     def predict(self, image_bgr: np.ndarray, confidence: float) -> list[Detection]:
         """
-        Genera detecciones falsas plausibles para la imagen dada.
+        Genera detecciones de prueba: por color si hay arbustos, o aleatorias si no.
 
         Args:
-            image_bgr (np.ndarray): Imagen RGB/BGR como arreglo de NumPy.
-            confidence (float): Umbral de confianza; las cajas falsas lo superan.
+            image_bgr (np.ndarray): Imagen BGR como arreglo de NumPy.
+            confidence (float): Umbral de confianza; las cajas simuladas lo superan.
 
         Returns:
-            list[Detection]: Plantas y malezas simuladas dentro de la imagen.
+            list[Detection]: Detecciones simuladas (plantas y malezas).
         """
-        height, width = image_bgr.shape[:2]
         seed = int(image_bgr.sum()) % (2**32)  # determinista: misma imagen → mismo conteo
         rng = random.Random(seed)
 
+        hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
+        plants = self._detect_blobs(
+            hsv, _GREEN_HSV_LOWER, _GREEN_HSV_UPPER, CLASS_PLANT, confidence, rng
+        )
+        if len(plants) >= _MOCK_MIN_DETECTED_BLOBS:
+            weeds = self._detect_blobs(
+                hsv, _YELLOW_HSV_LOWER, _YELLOW_HSV_UPPER, CLASS_WEED, confidence, rng
+            )
+            return plants + weeds
+        return self._random_detections(image_bgr, confidence, rng)
+
+    @staticmethod
+    def _detect_blobs(
+        hsv: np.ndarray,
+        lower: np.ndarray,
+        upper: np.ndarray,
+        class_id: int,
+        confidence: float,
+        rng: random.Random,
+    ) -> list[Detection]:
+        """
+        Detecta blobs de un rango de color como cajas (clásico, sin modelo entrenado).
+
+        Args:
+            hsv (np.ndarray): Imagen en espacio HSV.
+            lower (np.ndarray): Cota inferior del rango HSV.
+            upper (np.ndarray): Cota superior del rango HSV.
+            class_id (int): Clase asignada a los blobs encontrados.
+            confidence (float): Umbral mínimo de confianza simulada.
+            rng (random.Random): Generador semillado para confianzas reproducibles.
+
+        Returns:
+            list[Detection]: Una detección por blob que supere el área mínima.
+        """
+        mask = cv2.inRange(hsv, lower, upper)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        detections: list[Detection] = []
+        for contour in contours:
+            if cv2.contourArea(contour) < _BLOB_MIN_AREA_PX:
+                continue
+            x, y, width, height = cv2.boundingRect(contour)
+            detections.append(
+                Detection(
+                    x1=float(x),
+                    y1=float(y),
+                    x2=float(x + width),
+                    y2=float(y + height),
+                    confidence=round(rng.uniform(confidence, 1.0), 3),
+                    class_id=class_id,
+                )
+            )
+        return detections
+
+    def _random_detections(
+        self, image_bgr: np.ndarray, confidence: float, rng: random.Random
+    ) -> list[Detection]:
+        """
+        Genera cajas aleatorias plausibles (fallback para imágenes sin arbustos).
+
+        Args:
+            image_bgr (np.ndarray): Imagen BGR (se usan sus dimensiones).
+            confidence (float): Umbral mínimo de confianza simulada.
+            rng (random.Random): Generador semillado por imagen.
+
+        Returns:
+            list[Detection]: Plantas y malezas en posiciones aleatorias.
+        """
+        height, width = image_bgr.shape[:2]
         plant_count = rng.randint(_MOCK_MIN_PLANTS, _MOCK_MAX_PLANTS)
         weed_count = rng.randint(0, max(1, int(plant_count * _MOCK_WEED_RATIO)))
 
         detections: list[Detection] = []
         for class_id, total in ((CLASS_PLANT, plant_count), (CLASS_WEED, weed_count)):
             for _ in range(total):
-                detections.append(self._random_detection(rng, width, height, confidence, class_id))
+                detections.append(self._random_box(rng, width, height, confidence, class_id))
         return detections
 
     @staticmethod
-    def _random_detection(
+    def _random_box(
         rng: random.Random, width: int, height: int, confidence: float, class_id: int
     ) -> Detection:
         """
-        Construye una detección falsa dentro de los límites de la imagen.
+        Construye una caja aleatoria dentro de los límites de la imagen.
 
         Args:
             rng (random.Random): Generador semillado por imagen.
             width (int): Ancho de la imagen en píxeles.
             height (int): Alto de la imagen en píxeles.
-            confidence (float): Umbral mínimo; la confianza simulada lo supera.
+            confidence (float): Umbral mínimo de confianza simulada.
             class_id (int): Clase de la detección (planta o maleza).
 
         Returns:
-            Detection: Detección falsa con caja, confianza y clase.
+            Detection: Detección aleatoria con caja, confianza y clase.
         """
         max_x = max(_MOCK_BOX_SIZE_PX + 1, width - _MOCK_BOX_SIZE_PX)
         max_y = max(_MOCK_BOX_SIZE_PX + 1, height - _MOCK_BOX_SIZE_PX)
         center_x = rng.randint(_MOCK_BOX_SIZE_PX, max_x)
         center_y = rng.randint(_MOCK_BOX_SIZE_PX, max_y)
         half = _MOCK_BOX_SIZE_PX / 2
-        conf = round(rng.uniform(confidence, 1.0), 3)
         return Detection(
             x1=center_x - half,
             y1=center_y - half,
             x2=center_x + half,
             y2=center_y + half,
-            confidence=conf,
+            confidence=round(rng.uniform(confidence, 1.0), 3),
             class_id=class_id,
         )
 
@@ -167,7 +248,7 @@ class OnnxInferenceAdapter:
         Ejecuta la inferencia real y devuelve las detecciones.
 
         Args:
-            image_bgr (np.ndarray): Imagen RGB/BGR como arreglo de NumPy.
+            image_bgr (np.ndarray): Imagen BGR como arreglo de NumPy.
             confidence (float): Umbral mínimo de confianza.
 
         Returns:
@@ -205,7 +286,7 @@ def create_adapter(backend: str, model_path: str, architecture: str) -> Inferenc
     Fábrica que devuelve el adaptador de inferencia según el backend configurado.
 
     Args:
-        backend (str): 'mock' (datos falsos) u 'onnx' (modelo real).
+        backend (str): 'mock' (datos de prueba) u 'onnx' (modelo real).
         model_path (str): Ruta al artefacto `.onnx` (solo para backend 'onnx').
         architecture (str): Arquitectura del modelo ('yolo26n' o 'rfdetr_nano').
 
