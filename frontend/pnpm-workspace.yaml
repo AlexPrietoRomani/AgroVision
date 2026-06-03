@@ -1,0 +1,6 @@
+# pnpm 11: permitir los build scripts nativos de estos paquetes (binarios
+# precompilados) para evitar ERR_PNPM_IGNORED_BUILDS al correr `pnpm build`/`pnpm dev`.
+allowBuilds:
+  esbuild: true
+  sharp: true
+  "@tailwindcss/oxide": true

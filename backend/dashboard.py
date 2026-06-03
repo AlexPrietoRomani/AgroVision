@@ -1,10 +1,12 @@
 """
-Archivo: app.py
+Archivo: dashboard.py
 Fecha de modificación: 03/06/2026
 Autor: Equipo AgroVisión
 
 Descripción:
-Interfaz Shiny for Python de la **plataforma** AgroVisión (6 módulos): Resumen de Campo,
+UI **Shiny for Python (LEGACY)** de AgroVisión. Desde la Fase 8 la UI principal es
+**Astro + Tailwind** (servida por el gateway en `/`); este dashboard Shiny se conserva
+como alternativa montable en `/shiny` y para desarrollo. Mantiene los 6 módulos: Resumen de Campo,
 Creación de Parcelas (mapa + dibujo), Teledetección (NDVI 5 años + clima + heatmap),
 Conteo por Dron (**en desarrollo**), Asistente Agéntico (RAG) y Credenciales (efímeras).
 Consume el backend FastAPI por HTTP, adjuntando las credenciales BYOK como cabeceras
@@ -24,8 +26,8 @@ Entradas / Dependencias:
 Salidas / Efectos:
     - Estado efímero por sesión; nada se persiste en el cliente.
 
-Ejecución:
-    uv run python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8001 --reload
+Ejecución (legacy):
+    uv run python -m uvicorn backend.dashboard:app --host 127.0.0.1 --port 8001 --reload
 """
 
 from __future__ import annotations

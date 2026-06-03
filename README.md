@@ -48,8 +48,9 @@ uv run python -m backend.db.migrate
 # 3) Backend (FastAPI) en :8000  — o scripts/run_backend.ps1
 uv run python -u -m uvicorn backend.main:app --reload --port 8000 --log-level info
 
-# 4) UI en :8001 (otra terminal) — o scripts/run_ui.ps1
-uv run python -u -m uvicorn frontend.app:app --reload --port 8001
+# 4) UI Shiny LEGACY en :8001 (otra terminal) — o scripts/run_ui.ps1
+#    (la UI principal Astro se sirve desde el gateway en / cuando está compilada — Fase 8)
+uv run python -u -m uvicorn backend.dashboard:app --reload --port 8001
 # Atajo: ambos en ventanas separadas
 .\scripts\dev.ps1
 ```
