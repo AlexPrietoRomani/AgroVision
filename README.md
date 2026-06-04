@@ -1,3 +1,17 @@
+---
+title: AgroVisión
+emoji: 🫐
+colorFrom: green
+colorTo: blue
+sdk: docker
+app_port: 8000
+pinned: false
+license: agpl-3.0
+---
+
+<!-- ↑ Frontmatter requerido por Hugging Face Spaces (SDK Docker). En GitHub se ve
+     como una tabla. El runbook de despliegue está en docs/ejecucion.md §5. -->
+
 # AgroVisión — Plataforma de Monitoreo Agronómico
 
 Plataforma de [AgroVisión](docs/reference/description_proyecto_agrovision.md) para monitoreo agronómico de precisión: **gestión de parcelas**, **teledetección NDVI** (Sentinel-2, 5 años), **agente conversacional (RAG)** y **conteo de plantas por dron** (este último **en desarrollo**). Backend **FastAPI** (monolito modular), persistencia **Supabase (PostGIS) BYOK**, y UI en **migración de Shiny → Astro + Tailwind** (Agro-Stack).
