@@ -148,9 +148,7 @@ async def delete_field(session: AsyncSession, field_id: Any) -> bool:
     return deleted
 
 
-async def upsert_ndvi_points(
-    session: AsyncSession, field_id: Any, points: list[dict]
-) -> int:
+async def upsert_ndvi_points(session: AsyncSession, field_id: Any, points: list[dict]) -> int:
     """
     Inserta/actualiza puntos NDVI de forma idempotente (`UNIQUE(field_id, date)`).
 
@@ -203,6 +201,24 @@ async def get_ndvi_series(session: AsyncSession, field_id: Any) -> list[dict]:
         {"fid": str(field_id)},
     )
     return [dict(r._mapping) for r in result.all()]
+
+
+async def insert_event(
+    session: AsyncSession,
+    *,
+    action: str,
+    session_id: str,
+    meta: dict | None = None,
+) -> None:
+    """Persiste un evento de telemetría (Fase 9) en la tabla `events`; hace commit."""
+    await session.execute(
+        text(
+            "insert into events (action, session_id, meta) "
+            "values (:action, :session_id, cast(:meta as jsonb))"
+        ),
+        {"action": action, "session_id": session_id, "meta": json.dumps(meta or {})},
+    )
+    await session.commit()
 
 
 async def save_chat_message(

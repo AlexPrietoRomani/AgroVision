@@ -72,6 +72,7 @@ class Settings:
     model_backend: str
     allowed_origins: tuple[str, ...]
     counting_enabled: bool
+    events_persist: bool
     max_upload_mb: int
     confidence_threshold: float
 
@@ -94,6 +95,7 @@ def get_settings() -> Settings:
         model_backend=os.getenv("MODEL_BACKEND", DEFAULT_MODEL_BACKEND),
         allowed_origins=origins,
         counting_enabled=_parse_bool(os.getenv("COUNTING_ENABLED"), default=False),
+        events_persist=_parse_bool(os.getenv("EVENTS_PERSIST"), default=False),
         max_upload_mb=int(os.getenv("MAX_UPLOAD_MB", str(DEFAULT_MAX_UPLOAD_MB))),
         confidence_threshold=float(
             os.getenv("CONFIDENCE_THRESHOLD", str(DEFAULT_CONFIDENCE_THRESHOLD))
