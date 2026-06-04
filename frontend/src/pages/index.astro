@@ -308,12 +308,36 @@ import "../styles/global.css";
         const n = $("notif"); n.classList.remove("translate-x-[150%]");
         setTimeout(() => n.classList.add("translate-x-[150%]"), 3500);
       }
+      // ===== Telemetría (Fase 9) =====
+      // Envía un evento por cada acción del usuario al backend (POST /api/events).
+      // Es "fire-and-forget": jamás bloquea ni rompe la UI. NUNCA mandar valores de
+      // credenciales — solo metadatos (contadores, pestaña, status...).
+      function track(action, meta = {}) {
+        try {
+          fetch("./api/events", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action, meta, session_id: sessionId, ts: new Date().toISOString() }),
+            keepalive: true,
+          }).catch(() => {});
+        } catch { /* la telemetría nunca debe propagar errores */ }
+      }
+      // Errores globales no capturados (JS y promesas rechazadas).
+      window.addEventListener("error", (e) => track("js_error", { message: String(e.message || e), where: "window" }));
+      window.addEventListener("unhandledrejection", (e) => track("js_error", { message: String(e.reason || ""), where: "promise" }));
+
       async function api(path, opts = {}) {
-        const res = await fetch("./api" + path, {
-          ...opts,
-          headers: { ...(opts.body ? { "Content-Type": "application/json" } : {}), ...authHeaders(), ...(opts.headers || {}) },
-        });
-        return res;
+        try {
+          const res = await fetch("./api" + path, {
+            ...opts,
+            headers: { ...(opts.body ? { "Content-Type": "application/json" } : {}), ...authHeaders(), ...(opts.headers || {}) },
+          });
+          if (!res.ok) track("api_error", { where: path, status: res.status, method: opts.method || "GET" });
+          return res;
+        } catch (e) {
+          track("api_error", { where: path, status: "network", method: opts.method || "GET" });
+          throw e;
+        }
       }
 
       // ===== Navegación (hash routing) =====
@@ -334,6 +358,7 @@ import "../styles/global.css";
         $("header-title").innerText = TITLES[id][0];
         $("header-desc").innerText = TITLES[id][1];
         if (location.hash !== "#" + id) history.replaceState(null, "", "#" + id);
+        track("nav", { tab: id });
         if (id === "tab-parcelas") setTimeout(initMap, 50);
         if (id === "tab-satelite") setTimeout(() => { loadTeledeteccion(); }, 50);
         if (id === "tab-resumen") loadResumen();
@@ -436,8 +461,9 @@ import "../styles/global.css";
         if (!drawnGeojson) return notify("Falta el polígono", "Dibuja un polígono en el mapa.");
         if (!name) return notify("Falta el nombre", "Escribe un nombre.");
         try {
+          track("parcel_draw_save", { name });
           const r = await api("/fields", { method: "POST", body: JSON.stringify({ name, geojson: drawnGeojson }) });
-          if (r.ok) { notify("Parcela guardada", `${name}: backfill NDVI en curso…`); $("parcela-name").value = ""; drawnGeojson = null; drawnItems.clearLayers(); refreshParcels(); }
+          if (r.ok) { track("parcel_create", { name }); notify("Parcela guardada", `${name}: backfill NDVI en curso…`); $("parcela-name").value = ""; drawnGeojson = null; drawnItems.clearLayers(); refreshParcels(); }
           else { const e = await r.json().catch(() => ({})); notify("Error " + r.status, e.detail || ""); }
         } catch (e) { notify("Error de red", String(e)); }
       });
@@ -445,8 +471,9 @@ import "../styles/global.css";
         // Lomas de Lachay (reserva con vegetación estacional → buena variación NDVI)
         const geojson = { type: "Polygon", coordinates: [[[-77.40, -11.40], [-77.40, -11.34], [-77.34, -11.34], [-77.34, -11.40], [-77.40, -11.40]]] };
         try {
+          track("parcel_demo");
           const r = await api("/fields", { method: "POST", body: JSON.stringify({ name: "Lomas de Lachay (demo)", geojson }) });
-          if (r.ok) { notify("Parcela demo creada", "Lomas de Lachay: backfill NDVI (5 años) en curso…"); refreshParcels(); }
+          if (r.ok) { track("parcel_create", { name: "Lomas de Lachay (demo)" }); notify("Parcela demo creada", "Lomas de Lachay: backfill NDVI (5 años) en curso…"); refreshParcels(); }
           else { const e = await r.json().catch(() => ({})); notify("Error " + r.status, e.detail || ""); }
         } catch (e) { notify("Error de red", String(e)); }
       });
@@ -454,7 +481,7 @@ import "../styles/global.css";
       // Click en una parcela de la lista -> volar a su polígono
       $("parcelas-list").addEventListener("click", (e) => {
         const li = e.target.closest("li[data-pid]");
-        if (li) flyToParcel(li.dataset.pid);
+        if (li) { track("parcel_focus", { id: li.dataset.pid }); flyToParcel(li.dataset.pid); }
       });
 
       // ===== Resumen =====
@@ -473,6 +500,7 @@ import "../styles/global.css";
         const ctx = $("chart-resumen");
         chartResumen?.destroy();
         chartResumen = new Chart(ctx, { type: "line", data: { labels: series.map((p) => p.date), datasets: [{ label: "NDVI", data: series.map((p) => p.mean_ndvi), borderColor: "#15803d", backgroundColor: "rgba(21,128,61,.08)", fill: true, tension: 0.3 }] }, options: { plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 1 } } } });
+        track("chart_view", { chart: "resumen", points: series.length });
       }
 
       // ===== Teledetección =====
@@ -500,10 +528,12 @@ import "../styles/global.css";
           },
           options: { scales: { y: { position: "left", min: 0, max: 1, title: { display: true, text: "NDVI" } }, y2: { position: "right", grid: { drawOnChartArea: false }, title: { display: true, text: "mm" } } } },
         });
+        track("chart_view", { chart: "teledeteccion", ndvi: ndvi.length, weather: weather.length });
       }
       $("btn-heatmap").addEventListener("click", async () => {
         const fid = $("select-parcela").value;
         if (!fid) return notify("Selecciona una parcela", "");
+        track("heatmap", { field_id: fid });
         $("heatmap-box").innerHTML = '<span class="text-xs text-stone-500">Generando…</span>';
         try {
           const r = await api("/ndvi/raster", { method: "POST", body: JSON.stringify({ field_id: fid }) });
@@ -522,6 +552,7 @@ import "../styles/global.css";
       }
       async function sendChat() {
         const msg = $("chat-input").value.trim(); if (!msg) return;
+        track("chat_send", { len: msg.length });
         appendChat("user", msg); $("chat-input").value = "";
         try {
           const r = await api("/chat", { method: "POST", body: JSON.stringify({ session_id: sessionId, message: msg }) });
@@ -536,6 +567,7 @@ import "../styles/global.css";
       $("btn-save-creds").addEventListener("click", () => {
         creds = { groq: $("in-groq").value, copId: $("in-copid").value, copSecret: $("in-copsecret").value, sbUrl: $("in-sburl").value, sbKey: $("in-sbkey").value };
         const n = Object.values(creds).filter(Boolean).length;
+        track("creds_set", { count: n });  // ¡solo el número de llaves, nunca los valores!
         $("creds-state").innerText = `${n} llave(s) activas (se borran al refrescar)`;
         notify("Credenciales en sesión", `${n} llave(s) activas solo en esta sesión.`);
         refreshParcels();
@@ -546,6 +578,7 @@ import "../styles/global.css";
           if (!r.ok) return notify("No disponible", "No se pudo consultar el .env del servidor.");
           const s = await r.json();
           const have = Object.entries({ Groq: s.groq, Copernicus: s.copernicus, Supabase: s.supabase }).filter(([, v]) => v).map(([k]) => k);
+          track("env_check", { have });
           $("env-status").innerHTML = have.length
             ? `✅ En el servidor (.env): <b>${have.join(", ")}</b>. Se usan automáticamente; no necesitas reescribirlas aquí.`
             : "No se detectaron credenciales en el .env del servidor.";
@@ -559,6 +592,7 @@ import "../styles/global.css";
         else loadResumen();
       });
       (async function init() {
+        track("session_start", { w: window.innerWidth, h: window.innerHeight });
         try {
           const r = await fetch("./api/status");
           const ok = r.ok;
