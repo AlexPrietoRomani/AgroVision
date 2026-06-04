@@ -121,7 +121,7 @@ async def list_fields(session: AsyncSession, user_id: str | None = None) -> list
     """Lista las parcelas (filtradas por usuario si se indica), ordenadas por nombre."""
     cols = (
         "select id, name, ST_X(ST_Centroid(geom)) as lon, "
-        "ST_Y(ST_Centroid(geom)) as lat from fields"
+        "ST_Y(ST_Centroid(geom)) as lat, ST_AsGeoJSON(geom) as geojson from fields"
     )
     if user_id is None:
         result = await session.execute(text(f"{cols} order by name"))

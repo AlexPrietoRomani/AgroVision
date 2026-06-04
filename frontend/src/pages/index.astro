@@ -289,7 +289,7 @@ import "../styles/global.css";
       let creds = {};
       let parcels = [];
       let drawnGeojson = null;
-      let map = null, drawnItems = null;
+      let map = null, drawnItems = null, parcelsLayer = null;
       let chartResumen = null, chartSatelite = null;
       const sessionId = "sess-" + Math.random().toString(36).slice(2);
 
@@ -389,8 +389,9 @@ import "../styles/global.css";
           ? parcels.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")
           : '<option value="">(sin parcelas)</option>';
         $("parcelas-list").innerHTML = parcels.length
-          ? parcels.map((p) => `<li class="flex items-center justify-between bg-stone-50 border border-stone-200 rounded-lg px-3 py-2"><span class="font-semibold text-stone-700"><i class="fa-solid fa-location-dot text-emerald-600 mr-1"></i>${p.name}</span></li>`).join("")
+          ? parcels.map((p) => `<li data-pid="${p.id}" title="Ir a la parcela" class="flex items-center justify-between bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 cursor-pointer hover:bg-stone-100"><span class="font-semibold text-stone-700"><i class="fa-solid fa-location-dot text-emerald-600 mr-1"></i>${p.name}</span><i class="fa-solid fa-crosshairs text-stone-400"></i></li>`).join("")
           : '<li class="text-stone-500">Sin parcelas aún.</li>';
+        renderParcelsOnMap();
       }
       function initMap() {
         if (map) { map.invalidateSize(); return; }
@@ -400,6 +401,11 @@ import "../styles/global.css";
         map = L.map("map", { center: [-11.37, -77.37], zoom: 11, layers: [sat] }); // Lomas de Lachay
         L.control.layers({ "Satélite": sat, "Normal": osm, "Relieve": topo }).addTo(map);
         drawnItems = new L.FeatureGroup().addTo(map);
+        parcelsLayer = L.geoJSON(null, {
+          style: { color: "#15803d", weight: 2, fillColor: "#15803d", fillOpacity: 0.15 },
+          onEachFeature: (f, layer) => layer.bindPopup(f.properties.name),
+        }).addTo(map);
+        renderParcelsOnMap();
         const drawControl = new L.Control.Draw({
           draw: { polygon: true, marker: false, polyline: false, circle: false, rectangle: false, circlemarker: false },
           edit: { featureGroup: drawnItems, edit: false, remove: true },
@@ -409,6 +415,21 @@ import "../styles/global.css";
           drawnItems.clearLayers(); drawnItems.addLayer(e.layer);
           drawnGeojson = e.layer.toGeoJSON().geometry;
         });
+      }
+      function renderParcelsOnMap() {
+        if (!parcelsLayer) return;
+        parcelsLayer.clearLayers();
+        const feats = parcels
+          .filter((p) => p.geojson)
+          .map((p) => ({ type: "Feature", properties: { name: p.name, id: p.id }, geometry: p.geojson }));
+        if (!feats.length) return;
+        parcelsLayer.addData({ type: "FeatureCollection", features: feats });
+        try { map.fitBounds(parcelsLayer.getBounds(), { maxZoom: 14, padding: [25, 25] }); } catch {}
+      }
+      function flyToParcel(id) {
+        const p = parcels.find((x) => x.id === id);
+        if (!p || !p.geojson || !map) return;
+        try { map.flyToBounds(L.geoJSON(p.geojson).getBounds(), { maxZoom: 15, padding: [25, 25] }); } catch {}
       }
       $("btn-save-parcela").addEventListener("click", async () => {
         const name = $("parcela-name").value.trim();
@@ -428,6 +449,12 @@ import "../styles/global.css";
           if (r.ok) { notify("Parcela demo creada", "Lomas de Lachay: backfill NDVI (5 años) en curso…"); refreshParcels(); }
           else { const e = await r.json().catch(() => ({})); notify("Error " + r.status, e.detail || ""); }
         } catch (e) { notify("Error de red", String(e)); }
+      });
+
+      // Click en una parcela de la lista -> volar a su polígono
+      $("parcelas-list").addEventListener("click", (e) => {
+        const li = e.target.closest("li[data-pid]");
+        if (li) flyToParcel(li.dataset.pid);
       });
 
       // ===== Resumen =====

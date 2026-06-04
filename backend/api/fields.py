@@ -20,6 +20,8 @@ Ejemplo de Integración:
 
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -47,7 +49,16 @@ async def create_field(
 async def list_fields(session: AsyncSession = Depends(get_db)) -> list[dict]:
     """Lista las parcelas registradas."""
     rows = await parcels.list_parcels(session)
-    return [{"id": str(r.id), "name": r.name, "lon": r.lon, "lat": r.lat} for r in rows]
+    return [
+        {
+            "id": str(r.id),
+            "name": r.name,
+            "lon": r.lon,
+            "lat": r.lat,
+            "geojson": json.loads(r.geojson) if r.geojson else None,
+        }
+        for r in rows
+    ]
 
 
 @router.get("/{field_id}")
