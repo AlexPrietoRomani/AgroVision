@@ -1,6 +1,6 @@
 # Guía de Ejecución y Despliegue: AgroVisión (Plataforma)
 
-> **Proyecto:** AgroVisión — UI Shiny (6 módulos) + backend FastAPI (monolito modular).
+> **Proyecto:** AgroVisión — UI **Astro + Tailwind** (6 módulos) servida por el backend **FastAPI** (monolito modular). *(Shiny queda como legacy en `:8001`.)*
 > **Fecha de Actualización:** 2026-06-03
 > **Objetivo:** Runbook para clonar, levantar el entorno local y (a futuro) desplegar la plataforma sin fricciones.
 >
@@ -57,9 +57,13 @@ A futuro, para **desplegar**: ShinyApps.io (UI) + Render (backend) + Supabase (B
 uv sync
 ```
 
-### 2.2 Dependencias del Frontend
+### 2.2 Dependencias del Frontend (Astro)
 
-No aplica: la UI es **Shiny for Python** (mismo entorno de `uv`, sin Node/pnpm).
+La UI es **Astro + Tailwind** (Node/pnpm). Compílala a estático con:
+```powershell
+.\scripts\build_ui.ps1     # = pnpm install + pnpm build (en frontend/) -> backend/static
+```
+El gateway sirve ese build en `/`. Para hot-reload usa `pnpm dev` (ver §3.2).
 
 ### 2.3 Configuración de Variables de Entorno
 
@@ -117,7 +121,7 @@ Abre **http://localhost:4321/**. *(UI Shiny legacy, opcional: `.\scripts\run_ui.
 
 ### 3.4 Checklist de Verificación Rápida (Sanity Check)
 
-1. [ ] Abrir `http://127.0.0.1:8001` y ver la UI con sus **6 pestañas** (Resumen, Creación de Parcelas, Teledetección, Conteo, Asistente, Credenciales).
+1. [ ] Abrir `http://127.0.0.1:8000/` y ver la UI Astro con sus **6 pestañas** (Resumen, Creación de Parcelas, Teledetección, Conteo, Asistente, Credenciales).
 2. [ ] `curl http://127.0.0.1:8000/api/status` responde `200` con `"counting_enabled": false`.
 3. [ ] La pestaña **Conteo** muestra *"Módulo en desarrollo (standby)"*.
 4. [ ] La pestaña **Credenciales** muestra el aviso de efimeralidad; al recargar (F5) los campos quedan vacíos.
@@ -147,7 +151,7 @@ Reinicia el backend, ve a la pestaña **Conteo** (verás *"(datos de prueba / mo
 El MVP no requiere transpilación. Como alternativa al arranque con `uv`, hay imágenes Docker:
 
 ```bash
-docker compose up --build    # api en :8000, ui en :8001
+docker compose up --build    # gateway en :8000 (sirve API + UI Astro compilada)
 ```
 
 > Para activar el conteo real en la imagen del backend, descomenta el bloque `hf_hub_download` en `backend/Dockerfile` y pon `COUNTING_ENABLED=true`, `MODEL_BACKEND=onnx`.
@@ -215,9 +219,7 @@ tasklist /FI "PID eq <PID>"
 taskkill /F /T /PID <PID>
 
 # Atajo: matar TODOS los uvicorn del proyecto de una vez
-Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
-  Where-Object { $_.CommandLine -match 'uvicorn' } |
-  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+Get-CimInstance Win32_Process -Filter "Name='python.exe'" Where-Object { $_.CommandLine -match 'uvicorn' } ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 ```
 
 > **Evita huérfanos:** cierra el servidor con **Ctrl+C** (o cierra su ventana); no lo dejes corriendo entre reinicios. `--reload` deja un proceso supervisor + worker, así que pueden acumularse si solo cierras la terminal a la fuerza. Alternativa rápida: arrancar en otro puerto (`--port 8010`). Verifica que quedó libre repitiendo el paso 1.
