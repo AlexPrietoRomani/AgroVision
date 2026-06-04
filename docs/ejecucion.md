@@ -1,8 +1,8 @@
 # Guía de Ejecución y Despliegue: AgroVisión (Plataforma)
 
 > **Proyecto:** AgroVisión — UI **Astro + Tailwind** (6 módulos) servida por el backend **FastAPI** (monolito modular). *(Shiny queda como legacy en `:8001`.)*
-> **Fecha de Actualización:** 2026-06-03
-> **Objetivo:** Runbook para clonar, levantar el entorno local y (a futuro) desplegar la plataforma sin fricciones.
+> **Fecha de Actualización:** 2026-06-04
+> **Objetivo:** Runbook para clonar, levantar el entorno local y desplegar la plataforma sin fricciones (el pipeline de despliegue ya está automatizado — ver §5).
 >
 > **Módulos de la UI (6):** Resumen de Campo · Creación de Parcelas · Teledetección · **Conteo por Dron (EN DESARROLLO)** · Asistente Agéntico · Credenciales.
 >
@@ -38,7 +38,7 @@ Para **abrir** la app no necesitas nada. Para **usar** cada módulo en local, cr
 
 **Migraciones de BD** (una vez, tras configurar `DATABASE_URL`): `uv run python -m backend.db.migrate` crea tablas, índices, RLS y la extensión PGMQ.
 
-A futuro, para **desplegar**: ShinyApps.io (UI) + Render (backend) + Supabase (BD); y Hugging Face Hub para el modelo de conteo cuando se publique. Todas las variables están declaradas en `.env.example`.
+Para **desplegar** (pipeline ya automatizado, ver §5): un único servicio (el **gateway FastAPI** que sirve UI + API) en **ShinyApps.io** vía `scripts/deploy_prod.ps1`; la BD es **Supabase**; y Hugging Face Hub alojará el modelo de conteo cuando se publique. Todas las variables están declaradas en `.env.example`.
 
 ---
 
@@ -160,8 +160,10 @@ docker compose up --build    # gateway en :8000 (sirve API + UI Astro compilada)
 
 ---
 
-## 5. Despliegue en Producción / Cloud (a futuro)
+## 5. Despliegue en Producción / Cloud
 
+> **Estado: pipeline automatizado y listo.** El despliegue está totalmente *scriptado* en [`scripts/deploy_prod.ps1`](../scripts/deploy_prod.ps1) (que se apoya en [`scripts/build.ps1`](../scripts/build.ps1) e [`scripts/inline_js.py`](../scripts/inline_js.py)). Lo **único pendiente** es la acción manual de la primera publicación: registrar el token de ShinyApps.io y lanzar el primer deploy para obtener el `app-id` (ver §5.2–§5.3).
+>
 > El conteo permanece **en desarrollo (standby)** hasta publicar el modelo; la app se despliega igual.
 
 ### 5.1 Pre-vuelo
@@ -172,25 +174,34 @@ docker compose up --build    # gateway en :8000 (sirve API + UI Astro compilada)
 
 ### 5.2 Modelo de despliegue (Agro-Stack)
 
-Un solo servicio: el **gateway FastAPI** (`backend.main:app`) sirve la **UI Astro compilada** en `/`, la **API** en `/api` y (opcional) el Shiny legacy en `/shiny`. Se despliega a **ShinyApps.io** con `rsconnect` (como app ASGI), aplicando la **Regla de Oro** (JS inline + rutas relativas vía `scripts/inline_js.py`).
+Un solo servicio: el **gateway FastAPI** (`backend.main:app`) sirve la **UI Astro compilada** en `/`, la **API** en `/api` y (opcional) el Shiny legacy en `/shiny`. Se despliega a **ShinyApps.io** con `rsconnect` (como app ASGI), aplicando la **Regla de Oro** (JS inline + rutas relativas vía `scripts/inline_js.py`). Todo esto lo orquesta `deploy_prod.ps1`; no hay pasos manuales más allá del registro del token.
 
-Registrar el token (una vez):
+Registrar el token (**una sola vez**, acción manual previa al primer deploy):
 ```powershell
 uv run rsconnect add --account <cuenta> --name <cuenta> --token <TOKEN> --secret <SECRET>
 ```
+> El TOKEN/SECRET se obtienen en ShinyApps.io → *Account → Tokens*. Quedan en la config local de `rsconnect` (no en el repo).
 
-### 5.3 Ejecución del Despliegue (script)
+### 5.3 Ejecución del Despliegue (automatizada con `deploy_prod.ps1`)
+
+El script ejecuta el pipeline completo de extremo a extremo. **Tú solo corres un comando:**
 
 ```powershell
-# Primer deploy (crea la app en ShinyApps.io):
+# Primer deploy (crea la app en ShinyApps.io y te devuelve su app-id):
 .\scripts\deploy_prod.ps1 -Name <cuenta>
-# Redeploy (cuando ya exista el app-id):
+# Redeploy (cuando ya tengas el app-id del primer deploy):
 .\scripts\deploy_prod.ps1 -Name <cuenta> -AppId <id>
 ```
-`deploy_prod.ps1` hace: (0) compila la UI (`build.ps1`), (1) genera `requirements.txt` (`uv export`), (2) traduce `.rscignore` a flags `--exclude`, (3) `rsconnect deploy shiny . --entrypoint backend.main:app`. Parámetros (`-Name`, `-AppId`) y pasos al detalle en **§8.5**.
 
+Internamente `deploy_prod.ps1` hace, sin intervención:
+1. **(0)** Compila la UI con `build.ps1` (`pnpm build` → `inline_js.py` → `backend/static`).
+2. **(1)** Genera `requirements.txt` (`uv export --no-dev --no-hashes --no-emit-project`) — ShinyApps instala desde ahí, no usa `uv`.
+3. **(2)** Traduce cada línea de `.rscignore` a flags `--exclude` (rsconnect-python no lee `.rscignore` solo).
+4. **(3)** `rsconnect deploy shiny . --entrypoint backend.main:app --name <cuenta> [--app-id <id>]`.
+
+> Parámetros (`-Name`, `-AppId`) y el detalle paso a paso del script están en **§8.5**.
 > **BYOK / seguridad:** el `.env` **NO** viaja en el bundle (está en `.rscignore`); en producción las llaves las pone el usuario por sesión (cabeceras `X-User-*`).
-> **Aún no hay app-id** para AgroVisión: el primer deploy con `-Name` lo crea; luego reutiliza el id con `-AppId` para redeploy.
+> **Estado del app-id:** AgroVisión **aún no se ha publicado**, así que todavía no hay `app-id`. El primer deploy con `-Name` lo crea; a partir de ahí, redespliega siempre con `-AppId <id>`.
 > **Alternativa:** backend en **Render** con `backend/Dockerfile` (etapa Node compila Astro y el gateway sirve `/`).
 
 ### 5.4 Verificación Post-Despliegue
