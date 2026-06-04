@@ -1,5 +1,6 @@
-# Stack local del MVP: backend FastAPI (api) + UI Shiny (ui).
-# El conteo arranca en standby (COUNTING_ENABLED=false); la app levanta igual.
+# Stack local: el gateway FastAPI sirve la API (/api) Y la UI Astro estática (/).
+# (Desde la Fase 8 ya no hay servicio de UI aparte: la imagen del backend compila
+#  Astro y lo sirve en /.) El conteo arranca en standby (COUNTING_ENABLED=false).
 services:
   api:
     build:
@@ -9,7 +10,6 @@ services:
       - "8000:8000"
     environment:
       - COUNTING_ENABLED=false
-      - ALLOWED_ORIGINS=http://localhost:8001
     volumes:
       - ./models:/app/models:ro
       - ./sample_data:/app/sample_data:ro
@@ -18,15 +18,3 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  ui:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
-    ports:
-      - "8001:8001"
-    environment:
-      - API_BASE_URL=http://api:8000
-    depends_on:
-      api:
-        condition: service_healthy

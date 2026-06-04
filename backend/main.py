@@ -35,9 +35,11 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from backend.api.chat import router as chat_router
 from backend.api.count import router as count_router
@@ -106,6 +108,16 @@ def create_app() -> FastAPI:
     app.include_router(weather_router)  # Clima
     app.include_router(chat_router)  # Asistente Agéntico (RAG)
     app.include_router(count_router)  # Conteo (en desarrollo / standby)
+
+    # UI Astro estática (Fase 8): se monta en "/" AL FINAL, tras los routers /api y
+    # /shiny, para no interceptar sus rutas. El build se copia a backend/static
+    # (`pnpm build` + copia). Si no existe (sin build), el backend arranca igual.
+    static_dir = Path(__file__).resolve().parent / "static"
+    if (static_dir / "index.html").exists():
+        app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="ui")
+        _logger.info("UI Astro servida desde %s", static_dir)
+    else:
+        _logger.info("UI Astro no compilada (sin backend/static/index.html); solo /api.")
     return app
 
 

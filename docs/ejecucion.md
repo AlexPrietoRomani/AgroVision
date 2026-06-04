@@ -76,40 +76,44 @@ cp .env.example .env
 
 ## 3. Ejecución en Desarrollo
 
-### 3.1 Opción A: Script Automatizado (Recomendado)
+> **UI = Astro (Fase 8).** La UI principal es **Astro + Tailwind**, compilada a estático y **servida por el gateway FastAPI en `/`**. El Shiny (`backend/dashboard:app`) queda como *legacy* (`:8001`). Para desarrollo de UI con hot-reload se usa el dev server de Astro (`:4321`) que proxea `/api` al gateway.
+
+### 3.1 Opción A: UI compilada servida por el gateway (lo más simple)
 
 ```powershell
-# Levanta backend (:8000) y UI (:8001) en ventanas separadas
-.\scripts\dev.ps1
+# 1) Compilar la UI Astro -> backend/static (una vez, o tras cambios de UI)
+.\scripts\build_ui.ps1
+# 2) Levantar el gateway (sirve la UI en / y la API en /api)
+.\scripts\run_backend.ps1
 ```
+Abre **http://127.0.0.1:8000/** → la UI completa (6 módulos).
 
-### 3.2 Opción B: Ejecución Manual (Modo Detallado)
+### 3.2 Opción B: Desarrollo de UI con hot-reload (Astro dev)
 
-> Se usa `python -m uvicorn` (no los shims `uvicorn.exe`/`shiny.exe`, que OneDrive bloquea).
-> La app Shiny es ASGI, por lo que `uvicorn frontend.app:app` equivale a `shiny run frontend/app.py`.
->
-> **Flags útiles:** `PYTHONUNBUFFERED=1` + `python -u` → logs en vivo sin buffer. `--log-level info` → trazas de cada request. `--reload-exclude` → evita reinicios por cambios en carpetas que no son código de ese servicio (cada servicio **excluye la capa del otro**: el backend ignora `frontend/` y viceversa, además de `docs/`, `tests/`, etc.). *(No usamos `alembic`; las migraciones son SQL en `supabase/migrations`.)*
+> Dos terminales: el gateway (API) y el dev server de Astro (UI con recarga en vivo).
 
-**Terminal 1 — Backend / API:**
+**Terminal 1 — Backend / API (`:8000`):**
 ```powershell
 $env:UV_PROJECT_ENVIRONMENT = "$env:LOCALAPPDATA\agrovision-venv"
 $env:PYTHONUNBUFFERED = "1"
 uv run python -u -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload --log-level info --reload-exclude ".venv" --reload-exclude "frontend" --reload-exclude "docs" --reload-exclude "tests" --reload-exclude "scripts" --reload-exclude "supabase" --reload-exclude "models" --reload-exclude "sample_data" --reload-exclude "scratch"
 ```
 
-**Terminal 2 — UI (Shiny):**
+**Terminal 2 — UI Astro dev (`:4321`, proxea `/api` → `:8000`):**
 ```powershell
-$env:UV_PROJECT_ENVIRONMENT = "$env:LOCALAPPDATA\agrovision-venv"
-$env:PYTHONUNBUFFERED = "1"
-uv run python -u -m uvicorn frontend.app:app --host 127.0.0.1 --port 8001 --reload --log-level info --reload-exclude ".venv" --reload-exclude "backend" --reload-exclude "docs" --reload-exclude "tests" --reload-exclude "scripts" --reload-exclude "supabase" --reload-exclude "models" --reload-exclude "sample_data" --reload-exclude "scratch"
+cd frontend
+pnpm dev
 ```
+Abre **http://localhost:4321/**. *(UI Shiny legacy, opcional: `.\scripts\run_ui.ps1` en `:8001`.)*
 
 ### 3.3 Puertos y Accesos Locales
 
-- **UI (Shiny)**: `http://127.0.0.1:8001`
-- **Backend / API**: `http://127.0.0.1:8000`
+- **UI (Astro, vía gateway)**: `http://127.0.0.1:8000/`
+- **UI (Astro dev, hot-reload)**: `http://localhost:4321/`
+- **Backend / API**: `http://127.0.0.1:8000/api/...`
 - **Healthcheck**: `http://127.0.0.1:8000/api/status`
 - **Documentación API (Swagger)**: `http://127.0.0.1:8000/docs`
+- **UI Shiny legacy**: `http://127.0.0.1:8001`
 
 ### 3.4 Checklist de Verificación Rápida (Sanity Check)
 

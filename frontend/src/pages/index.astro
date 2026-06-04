@@ -5,19 +5,470 @@ import "../styles/global.css";
 <!doctype html>
 <html lang="es">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AgroVisión</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AgroVisión — Plataforma Agronómica</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+    />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    <style is:inline>
+      body { background-color: #faf9f6; }
+      .tab-content { display: none; animation: fadeIn 0.25s ease-in-out forwards; }
+      .tab-content.active { display: block; }
+      @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+      .nav-btn-active { background-color: #15803d; color: #fff !important; box-shadow: 0 4px 6px -1px rgba(21,128,61,.2); }
+      #map, #map-readonly { height: 340px; border-radius: 0.5rem; z-index: 0; }
+    </style>
   </head>
-  <body class="text-stone-900">
-    <main class="p-8">
-      <h1 class="flex items-center gap-2 text-2xl font-bold text-emerald-700">
-        🌱 AgroVisión
-      </h1>
-      <p class="mt-2 text-sm text-stone-600">
-        Frontend Astro + Tailwind — scaffold inicial (Fase 8). La UI completa se
-        construye en los siguientes pasos.
-      </p>
+
+  <body class="flex flex-col md:flex-row h-screen overflow-hidden text-stone-900">
+    <!-- Notificación flotante -->
+    <div
+      id="notif"
+      class="fixed top-4 right-4 bg-stone-900 text-stone-100 px-5 py-3 rounded-xl shadow-2xl transition-all duration-300 translate-x-[150%] z-50 max-w-xs border border-stone-700"
+    >
+      <p class="font-bold text-sm" id="notif-title">Notificación</p>
+      <p class="text-xs text-stone-300 mt-0.5" id="notif-body"></p>
+    </div>
+
+    <!-- Botón hamburguesa (móvil) -->
+    <button
+      id="btn-hamburger"
+      class="md:hidden fixed top-3 left-3 z-40 bg-stone-900 text-white w-10 h-10 rounded-lg shadow-lg"
+      aria-label="Menú"
+    >
+      <i class="fa-solid fa-bars"></i>
+    </button>
+
+    <!-- SIDEBAR -->
+    <aside
+      id="sidebar"
+      class="fixed md:static inset-y-0 left-0 w-72 bg-stone-900 text-stone-200 flex flex-col z-30 border-r border-stone-800 shrink-0 -translate-x-full md:translate-x-0 transition-transform duration-300"
+    >
+      <div class="p-5 border-b border-stone-800 flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-bold text-emerald-500 tracking-wide flex items-center gap-2">
+            <i class="fa-solid fa-seedling"></i> AgroVisión
+          </h1>
+          <p class="text-[10px] text-stone-400 uppercase tracking-widest mt-1">
+            Plataforma Agronómica
+          </p>
+        </div>
+        <button
+          id="btn-collapse"
+          class="hidden md:block text-stone-500 hover:text-white"
+          title="Plegar"
+        >
+          <i class="fa-solid fa-angles-left"></i>
+        </button>
+      </div>
+
+      <nav class="flex-1 p-4 space-y-2 overflow-y-auto" id="main-nav">
+        <button data-tab="tab-resumen" class="nav-btn nav-btn-active w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-stone-400 hover:bg-stone-800 hover:text-white transition-all">
+          <i class="fa-solid fa-chart-pie w-5"></i> Resumen de Campo
+        </button>
+        <button data-tab="tab-parcelas" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-stone-400 hover:bg-stone-800 hover:text-white transition-all">
+          <i class="fa-solid fa-draw-polygon w-5"></i> Creación de Parcelas
+        </button>
+        <button data-tab="tab-satelite" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-stone-400 hover:bg-stone-800 hover:text-white transition-all">
+          <i class="fa-solid fa-satellite-dish w-5"></i> Teledetección (GIS)
+        </button>
+        <button data-tab="tab-vision" class="nav-btn w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-stone-400 hover:bg-stone-800 hover:text-white transition-all">
+          <span class="flex items-center gap-3"><i class="fa-solid fa-helicopter w-5"></i> Detección Dron</span>
+          <span class="bg-amber-500/10 text-amber-400 text-[8px] font-bold px-1.5 py-0.5 rounded border border-amber-500/20 uppercase">En desarrollo</span>
+        </button>
+        <button data-tab="tab-chat" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-stone-400 hover:bg-stone-800 hover:text-white transition-all">
+          <i class="fa-solid fa-robot w-5"></i> Asistente Agéntico
+        </button>
+        <button data-tab="tab-config" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-stone-400 hover:bg-stone-800 hover:text-white transition-all">
+          <i class="fa-solid fa-sliders w-5"></i> Credenciales & APIs
+        </button>
+      </nav>
+
+      <!-- Footer plegable -->
+      <div class="border-t border-stone-800 bg-stone-950/50">
+        <button id="btn-footer" class="w-full flex items-center justify-between px-4 py-2 text-[10px] text-stone-500 uppercase tracking-widest">
+          <span>Estado de sesión</span><i id="footer-chevron" class="fa-solid fa-chevron-up"></i>
+        </button>
+        <div id="footer-body" class="p-4 pt-0">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-emerald-700 flex items-center justify-center text-xs font-bold text-white">AG</div>
+            <div>
+              <h5 class="text-xs font-semibold text-stone-200">Agrónomo</h5>
+              <p class="text-[9px] text-stone-500">Sesión efímera (BYOK)</p>
+            </div>
+          </div>
+          <div class="mt-3 flex items-center gap-2 text-[10px]" id="db-status">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-stone-500 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-stone-500"></span>
+            </span>
+            <span id="db-status-text" class="text-stone-400">Conectando al backend…</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="flex-1 overflow-y-auto flex flex-col h-full bg-stone-50">
+      <header class="bg-white border-b border-stone-200 px-6 md:px-8 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
+        <div class="pl-10 md:pl-0">
+          <h2 id="header-title" class="text-lg font-bold text-stone-800">Resumen de Campo</h2>
+          <p id="header-desc" class="text-xs text-stone-500">Visión analítica unificada de parcelas.</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <label class="text-xs font-bold text-stone-600" for="select-parcela">Parcela:</label>
+          <select id="select-parcela" class="text-xs border border-stone-300 rounded-lg p-2 bg-stone-50 font-semibold focus:outline-none focus:border-emerald-600 min-w-[180px]">
+            <option value="">(sin parcelas)</option>
+          </select>
+        </div>
+      </header>
+
+      <div class="flex-1 p-5 md:p-8 overflow-y-auto">
+        <!-- RESUMEN -->
+        <section id="tab-resumen" class="tab-content active space-y-6">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center gap-4">
+              <div class="p-3 bg-emerald-100 text-emerald-800 rounded-lg text-xl"><i class="fa-solid fa-leaf"></i></div>
+              <div><span class="text-xs text-stone-500 font-bold block">NDVI (último)</span><span id="kpi-ndvi" class="text-2xl font-bold text-stone-800">—</span></div>
+            </div>
+            <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center gap-4">
+              <div class="p-3 bg-blue-100 text-blue-800 rounded-lg text-xl"><i class="fa-solid fa-arrow-trend-up"></i></div>
+              <div><span class="text-xs text-stone-500 font-bold block">Tendencia NDVI</span><span id="kpi-trend" class="text-2xl font-bold text-stone-800">—</span></div>
+            </div>
+            <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center gap-4">
+              <div class="p-3 bg-amber-100 text-amber-800 rounded-lg text-xl"><i class="fa-solid fa-ruler-combined"></i></div>
+              <div><span class="text-xs text-stone-500 font-bold block">Área</span><span id="kpi-area" class="text-2xl font-bold text-stone-800">—</span></div>
+            </div>
+            <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center gap-4">
+              <div class="p-3 bg-purple-100 text-purple-800 rounded-lg text-xl"><i class="fa-solid fa-seedling"></i></div>
+              <div><span class="text-xs text-stone-500 font-bold block">Densidad</span><span class="text-sm font-bold text-stone-500">en desarrollo</span></div>
+            </div>
+          </div>
+          <div class="bg-white p-6 rounded-xl border border-stone-200 shadow-sm">
+            <h3 class="font-bold text-sm text-stone-800 mb-4">Evolución NDVI del lote activo</h3>
+            <canvas id="chart-resumen" height="110"></canvas>
+            <p id="resumen-empty" class="text-xs text-stone-500 mt-2">Selecciona una parcela para ver su evolución.</p>
+          </div>
+        </section>
+
+        <!-- CREACIÓN DE PARCELAS -->
+        <section id="tab-parcelas" class="tab-content space-y-6">
+          <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm text-sm text-stone-600">
+            Dibuja el polígono de tu parcela sobre el mapa (EPSG:4326), nómbrala y guárdala. Al guardar se dispara el <strong>backfill NDVI de 5 años</strong>.
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm lg:col-span-7">
+              <h3 class="font-bold text-sm text-stone-800 mb-3">Delimitador de Parcelas</h3>
+              <div id="map"></div>
+            </div>
+            <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm lg:col-span-5 flex flex-col">
+              <h3 class="font-bold text-sm text-stone-800 mb-3">Guardar Parcela</h3>
+              <label class="block text-xs font-bold text-stone-600 mb-1" for="parcela-name">Nombre</label>
+              <input id="parcela-name" type="text" placeholder="Lote Sur (Arándano - 12 Ha)" class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-stone-50 mb-3 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              <button id="btn-save-parcela" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-4 py-3 rounded-lg transition-all flex items-center justify-center gap-2">
+                <i class="fa-solid fa-floppy-disk"></i> Guardar y disparar backfill
+              </button>
+              <h4 class="font-bold text-xs text-stone-800 mt-5 mb-2">Parcelas registradas</h4>
+              <ul id="parcelas-list" class="space-y-2 text-xs"></ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- TELEDETECCIÓN -->
+        <section id="tab-satelite" class="tab-content space-y-6">
+          <div class="bg-white p-6 rounded-xl border border-stone-200 shadow-sm">
+            <h3 class="text-base font-bold text-stone-800 mb-2">Teledetección (solo lectura)</h3>
+            <p class="text-sm text-stone-600 leading-relaxed">
+              Serie <strong>NDVI mensual de 5 años</strong> (Sentinel-2) vs. clima (Open-Meteo) para la parcela seleccionada. El heatmap NDVI tiene resolución ~10 m/px. <em>El dibujo está en «Creación de Parcelas».</em>
+            </p>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm lg:col-span-5 flex flex-col">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="font-bold text-sm text-stone-800">Mapa de calor NDVI</h3>
+                <button id="btn-heatmap" class="text-[11px] bg-stone-100 hover:bg-stone-200 text-stone-800 px-2 py-1 rounded font-bold"><i class="fa-solid fa-fire"></i> Generar</button>
+              </div>
+              <div id="heatmap-box" class="flex-1 min-h-[300px] bg-stone-100 rounded-lg border border-stone-200 flex items-center justify-center text-xs text-stone-500">
+                Pulsa «Generar» para ver el heatmap NDVI de la parcela.
+              </div>
+              <div class="mt-3 h-3 w-full rounded" style="background:linear-gradient(to right,#a50026,#f46d43,#fee08b,#d9ef8b,#66bd63,#006837);"></div>
+              <div class="flex justify-between text-[10px] font-mono text-stone-500"><span>-1</span><span>0.5</span><span>+1</span></div>
+            </div>
+            <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm lg:col-span-7">
+              <h3 class="font-bold text-sm text-stone-800 mb-3">NDVI vs. Clima — últimos 5 años (mensual)</h3>
+              <canvas id="chart-satelite" height="150"></canvas>
+              <p id="satelite-empty" class="text-xs text-stone-500 mt-2">Selecciona una parcela.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- DETECCIÓN DRON (EN DESARROLLO) -->
+        <section id="tab-vision" class="tab-content space-y-6">
+          <div class="bg-amber-50 border border-amber-300 text-amber-900 p-5 rounded-xl shadow-sm flex items-start gap-3">
+            <i class="fa-solid fa-screwdriver-wrench text-amber-500 text-lg mt-0.5"></i>
+            <div>
+              <h4 class="font-bold text-sm">Módulo en desarrollo (standby)</h4>
+              <p class="text-xs leading-relaxed mt-1">El conteo de plantas por dron aún <strong>no está activo</strong>. Se habilitará cuando el repo del modelo publique el artefacto <code>agrovision-plantcount</code> en Hugging Face Hub (<code>COUNTING_ENABLED=true</code>). La infraestructura (cola, worker, tabla) ya está creada e inactiva.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ASISTENTE -->
+        <section id="tab-chat" class="tab-content space-y-4">
+          <div class="bg-white rounded-xl border border-stone-200 shadow-sm flex flex-col h-[60vh]">
+            <div class="bg-stone-900 text-white px-5 py-3 flex items-center gap-3 rounded-t-xl">
+              <span class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span>
+              <h4 class="font-bold text-xs font-mono">agrovision_agent · Llama-3-70B (Groq)</h4>
+            </div>
+            <div id="chat-history" class="flex-1 p-5 overflow-y-auto space-y-3 bg-stone-50 text-xs">
+              <p class="text-stone-500">Pregúntame sobre el NDVI, el clima o la densidad de tus parcelas.</p>
+            </div>
+            <div class="p-3 border-t border-stone-200 bg-white flex gap-2">
+              <input id="chat-input" type="text" placeholder="¿Cómo evolucionó el NDVI de mi parcela?" class="flex-grow p-3 border border-stone-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              <button id="btn-chat" class="bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs px-5 rounded-lg">Enviar</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- CREDENCIALES -->
+        <section id="tab-config" class="tab-content space-y-6">
+          <div class="bg-amber-50 border border-amber-300 text-amber-900 p-4 rounded-xl text-sm">
+            ⚠️ <strong>Tus credenciales se usan solo en esta sesión. No se guardan ni almacenan.</strong> Si actualizas o cierras la página, todo se borrará.
+          </div>
+          <div class="bg-white p-6 rounded-xl border border-stone-200 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div><label class="block text-xs font-bold text-stone-600 mb-1">Groq API Key (asistente RAG)</label><input id="in-groq" type="password" placeholder="gsk_..." class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-stone-50" /></div>
+            <div><label class="block text-xs font-bold text-stone-600 mb-1">Copernicus Client ID</label><input id="in-copid" type="password" placeholder="sh-..." class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-stone-50" /></div>
+            <div><label class="block text-xs font-bold text-stone-600 mb-1">Copernicus Client Secret</label><input id="in-copsecret" type="password" class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-stone-50" /></div>
+            <div><label class="block text-xs font-bold text-stone-600 mb-1">Supabase URL</label><input id="in-sburl" type="text" placeholder="https://xxxx.supabase.co" class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-stone-50" /></div>
+            <div><label class="block text-xs font-bold text-stone-600 mb-1">Supabase anon key</label><input id="in-sbkey" type="password" class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-stone-50" /></div>
+            <div class="md:col-span-2 flex items-center justify-between pt-2 border-t border-stone-100">
+              <span class="text-[11px] text-amber-600"><i class="fa-solid fa-triangle-exclamation"></i> <span id="creds-state">0 llaves activas (se borran al refrescar)</span></span>
+              <button id="btn-save-creds" class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-5 py-3 rounded-lg">Usar en esta sesión</button>
+            </div>
+          </div>
+        </section>
+      </div>
     </main>
+
+    <!-- Librerías CDN -->
+    <script is:inline src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script is:inline src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script is:inline src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+
+    <script is:inline>
+      // ===== Estado EFÍMERO (solo memoria; se borra al refrescar) =====
+      let creds = {};
+      let parcels = [];
+      let drawnGeojson = null;
+      let map = null, drawnItems = null;
+      let chartResumen = null, chartSatelite = null;
+      const sessionId = "sess-" + Math.random().toString(36).slice(2);
+
+      const $ = (id) => document.getElementById(id);
+      function authHeaders() {
+        const h = {};
+        if (creds.groq) h["X-User-Groq-Key"] = creds.groq;
+        if (creds.copId) h["X-User-Copernicus-Id"] = creds.copId;
+        if (creds.copSecret) h["X-User-Copernicus-Secret"] = creds.copSecret;
+        if (creds.sbUrl) h["X-User-Supabase-Url"] = creds.sbUrl;
+        if (creds.sbKey) h["X-User-Supabase-Key"] = creds.sbKey;
+        return h;
+      }
+      function notify(title, body) {
+        $("notif-title").innerText = title; $("notif-body").innerText = body || "";
+        const n = $("notif"); n.classList.remove("translate-x-[150%]");
+        setTimeout(() => n.classList.add("translate-x-[150%]"), 3500);
+      }
+      async function api(path, opts = {}) {
+        const res = await fetch("./api" + path, {
+          ...opts,
+          headers: { ...(opts.body ? { "Content-Type": "application/json" } : {}), ...authHeaders(), ...(opts.headers || {}) },
+        });
+        return res;
+      }
+
+      // ===== Navegación (hash routing) =====
+      const TITLES = {
+        "tab-resumen": ["Resumen de Campo", "Visión analítica unificada de parcelas."],
+        "tab-parcelas": ["Creación de Parcelas", "Dibuja y guarda polígonos (EPSG:4326)."],
+        "tab-satelite": ["Teledetección (GIS)", "NDVI 5 años + clima + heatmap (solo lectura)."],
+        "tab-vision": ["Detección por Dron", "Conteo de plantas — EN DESARROLLO."],
+        "tab-chat": ["Asistente Agéntico", "Agente RAG sobre tus parcelas."],
+        "tab-config": ["Credenciales & APIs", "Llaves efímeras (solo en esta sesión)."],
+      };
+      function switchTab(id) {
+        document.querySelectorAll(".tab-content").forEach((s) => s.classList.remove("active"));
+        document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("nav-btn-active"));
+        const sec = $(id); if (!sec) return;
+        sec.classList.add("active");
+        document.querySelector(`.nav-btn[data-tab="${id}"]`)?.classList.add("nav-btn-active");
+        $("header-title").innerText = TITLES[id][0];
+        $("header-desc").innerText = TITLES[id][1];
+        if (location.hash !== "#" + id) history.replaceState(null, "", "#" + id);
+        if (id === "tab-parcelas") setTimeout(initMap, 50);
+        if (id === "tab-satelite") setTimeout(() => { loadTeledeteccion(); }, 50);
+        if (id === "tab-resumen") loadResumen();
+        if (window.innerWidth < 768) $("sidebar").classList.add("-translate-x-full");
+      }
+      document.querySelectorAll(".nav-btn").forEach((b) =>
+        b.addEventListener("click", () => switchTab(b.dataset.tab))
+      );
+
+      // ===== Plegables / responsive =====
+      $("btn-hamburger").addEventListener("click", () => $("sidebar").classList.toggle("-translate-x-full"));
+      $("btn-collapse").addEventListener("click", () => $("sidebar").classList.add("-translate-x-full"));
+      $("btn-footer").addEventListener("click", () => {
+        $("footer-body").classList.toggle("hidden");
+        $("footer-chevron").classList.toggle("fa-chevron-up");
+        $("footer-chevron").classList.toggle("fa-chevron-down");
+      });
+
+      // ===== Parcelas =====
+      async function refreshParcels() {
+        try {
+          const r = await api("/fields");
+          parcels = r.ok ? await r.json() : [];
+        } catch { parcels = []; }
+        const sel = $("select-parcela");
+        sel.innerHTML = parcels.length
+          ? parcels.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")
+          : '<option value="">(sin parcelas)</option>';
+        $("parcelas-list").innerHTML = parcels.length
+          ? parcels.map((p) => `<li class="flex items-center justify-between bg-stone-50 border border-stone-200 rounded-lg px-3 py-2"><span class="font-semibold text-stone-700"><i class="fa-solid fa-location-dot text-emerald-600 mr-1"></i>${p.name}</span></li>`).join("")
+          : '<li class="text-stone-500">Sin parcelas aún.</li>';
+      }
+      function initMap() {
+        if (map) { map.invalidateSize(); return; }
+        map = L.map("map").setView([-12.05, -77.04], 6);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap" }).addTo(map);
+        drawnItems = new L.FeatureGroup().addTo(map);
+        const drawControl = new L.Control.Draw({
+          draw: { polygon: true, marker: false, polyline: false, circle: false, rectangle: false, circlemarker: false },
+          edit: { featureGroup: drawnItems, edit: false, remove: true },
+        });
+        map.addControl(drawControl);
+        map.on(L.Draw.Event.CREATED, (e) => {
+          drawnItems.clearLayers(); drawnItems.addLayer(e.layer);
+          drawnGeojson = e.layer.toGeoJSON().geometry;
+        });
+      }
+      $("btn-save-parcela").addEventListener("click", async () => {
+        const name = $("parcela-name").value.trim();
+        if (!drawnGeojson) return notify("Falta el polígono", "Dibuja un polígono en el mapa.");
+        if (!name) return notify("Falta el nombre", "Escribe un nombre.");
+        try {
+          const r = await api("/fields", { method: "POST", body: JSON.stringify({ name, geojson: drawnGeojson }) });
+          if (r.ok) { notify("Parcela guardada", `${name}: backfill NDVI en curso…`); $("parcela-name").value = ""; drawnGeojson = null; drawnItems.clearLayers(); refreshParcels(); }
+          else { const e = await r.json().catch(() => ({})); notify("Error " + r.status, e.detail || ""); }
+        } catch (e) { notify("Error de red", String(e)); }
+      });
+
+      // ===== Resumen =====
+      async function loadResumen() {
+        const fid = $("select-parcela").value;
+        const parcel = parcels.find((p) => p.id === fid);
+        $("kpi-area").innerText = parcel?.lat != null ? "ver mapa" : "—";
+        if (!fid) { $("kpi-ndvi").innerText = "—"; $("kpi-trend").innerText = "—"; return; }
+        const r = await api("/ndvi", { method: "POST", body: JSON.stringify({ field_id: fid }) });
+        const series = r.ok ? (await r.json()).series : [];
+        if (!series.length) { $("kpi-ndvi").innerText = "sin datos"; $("kpi-trend").innerText = "—"; $("resumen-empty").classList.remove("hidden"); return; }
+        $("resumen-empty").classList.add("hidden");
+        const last = series[series.length - 1].mean_ndvi, delta = last - series[0].mean_ndvi;
+        $("kpi-ndvi").innerText = last.toFixed(2);
+        $("kpi-trend").innerText = (delta >= 0 ? "+" : "") + delta.toFixed(2);
+        const ctx = $("chart-resumen");
+        chartResumen?.destroy();
+        chartResumen = new Chart(ctx, { type: "line", data: { labels: series.map((p) => p.date), datasets: [{ label: "NDVI", data: series.map((p) => p.mean_ndvi), borderColor: "#15803d", backgroundColor: "rgba(21,128,61,.08)", fill: true, tension: 0.3 }] }, options: { plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 1 } } } });
+      }
+
+      // ===== Teledetección =====
+      async function loadTeledeteccion() {
+        const fid = $("select-parcela").value;
+        if (!fid) { $("satelite-empty").classList.remove("hidden"); return; }
+        const parcel = parcels.find((p) => p.id === fid);
+        const rN = await api("/ndvi", { method: "POST", body: JSON.stringify({ field_id: fid }) });
+        const ndvi = rN.ok ? (await rN.json()).series : [];
+        let weather = [];
+        if (parcel?.lat != null) {
+          const rW = await api("/weather", { method: "POST", body: JSON.stringify({ lat: parcel.lat, lon: parcel.lon }) });
+          weather = rW.ok ? (await rW.json()).series : [];
+        }
+        if (!ndvi.length && !weather.length) { $("satelite-empty").classList.remove("hidden"); return; }
+        $("satelite-empty").classList.add("hidden");
+        chartSatelite?.destroy();
+        chartSatelite = new Chart($("chart-satelite"), {
+          data: {
+            labels: ndvi.map((p) => p.date),
+            datasets: [
+              { type: "line", label: "NDVI", data: ndvi.map((p) => p.mean_ndvi), borderColor: "#15803d", yAxisID: "y", tension: 0.3 },
+              { type: "bar", label: "Precip (mm)", data: weather.map((p) => p.precip_mm), backgroundColor: "rgba(59,130,246,.6)", yAxisID: "y2" },
+            ],
+          },
+          options: { scales: { y: { position: "left", min: 0, max: 1, title: { display: true, text: "NDVI" } }, y2: { position: "right", grid: { drawOnChartArea: false }, title: { display: true, text: "mm" } } } },
+        });
+      }
+      $("btn-heatmap").addEventListener("click", async () => {
+        const fid = $("select-parcela").value;
+        if (!fid) return notify("Selecciona una parcela", "");
+        $("heatmap-box").innerHTML = '<span class="text-xs text-stone-500">Generando…</span>';
+        try {
+          const r = await api("/ndvi/raster", { method: "POST", body: JSON.stringify({ field_id: fid }) });
+          if (r.ok) { const url = URL.createObjectURL(await r.blob()); $("heatmap-box").innerHTML = `<img src="${url}" class="max-w-full rounded" />`; }
+          else { $("heatmap-box").innerHTML = '<span class="text-xs text-red-500">No se pudo generar (¿Copernicus en Credenciales?).</span>'; }
+        } catch (e) { $("heatmap-box").innerHTML = '<span class="text-xs text-red-500">Error de red.</span>'; }
+      });
+
+      // ===== Chat =====
+      function appendChat(who, text, tools) {
+        const div = document.createElement("div");
+        const mine = who === "user";
+        div.className = "p-3 rounded-lg border max-w-[85%] " + (mine ? "bg-white border-stone-200 ml-auto" : "bg-stone-900 text-stone-100 border-stone-800");
+        div.innerHTML = `<p class="font-bold text-[10px] uppercase mb-1 ${mine ? "text-stone-500" : "text-emerald-400"}">${mine ? "🧑 Tú" : "🤖 AgroVisión AI"}${tools && tools.length ? " · " + tools.join(", ") : ""}</p><p class="leading-relaxed">${text}</p>`;
+        $("chat-history").appendChild(div); $("chat-history").scrollTop = 1e9;
+      }
+      async function sendChat() {
+        const msg = $("chat-input").value.trim(); if (!msg) return;
+        appendChat("user", msg); $("chat-input").value = "";
+        try {
+          const r = await api("/chat", { method: "POST", body: JSON.stringify({ session_id: sessionId, message: msg }) });
+          if (r.ok) { const d = await r.json(); appendChat("assistant", d.reply, (d.tool_logs || []).map((t) => t.tool)); }
+          else { const e = await r.json().catch(() => ({})); appendChat("assistant", "Error: " + (e.detail || r.status)); }
+        } catch (e) { appendChat("assistant", "Error de red: " + e); }
+      }
+      $("btn-chat").addEventListener("click", sendChat);
+      $("chat-input").addEventListener("keydown", (e) => { if (e.key === "Enter") sendChat(); });
+
+      // ===== Credenciales (efímeras) =====
+      $("btn-save-creds").addEventListener("click", () => {
+        creds = { groq: $("in-groq").value, copId: $("in-copid").value, copSecret: $("in-copsecret").value, sbUrl: $("in-sburl").value, sbKey: $("in-sbkey").value };
+        const n = Object.values(creds).filter(Boolean).length;
+        $("creds-state").innerText = `${n} llave(s) activas (se borran al refrescar)`;
+        notify("Credenciales en sesión", `${n} llave(s) activas solo en esta sesión.`);
+        refreshParcels();
+      });
+
+      // ===== Init =====
+      $("select-parcela").addEventListener("change", () => {
+        const active = document.querySelector(".tab-content.active")?.id;
+        if (active === "tab-satelite") loadTeledeteccion();
+        else loadResumen();
+      });
+      (async function init() {
+        try {
+          const r = await fetch("./api/status");
+          const ok = r.ok;
+          $("db-status-text").innerText = ok ? "Backend conectado" : "Backend no disponible";
+          if (ok) { $("db-status-text").classList.replace("text-stone-400", "text-emerald-400"); }
+        } catch { $("db-status-text").innerText = "Backend no disponible"; }
+        await refreshParcels();
+        const initial = (location.hash || "#tab-resumen").slice(1);
+        switchTab(document.getElementById(initial) ? initial : "tab-resumen");
+        loadResumen();
+      })();
+    </script>
   </body>
 </html>

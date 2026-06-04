@@ -1,13 +1,29 @@
-# Imagen del backend FastAPI del MVP (CPU).
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+# =====================================================================================
+# Imagen del backend AgroVisión: FastAPI (gateway) que sirve la API en /api y la
+# UI Astro estática en /. Multi-stage: (1) Node compila Astro; (2) Python/uv corre
+# el gateway con el build de Astro copiado a backend/static.
+# =====================================================================================
 
+# --- Stage 1: build de la UI Astro ---
+FROM node:22-bookworm-slim AS ui
+WORKDIR /ui
+RUN corepack enable
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY frontend/ ./
+RUN pnpm build
+
+# --- Stage 2: backend FastAPI (CPU) ---
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
 WORKDIR /app
 
-# Instalar dependencias de producción desde el manifiesto
+# Dependencias de producción desde el manifiesto
 COPY pyproject.toml ./
 RUN uv sync --no-dev
 
 COPY backend/ ./backend/
+# UI Astro compilada (servida por el gateway en /)
+COPY --from=ui /ui/dist/ ./backend/static/
 
 # Para ACTIVAR el conteo: descargar el modelo desde Hugging Face Hub en el build.
 # (Mientras COUNTING_ENABLED=false el backend funciona en standby y no requiere modelo.)
