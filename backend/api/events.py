@@ -32,9 +32,11 @@ import logging
 from collections import deque
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.api.deps import get_db
 from backend.config import get_settings
 
 router = APIRouter(prefix="/api/events", tags=["telemetría"])
@@ -103,3 +105,35 @@ def recent(limit: int = 100, session_id: str | None = None) -> list[dict]:
         items = [e for e in items if e.get("session_id") == session_id]
     limit = max(1, min(limit, MAX_EVENTS))
     return items[-limit:]
+
+
+@router.get("/all")
+async def all_events(
+    limit: int = 200,
+    session_id: str | None = None,
+    session: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """
+    Devuelve eventos persistidos en la tabla `events` (requiere EVENTS_PERSIST=true).
+    Útil para el visor de telemetría en la UI.
+    """
+    from sqlalchemy import text
+
+    query = "SELECT id, action, session_id, meta, created_at FROM events"
+    params: dict = {}
+    conditions = []
+    if session_id:
+        conditions.append("session_id = :session_id")
+        params["session_id"] = session_id
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+    query += " ORDER BY created_at DESC LIMIT :limit"
+    params["limit"] = min(limit, 1000)
+
+    result = await session.execute(text(query), params)
+    rows = [dict(row._mapping) for row in result.fetchall()]
+    # Serializar timestamps
+    for row in rows:
+        if hasattr(row.get("created_at"), "isoformat"):
+            row["created_at"] = row["created_at"].isoformat()
+    return rows

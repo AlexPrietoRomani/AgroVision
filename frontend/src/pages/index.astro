@@ -128,6 +128,9 @@ import "../styles/global.css";
               <span class="relative inline-flex rounded-full h-2 w-2 bg-stone-500"></span>
             </span>
             <span id="db-status-text" class="text-stone-400">Conectando al backend…</span>
+            <button id="btn-telemetry" class="ml-auto text-stone-500 hover:text-emerald-400 transition-colors" title="Ver telemetría">
+              <i class="fa-solid fa-chart-line text-[10px]"></i>
+            </button>
           </div>
         </div>
       </div>
@@ -328,6 +331,34 @@ import "../styles/global.css";
       </div>
     </main>
 
+    <!-- Modal de Telemetría (Fase 12) -->
+    <div id="telemetry-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
+      <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[80vh] flex flex-col">
+        <div class="flex items-center justify-between px-5 py-3 border-b border-stone-200">
+          <h3 class="font-bold text-sm text-stone-800"><i class="fa-solid fa-chart-line mr-2 text-emerald-600"></i>Telemetría de Sesión</h3>
+          <button id="btn-close-telemetry" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-5">
+          <div class="flex items-center gap-3 mb-4">
+            <span class="text-xs text-stone-500">Sesión:</span>
+            <code class="text-[10px] bg-stone-100 px-2 py-1 rounded font-mono" id="telemetry-session-id"></code>
+            <button id="btn-refresh-telemetry" class="ml-auto text-xs bg-stone-100 hover:bg-stone-200 text-stone-700 px-3 py-1 rounded font-semibold">
+              <i class="fa-solid fa-rotate-right mr-1"></i>Actualizar
+            </button>
+          </div>
+          <div id="telemetry-content" class="space-y-2">
+            <p class="text-xs text-stone-500">Cargando eventos...</p>
+          </div>
+        </div>
+        <div class="px-5 py-3 border-t border-stone-200 bg-stone-50 rounded-b-xl">
+          <p class="text-[10px] text-stone-500">
+            <i class="fa-solid fa-info-circle mr-1"></i>
+            Los eventos se guardan en la BD si <code>EVENTS_PERSIST=true</code>. El buffer en memoria muestra los últimos 500 eventos de esta sesión.
+          </p>
+        </div>
+      </div>
+    </div>
+
     <!-- Librerías CDN -->
     <script is:inline src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script is:inline src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -341,6 +372,8 @@ import "../styles/global.css";
       let map = null, drawnItems = null, parcelsLayer = null;
       let chartResumen = null, chartSatelite = null;
       const sessionId = "sess-" + Math.random().toString(36).slice(2);
+      let backendOk = false;
+      let appEnv = "development";
 
       const $ = (id) => document.getElementById(id);
       function authHeaders() {
@@ -356,6 +389,45 @@ import "../styles/global.css";
         $("notif-title").innerText = title; $("notif-body").innerText = body || "";
         const n = $("notif"); n.classList.remove("translate-x-[150%]");
         setTimeout(() => n.classList.add("translate-x-[150%]"), 3500);
+      }
+      function updateStatus() {
+        const el = $("db-status-text");
+        const dot = $("db-status").querySelector("span.relative");
+        if (!backendOk) {
+          el.innerText = "Backend no disponible";
+          el.className = "text-red-500";
+          dot.className = "relative inline-flex rounded-full h-2 w-2 bg-red-500";
+          return;
+        }
+        // Consultar al backend qué credenciales están disponibles (incluye DEV_* en desarrollo)
+        fetch("./api/credentials/status")
+          .then((r) => r.ok ? r.json() : null)
+          .then((s) => {
+            if (!s) {
+              el.innerText = "Backend conectado · Status desconocido";
+              el.className = "text-amber-400";
+              dot.className = "relative inline-flex rounded-full h-2 w-2 bg-amber-500";
+              return;
+            }
+            const missing = [];
+            if (!s.groq) missing.push("Groq");
+            if (!s.copernicus) missing.push("Copernicus");
+            if (!s.supabase) missing.push("Supabase");
+            if (missing.length === 0) {
+              el.innerText = "Backend conectado · Todo OK";
+              el.className = "text-emerald-400";
+              dot.className = "relative inline-flex rounded-full h-2 w-2 bg-emerald-500";
+            } else {
+              el.innerText = `Backend conectado · Faltan: ${missing.join(", ")}`;
+              el.className = "text-amber-400";
+              dot.className = "relative inline-flex rounded-full h-2 w-2 bg-amber-500";
+            }
+          })
+          .catch(() => {
+            el.innerText = "Backend conectado · Error al verificar credenciales";
+            el.className = "text-amber-400";
+            dot.className = "relative inline-flex rounded-full h-2 w-2 bg-amber-500";
+          });
       }
       // ===== Telemetría (Fase 9) =====
       // Envía un evento por cada acción del usuario al backend (POST /api/events).
@@ -614,6 +686,72 @@ import "../styles/global.css";
       $("btn-chat").addEventListener("click", sendChat);
       $("chat-input").addEventListener("keydown", (e) => { if (e.key === "Enter") sendChat(); });
 
+      // ===== Telemetría Modal (Fase 12) =====
+      function openTelemetryModal() {
+        $("telemetry-modal").classList.remove("hidden");
+        $("telemetry-modal").classList.add("flex");
+        $("telemetry-session-id").innerText = sessionId;
+        loadTelemetryEvents();
+        track("telemetry_open", {});
+      }
+      function closeTelemetryModal() {
+        $("telemetry-modal").classList.add("hidden");
+        $("telemetry-modal").classList.remove("flex");
+      }
+      async function loadTelemetryEvents() {
+        const content = $("telemetry-content");
+        content.innerHTML = '<p class="text-xs text-stone-500">Cargando eventos...</p>';
+        try {
+          // Intentar primero eventos persistentes (BD)
+          let events = [];
+          try {
+            const r = await api("/events/all?limit=200");
+            if (r.ok) {
+              events = await r.json();
+            }
+          } catch {}
+          // Si no hay eventos en BD, usar buffer en memoria
+          if (!events || events.length === 0) {
+            try {
+              const r2 = await api("/events/recent?limit=200");
+              if (r2.ok) {
+                events = await r2.json();
+              }
+            } catch {}
+          }
+          if (!events || events.length === 0) {
+            content.innerHTML = '<p class="text-xs text-stone-500">Sin eventos en esta sesión. Interactúa con la UI para generar eventos.</p>';
+            return;
+          }
+          renderTelemetryEvents(events, content);
+        } catch (e) {
+          content.innerHTML = `<p class="text-xs text-red-500">Error al cargar eventos: ${e}</p>`;
+        }
+      }
+      function renderTelemetryEvents(events, container) {
+        const html = events.map((ev) => {
+          const ts = ev.created_at || ev.ts || "";
+          const time = ts ? new Date(ts).toLocaleTimeString() : "";
+          const isError = ev.action.includes("error");
+          const bg = isError ? "bg-red-50 border-red-200" : "bg-stone-50 border-stone-200";
+          const icon = isError ? "fa-circle-exclamation text-red-500" : "fa-circle-dot text-emerald-500";
+          const metaStr = ev.meta && Object.keys(ev.meta).length ? JSON.stringify(ev.meta).slice(0, 120) : "";
+          return `<div class="border ${bg} rounded-lg px-3 py-2 text-[10px]">
+            <div class="flex items-center gap-2 mb-1">
+              <i class="fa-solid ${icon}"></i>
+              <span class="font-bold text-stone-700">${ev.action}</span>
+              <span class="text-stone-400 ml-auto">${time}</span>
+            </div>
+            ${metaStr ? `<div class="text-stone-500 font-mono truncate">${metaStr}</div>` : ""}
+          </div>`;
+        }).join("");
+        container.innerHTML = html;
+      }
+      $("btn-telemetry").addEventListener("click", openTelemetryModal);
+      $("btn-close-telemetry").addEventListener("click", closeTelemetryModal);
+      $("btn-refresh-telemetry").addEventListener("click", loadTelemetryEvents);
+      $("telemetry-modal").addEventListener("click", (e) => { if (e.target === $("telemetry-modal")) closeTelemetryModal(); });
+
       // ===== Explorador de Datos (Fase 11) =====
       const TABLES = ["fields", "ndvi_timeseries", "chat_messages", "events"];
       async function loadDataExplorer() {
@@ -663,13 +801,13 @@ import "../styles/global.css";
       $("btn-clear-query").addEventListener("click", () => { $("sql-query").value = ""; $("query-result").innerHTML = ""; });
 
       // ===== Credenciales (efímeras) =====
-      let appEnv = "development"; // se actualiza en init()
       $("btn-save-creds").addEventListener("click", () => {
         creds = { groq: $("in-groq").value, copId: $("in-copid").value, copSecret: $("in-copsecret").value, sbUrl: $("in-sburl").value, sbKey: $("in-sbkey").value };
         const n = Object.values(creds).filter(Boolean).length;
         track("creds_set", { count: n });  // ¡solo el número de llaves, nunca los valores!
         $("creds-state").innerText = `${n} llave(s) activas (se borran al refrescar)`;
         notify("Credenciales en sesión", `${n} llave(s) activas solo en esta sesión.`);
+        updateStatus();
         refreshParcels();
       });
       $("btn-check-env").addEventListener("click", async () => {
@@ -700,10 +838,11 @@ import "../styles/global.css";
         track("session_start", { w: window.innerWidth, h: window.innerHeight });
         try {
           const r = await fetch("./api/status");
-          const ok = r.ok;
-          $("db-status-text").innerText = ok ? "Backend conectado" : "Backend no disponible";
-          if (ok) { $("db-status-text").classList.replace("text-stone-400", "text-emerald-400"); }
+          backendOk = r.ok;
+          $("db-status-text").innerText = backendOk ? "Backend conectado" : "Backend no disponible";
+          if (backendOk) { $("db-status-text").classList.replace("text-stone-400", "text-emerald-400"); }
         } catch { $("db-status-text").innerText = "Backend no disponible"; }
+        updateStatus();
         // Detectar entorno y mostrar aviso si es producción
         try {
           const r = await fetch("./api/credentials/status");
