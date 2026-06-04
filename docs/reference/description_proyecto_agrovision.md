@@ -404,7 +404,7 @@ Hay **un solo `Dockerfile`** (multi-stage: Node compila Astro → Python/uv corr
 # docker-compose.yml (real)
 services:
   api:
-    build: { context: ., dockerfile: backend/Dockerfile }
+    build: { context: ., dockerfile: Dockerfile }
     ports: ["8000:8000"]            # sirve UI en / y API en /api
     environment: [COUNTING_ENABLED=false]
     volumes: ["./models:/app/models:ro", "./sample_data:/app/sample_data:ro"]
@@ -417,7 +417,7 @@ services:
 | Componente | Plataforma Gratuita | Límites Relevantes | Caveat |
 | :--- | :--- | :--- | :--- |
 | **Gateway (UI Astro + API)** | [Hugging Face Spaces](https://huggingface.co/docs/hub/spaces-sdks-docker) (SDK Docker) | CPU básica **2 vCPU · 16 GB RAM** · **duerme a 48 h** | 1 contenedor; HF construye el `Dockerfile` al hacer `git push`. Cold start 30–60 s. |
-| **Alternativa: gateway** | [Render Free](https://render.com/docs/free) | 512 MB RAM · 0.1 CPU · **duerme a 15 min** · 750 h/mes | `backend/Dockerfile` + `render.yaml`. |
+| **Alternativa: gateway** | [Render Free](https://render.com/docs/free) | 512 MB RAM · 0.1 CPU · **duerme a 15 min** · 750 h/mes | mismo `Dockerfile` (raíz) + `render.yaml`. |
 | **BD / Storage / Colas** | [Supabase Free](https://supabase.com/pricing) | 500 MB DB · 1 GB Storage · **pausa a 7 días** sin actividad | Keep-alive (cron ligero) para evitar la pausa. |
 | **LLM** | Groq Free | Rate limit por minuto/día | BYOK: la llave la pone el usuario. |
 | **Satélite / Clima** | Copernicus CDSE · NASA POWER · Open-Meteo | Cuotas públicas | Open-Meteo no requiere llave. |

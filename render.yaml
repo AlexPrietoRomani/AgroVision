@@ -1,16 +1,16 @@
-# Despliegue del backend del MVP en Render (capa gratuita).
-# La UI Shiny se despliega aparte en ShinyApps.io (rsconnect deploy shiny ./frontend).
+# Despliegue del gateway AgroVisión en Render (alternativa a Hugging Face Spaces).
+# Render construye el Dockerfile de la raíz (compila Astro + corre el gateway que sirve
+# la UI en / y la API en /api en el puerto 8000). Conecta el repo y cada push redespliega.
+# El conteo arranca en standby; BYOK (sin secretos en el server: los pone el usuario por sesión).
 services:
   - type: web
-    name: agrovision-mvp-api
+    name: agrovision
     runtime: docker
-    dockerfilePath: ./backend/Dockerfile
+    dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /api/status
     envVars:
       - key: COUNTING_ENABLED
-        value: "false"                       # true cuando el modelo esté publicado
-      - key: ALLOWED_ORIGINS
-        value: https://<tu-app>.shinyapps.io
-      - key: MODEL_VERSION
-        value: "2.0.0"
+        value: "false"            # true cuando el modelo esté publicado
+      - key: RATE_LIMIT_PER_MIN
+        value: "120"              # rate limiting de /api (0 desactiva)

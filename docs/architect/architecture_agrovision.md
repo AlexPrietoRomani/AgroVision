@@ -245,7 +245,7 @@ flowchart LR
 **Notas de despliegue:**
 - **Un solo servicio**: el `Dockerfile` de la raíz compila Astro (Node) y corre el gateway FastAPI que sirve UI + API en el mismo origen. Se publica con `git push` al repo del Space (`scripts/deploy_hf.ps1`); HF construye la imagen. Corre como **usuario no-root (1000)**.
 - HF Spaces CPU básica da **16 GB RAM** (holgado para las deps); el Space **se duerme a las 48 h** sin uso (cold start 30–60 s). El **módulo de conteo arranca en standby** (`COUNTING_ENABLED=false`).
-- **Alternativa: Render** (Docker, `backend/Dockerfile` + `render.yaml`); duerme a 15 min, 512 MB.
+- **Alternativa: Render** (Docker, el mismo `Dockerfile` raíz + `render.yaml`); duerme a 15 min, 512 MB.
 - Supabase Free **se pausa a los 7 días** sin actividad → keep-alive con cron ligero.
 - *(shinyapps.io quedó descartado: solo hospeda Shiny, no FastAPI — ver ADR §7.)*
 

@@ -1,20 +1,23 @@
-# Stack local: el gateway FastAPI sirve la API (/api) Y la UI Astro estática (/).
-# (Desde la Fase 8 ya no hay servicio de UI aparte: la imagen del backend compila
-#  Astro y lo sirve en /.) El conteo arranca en standby (COUNTING_ENABLED=false).
+# Stack local sin fricción: un solo contenedor (el gateway sirve la API en /api y la
+# UI Astro en /). Usa el MISMO Dockerfile que producción (HF Spaces / Render), así que
+# lo que pruebas en local es lo que se despliega. El conteo arranca en standby.
+#
+#   docker compose up --build      -> http://localhost:8000/
 services:
   api:
     build:
       context: .
-      dockerfile: backend/Dockerfile
+      dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "8000:8000"            # gateway: UI en / y API en /api
     environment:
       - COUNTING_ENABLED=false
-    volumes:
-      - ./models:/app/models:ro
-      - ./sample_data:/app/sample_data:ro
+      - RATE_LIMIT_PER_MIN=120
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/status')\""]
-      interval: 10s
+      interval: 15s
       timeout: 5s
       retries: 5
+# Nota: para el CONTEO real (cuando exista el modelo) se descomenta el bloque
+# hf_hub_download del Dockerfile y se ponen COUNTING_ENABLED=true, MODEL_BACKEND=onnx.
+# No se montan volúmenes: el conteo en standby no requiere modelo ni sample_data.

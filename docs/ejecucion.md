@@ -155,7 +155,7 @@ El MVP no requiere transpilación. Como alternativa al arranque con `uv`, hay im
 docker compose up --build    # gateway en :8000 (sirve API + UI Astro compilada)
 ```
 
-> Para activar el conteo real en la imagen del backend, descomenta el bloque `hf_hub_download` en `backend/Dockerfile` y pon `COUNTING_ENABLED=true`, `MODEL_BACKEND=onnx`.
+> Para activar el conteo real en la imagen, descomenta el bloque `hf_hub_download` en el `Dockerfile` (raíz) y pon `COUNTING_ENABLED=true`, `MODEL_BACKEND=onnx`.
 
 ---
 
@@ -219,7 +219,7 @@ El script lee `HF_TOKEN`/`HF_SPACE_ID` del `.env`, arma la URL autenticada del S
 
 ### 5.6 Alternativas de despliegue
 
-- **Render** (Docker, free tier): usa [`backend/Dockerfile`](../backend/Dockerfile) + [`render.yaml`](../render.yaml). Conectas el repo de GitHub y cada push redespliega. Duerme a los 15 min (cold start ~30–60 s) y da 512 MB de RAM.
+- **Render** (Docker, free tier): usa el mismo [`Dockerfile`](../Dockerfile) (raíz) + [`render.yaml`](../render.yaml). Conectas el repo de GitHub y cada push redespliega. Duerme a los 15 min (cold start ~30–60 s) y da 512 MB de RAM.
 - **Posit Connect** (de pago/enterprise): soporta FastAPI vía `rsconnect deploy fastapi --server <url> --api-key <key>`. El script `deploy_prod.ps1` (flujo rsconnect) **se eliminó en la Fase 10** por ser específico de shinyapps; si algún día hay un Connect disponible, se re-añade apuntándolo a ese servidor.
 
 ---
