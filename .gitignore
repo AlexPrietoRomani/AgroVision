@@ -86,6 +86,7 @@ AGENTS.md
 .claudeignore
 .graphifyignore
 opencode.json
+.ignore
 
 # --- Multimedia & Docs Exceptions ---
 *.jpg
@@ -110,6 +111,7 @@ docs/doc_guia/
 docs/investigation/
 docs/plan/
 docs/task/
+docs/logs/
 
 # Playwright MCP artifacts
 .playwright-mcp/

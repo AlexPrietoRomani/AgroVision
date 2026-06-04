@@ -3,6 +3,9 @@
 # lo que pruebas en local es lo que se despliega. El conteo arranca en standby.
 #
 #   docker compose up --build      -> http://localhost:8000/
+#
+# Las credenciales se leen del .env del host (Supabase + DEV_* para desarrollo local).
+# En producción (HF Spaces) cada usuario pone las suyas vía la UI.
 services:
   api:
     build:
@@ -10,7 +13,10 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"            # gateway: UI en / y API en /api
+    env_file:
+      - .env                   # lee DATABASE_URL, DEV_*, SUPABASE_* del host
     environment:
+      - APP_ENV=development    # permite fallback a DEV_* keys
       - COUNTING_ENABLED=false
       - RATE_LIMIT_PER_MIN=120
     healthcheck:
