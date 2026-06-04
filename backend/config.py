@@ -73,6 +73,7 @@ class Settings:
     allowed_origins: tuple[str, ...]
     counting_enabled: bool
     events_persist: bool
+    rate_limit_per_min: int
     max_upload_mb: int
     confidence_threshold: float
 
@@ -96,6 +97,7 @@ def get_settings() -> Settings:
         allowed_origins=origins,
         counting_enabled=_parse_bool(os.getenv("COUNTING_ENABLED"), default=False),
         events_persist=_parse_bool(os.getenv("EVENTS_PERSIST"), default=False),
+        rate_limit_per_min=int(os.getenv("RATE_LIMIT_PER_MIN", "120")),
         max_upload_mb=int(os.getenv("MAX_UPLOAD_MB", str(DEFAULT_MAX_UPLOAD_MB))),
         confidence_threshold=float(
             os.getenv("CONFIDENCE_THRESHOLD", str(DEFAULT_CONFIDENCE_THRESHOLD))

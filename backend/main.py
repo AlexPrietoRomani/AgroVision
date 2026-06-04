@@ -37,8 +37,9 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.api.chat import router as chat_router
@@ -50,8 +51,25 @@ from backend.api.ndvi import router as ndvi_router
 from backend.api.weather import router as weather_router
 from backend.config import get_settings
 from backend.core.inference import ModelNotAvailableError, create_adapter
+from backend.core.ratelimit import SlidingWindowRateLimiter
 
 _logger = logging.getLogger("agrovision.backend")
+
+# Cabeceras de seguridad aplicadas a todas las respuestas (hardening básico).
+_SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "SAMEORIGIN",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-XSS-Protection": "0",  # CSP/headers modernos lo sustituyen; evita modos heredados
+}
+
+
+def _client_key(request: Request) -> str:
+    """IP del cliente para el rate limiting (respeta el proxy del host: X-Forwarded-For)."""
+    fwd = request.headers.get("x-forwarded-for")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
 
 
 @asynccontextmanager
@@ -105,6 +123,25 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],  # necesario para las cabeceras BYOK X-User-*
     )
+
+    # Rate limiting (anti-abuso/DDoS) sobre /api + cabeceras de seguridad en todo.
+    # Por proceso/en memoria: defensa en profundidad junto al borde del host (HF Spaces).
+    limiter = SlidingWindowRateLimiter(settings.rate_limit_per_min, window_seconds=60.0)
+
+    @app.middleware("http")
+    async def _security_and_ratelimit(request: Request, call_next):  # type: ignore[no-untyped-def]
+        if limiter.enabled and request.url.path.startswith("/api"):
+            if not limiter.allow(_client_key(request)):
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "Demasiadas peticiones. Inténtalo de nuevo en un momento."},
+                    headers={"Retry-After": "60", **_SECURITY_HEADERS},
+                )
+        response = await call_next(request)
+        for key, value in _SECURITY_HEADERS.items():
+            response.headers.setdefault(key, value)
+        return response
+
     app.include_router(fields_router)  # Creación de Parcelas
     app.include_router(ndvi_router)  # Teledetección NDVI
     app.include_router(weather_router)  # Clima
