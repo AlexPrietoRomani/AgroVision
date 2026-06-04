@@ -7,7 +7,11 @@
 >
 > **Módulos de UI (6):** Resumen de Campo · **Creación de Parcelas** (nuevo: dibujo del polígono) · Teledetección (solo gráficos + heatmap NDVI) · Conteo por Dron (**en desarrollo / standby**) · Asistente Agéntico · Credenciales.
 >
-> **Frontend (Fase 8 — Agro-Stack):** la UI migra de **Shiny** a **Astro + Tailwind** (SPA estática, hash-routing, responsive, sidebar/footer plegables) que replica el [mockup](../investigation/agrovisi_n_spa_prototype.html) y consume `/api/*` directo (Leaflet-draw para el mapa, Chart.js para NDVI/clima). El gateway **FastAPI sirve el build estático en `/`** y mantiene `/api`. **Shiny queda como _legacy_** (opcional en `/shiny`). Sigue la "Regla de Oro" de [`plan_replication.md`](../doc_guia/plan_replication.md) (una página, hash, rutas relativas, CSS inline).
+> **Frontend (Astro — Fase 8, consolidado en Fase 10):** la UI es **Astro + Tailwind** (SPA estática, hash-routing, responsive, sidebar/footer plegables) que replica el [mockup](../investigation/agrovisi_n_spa_prototype.html) y consume `/api/*` directo (Leaflet-draw para el mapa, Chart.js para NDVI/clima). El gateway **FastAPI sirve el build estático en `/`** y mantiene `/api`. **Shiny fue eliminado por completo en la Fase 10** (ya no hay UI Python ni `/shiny`). Sigue la "Regla de Oro" de [`plan_replication.md`](../doc_guia/plan_replication.md) (una página, hash, rutas relativas, CSS inline).
+>
+> **Despliegue (Fase 10):** un **único contenedor Docker en Hugging Face Spaces** (SDK Docker) construido desde el `Dockerfile` de la raíz; el gateway sirve UI + API en el mismo origen. Alternativa: Render (Docker). *(shinyapps.io quedó descartado: solo hospeda apps Shiny, no FastAPI.)*
+>
+> **Seguridad (Fase 10):** rate limiting en `/api` + cabeceras de hardening; modelo BYOK (sin secretos en el server). Ver §8.
 >
 > **Estado del Conteo:** el módulo de visión arranca **en desarrollo** (`COUNTING_ENABLED=false`); se construye **todo lo demás** ahora. La tabla `plant_counts`, la cola PGMQ y el worker se crean pero quedan inactivos hasta publicar el modelo.
 
@@ -43,9 +47,9 @@ flowchart TB
 ```
 
 **Decisiones arquitectónicas clave (Nivel Macro):**
-- **Open-source, costo cero:** todo el stack vive en capa gratuita (ShinyApps.io + Render + Supabase + Groq + Copernicus).
+- **Open-source, costo cero:** todo el stack vive en capa gratuita (Hugging Face Spaces + Supabase + Groq + Copernicus; Render como alternativa).
 - **BYOK con cero persistencia de credenciales:** las llaves del usuario se inyectan por sesión y se descartan; nunca se almacenan.
-- **Servicios desacoplados:** UI (Shiny) y backend (FastAPI) se despliegan por separado y se comunican vía HTTPS + CORS.
+- **Servicio único (gateway):** un solo FastAPI sirve la UI Astro estática en `/` y la API en `/api` (mismo origen) — no hay servicio de UI aparte.
 - **Procesamiento asíncrono nativo de Postgres:** colas PGMQ embebidas en Supabase (sin Redis/RabbitMQ).
 
 ---
@@ -55,7 +59,7 @@ flowchart TB
 ```mermaid
 flowchart LR
     subgraph Cliente["Capa de Presentación"]
-        UI["UI — Shiny for Python (ASGI)<br/>──────────<br/>6 nav_panel · ipyleaflet · Plotly<br/>Estado efímero en reactive.value<br/>Host: ShinyApps.io"]
+        UI["UI — Astro + Tailwind (SPA estática)<br/>──────────<br/>6 vistas · Leaflet-draw · Chart.js<br/>Estado efímero en memoria del navegador<br/>Servida por el gateway en /"]
     end
 
     subgraph Backend["Capa de Aplicación — Monolito Modular (FastAPI)"]
@@ -74,7 +78,7 @@ flowchart LR
         ST[("Storage privado<br/>drone-images + Signed URLs")]
     end
 
-    UI -->|"HTTPS + X-User-*-Key"| API
+    UI -->|"fetch /api + X-User-*-Key (mismo origen)"| API
     API --> LOGIC
     LOGIC -->|"encola ortomosaico"| QUEUE
     QUEUE --> WORKER
@@ -85,9 +89,9 @@ flowchart LR
 ```
 
 **Flujo principal (crear parcela → teledetección), el que se construye ahora:**
-1. En **Creación de Parcelas** el agrónomo dibuja el polígono (`ipyleaflet` + `DrawControl`), lo nombra y guarda: `POST /api/fields` (con cabeceras BYOK) → `RemoteSensing`/`Parcels` persisten en `fields` (Supabase del usuario).
+1. En **Creación de Parcelas** el agrónomo dibuja el polígono (**Leaflet-draw**), lo nombra y guarda: `POST /api/fields` (con cabeceras BYOK) → `RemoteSensing`/`Parcels` persisten en `fields` (Supabase del usuario).
 2. Al guardar, se dispara un **backfill** (background task) que consulta los **últimos 5 años** de NDVI (Sentinel-2, **agregado mensual**) y los persiste en `ndvi_timeseries`.
-3. En **Teledetección** el usuario elige la parcela; la UI pide `POST /api/ndvi` (serie persistida + fechas nuevas) y `POST /api/weather` (Open-Meteo, on-demand) y los grafica (Plotly doble eje). No se dibuja aquí.
+3. En **Teledetección** el usuario elige la parcela; la UI pide `POST /api/ndvi` (serie persistida + fechas nuevas) y `POST /api/weather` (Open-Meteo, on-demand) y los grafica (**Chart.js** doble eje). No se dibuja aquí.
 4. Opcional: `POST /api/ndvi/raster` devuelve un PNG colorizado del **heatmap NDVI** (~10 m/px, Sentinel-2) recortado a la parcela; la UI lo pinta como `ImageOverlay` (read-only).
 5. En **Resumen de Campo** los KPIs por parcela se leen de lo persistido; el **Asistente** consulta esas mismas tablas vía function calling.
 
@@ -149,7 +153,7 @@ El agente (Llama 3 vía Groq) traduce la intención en llamadas tipadas: `get_ve
 ```mermaid
 sequenceDiagram
     actor U as Agrónomo
-    participant C as UI (Shiny)
+    participant C as UI (Astro, en el navegador)
     participant S as Gateway (FastAPI)
     participant Q as Cola PGMQ
     participant W as Worker
@@ -229,21 +233,21 @@ flowchart LR
 
     subgraph Prod["Producción (Capa Gratuita)"]
         direction TB
-        SHINY["ShinyApps.io<br/>(UI Shiny)"]
-        RENDER["Render<br/>(FastAPI + Worker)"]
+        HF["Hugging Face Spaces<br/>(1 contenedor Docker)<br/>gateway FastAPI: UI / + API /api"]
         SUPA[("Supabase<br/>PostGIS · Storage · PGMQ")]
-        SHINY -->|"HTTPS + CORS"| RENDER
-        RENDER <--> SUPA
+        HF <-->|"asyncpg / HTTPS (BYOK)"| SUPA
     end
 
-    Local -->|"git push"| Pipeline
-    Pipeline -->|"rsconnect deploy / Render deploy"| Prod
+    Local -->|"git push al Space"| Pipeline
+    Pipeline -->|"HF construye el Dockerfile"| Prod
 ```
 
 **Notas de despliegue:**
-- La UI Shiny se despliega con `rsconnect deploy shiny` (ASGI nativo en ShinyApps.io); **no aplica** el problema de slugs SPA de Astro del plan de replicación.
-- El backend en Render *duerme a los 15 min* (cold start 30–60 s); el modelo de conteo (`agrovision-plantcount`, ONNX ligero) cabe en 512 MB. El **módulo de conteo arranca en standby** (`COUNTING_ENABLED=false`) hasta que el repo del modelo publique el artefacto.
+- **Un solo servicio**: el `Dockerfile` de la raíz compila Astro (Node) y corre el gateway FastAPI que sirve UI + API en el mismo origen. Se publica con `git push` al repo del Space (`scripts/deploy_hf.ps1`); HF construye la imagen. Corre como **usuario no-root (1000)**.
+- HF Spaces CPU básica da **16 GB RAM** (holgado para las deps); el Space **se duerme a las 48 h** sin uso (cold start 30–60 s). El **módulo de conteo arranca en standby** (`COUNTING_ENABLED=false`).
+- **Alternativa: Render** (Docker, `backend/Dockerfile` + `render.yaml`); duerme a 15 min, 512 MB.
 - Supabase Free **se pausa a los 7 días** sin actividad → keep-alive con cron ligero.
+- *(shinyapps.io quedó descartado: solo hospeda Shiny, no FastAPI — ver ADR §7.)*
 
 ---
 
@@ -257,10 +261,42 @@ flowchart LR
 | **Credenciales efímeras (BYOK, solo memoria)** | Persistencia en `localStorage` (mockup) o servidor | Elimina todo vector de fuga de secretos; refrescar borra todo (requisito del usuario). |
 | **Modelo agnóstico (multi-candidato) desde repo separado, en HF Hub; AGPL-3.0 aceptada** | Entrenar dentro de AgroVisión / fijar un solo modelo | Desacopla el ML de la app; **AGPL-3.0 aceptada** (AgroVisión open-source) habilita **YOLO26**; la app descarga `agrovision-plantcount` y lo infiere vía **adaptador** (onnxruntime o `ultralytics` según la arquitectura). El **módulo de conteo arranca en standby** hasta la publicación del modelo. |
 | **PostgreSQL + PostGIS** | NoSQL documental | El dominio es geoespacial y relacional (joins del agente, integridad referencial); JSONB cubre la parte flexible. |
-| **Hosting gratuito (ShinyApps.io+Render+Supabase)** | Cloud administrado de pago (AWS/GCP) | Objetivo de costo cero y reproducibilidad; se asumen *caveats* (cold start, pausa, horas activas). |
+| **Hosting gratuito (Hugging Face Spaces + Supabase; Render alt.)** | Cloud administrado de pago (AWS/GCP) | Objetivo de costo cero y reproducibilidad; se asumen *caveats* (cold start, pausa, horas activas). |
 | **Monolito modular (un FastAPI, `api/` + `services/`), microservices-ready** | Microservicios reales (un servicio por dominio) | En Render free cada servicio extra duerme a 15 min, suma cold-starts y complica CORS/operación. Un solo proceso con límites por dominio da la misma separación lógica ("cada uno específico") y se puede dividir luego sin tocar la UI. |
 | **Creación de Parcelas como módulo propio (separado de Teledetección)** | Dibujar el polígono dentro de Teledetección (diseño previo, 5 módulos) | Separa responsabilidades: *delimitar* (escribe `fields`) vs *analizar* (solo lee/grafica). Teledetección queda read-only y enfocada en gráficos + heatmap. Pasa la UI a **6 módulos**. |
 | **NDVI por defecto a 5 años con agregación mensual** | Rango corto fijo / sin agregación (todas las escenas) | Da histórico útil para "Resumen de campo" y el agente, y mantiene el volumen bajo el límite de Supabase Free; el backfill incremental evita recalcular. |
 | **Heatmap NDVI satelital (~10 m/px) on-demand, sin persistir** | Persistir rásters NDVI / heatmap cm/px desde RGB | El ráster es pesado y efímero (se regenera); cm/px exige dron multiespectral (NIR), no disponible con RGB → se difiere con el módulo de Conteo. |
 | **Conteo por dron arranca EN DESARROLLO (toda la infra creada, inactiva)** | Bloquear la plataforma hasta tener el modelo | Permite entregar parcelas/teledetección/agente ya; la cola/worker/tabla existen para activarse con solo `COUNTING_ENABLED=true` cuando el repo del modelo publique el artefacto. |
-| **(Fase 8) UI migra a Astro + Tailwind (Agro-Stack); Shiny → legacy** | Mantener Shiny como UI principal / shell híbrido con iframe | La UI Shiny por defecto se ve básica; el objetivo es replicar el mockup (estética, **responsive**, plegables). Astro+Tailwind+JS (Leaflet/Chart.js) consumiendo `/api` da control total del look y deploy estático. **Revisa el ADR previo** ("Shiny sobre Astro"): el problema de enrutamiento SPA se mitiga con la **Regla de Oro** (una página, hash-routing, rutas relativas, CSS inline). Shiny se conserva como *legacy* (`/shiny`) por si se requiere reactividad Python. |
+| **(Fase 8) UI migra a Astro + Tailwind (Agro-Stack); Shiny → legacy** | Mantener Shiny como UI principal / shell híbrido con iframe | La UI Shiny por defecto se ve básica; el objetivo es replicar el mockup (estética, **responsive**, plegables). Astro+Tailwind+JS (Leaflet/Chart.js) consumiendo `/api` da control total del look y deploy estático. El problema de enrutamiento SPA se mitiga con la **Regla de Oro** (una página, hash-routing, rutas relativas, CSS inline). |
+| **(Fase 10) Eliminar Shiny por completo; UI = solo Astro** | Conservar Shiny como *legacy* en `/shiny` | El gateway ya servía Astro en `/`; mantener el dashboard Shiny solo sumaba dependencias pesadas (shiny/shinywidgets/ipyleaflet/plotly) y confusión. Se borró `backend/dashboard.py`, `run_ui.ps1` y esas deps → imagen más ligera y un solo camino de UI. |
+| **(Fase 10) Despliegue a Hugging Face Spaces (Docker); descartado shinyapps.io** | shinyapps.io / Posit Connect (rsconnect) | **shinyapps.io solo hospeda apps Shiny, no FastAPI/ASGI** (verificado en su doc oficial); `rsconnect deploy fastapi` apunta a Posit Connect (de pago). HF Spaces (SDK Docker) es **gratis, FastAPI-nativo y con 16 GB RAM**: un `git push` y HF construye el `Dockerfile`. Render queda como alternativa Docker. Se eliminó `deploy_prod.ps1`/`.rscignore`/`rsconnect-python`. |
+
+---
+
+## 8. Seguridad — Modelo de Amenazas y Mitigaciones (Fase 10)
+
+La nueva arquitectura es **un servicio público de un solo origen** (gateway en HF Spaces) bajo **BYOK**. Eso simplifica el modelo: **el servidor no guarda secretos de datos** (los pone cada usuario por sesión), así que un atacante no obtiene credenciales aunque comprometa la instancia.
+
+### 8.1 Superficie de ataque y mitigaciones
+
+| Amenaza | Riesgo | Mitigación (estado) |
+| :--- | :--- | :--- |
+| **DDoS / flood de la API** | Saturar la única instancia o agotar cuotas de APIs externas (BYOK) | **Rate limiting** en `/api` por IP (ventana deslizante en memoria, `RATE_LIMIT_PER_MIN`, 429 + `Retry-After`) ✅. Borde del host (HF) aporta protección de red volumétrica. *App-level mitiga abuso, no DDoS volumétrico de red.* |
+| **Abuso del ingest de telemetría** (`POST /api/events`) | Spam de eventos | Buffer **acotado** (`deque(maxlen=500)`) ✅; persistencia **off por defecto** (`EVENTS_PERSIST=false`) ✅; cubierto por el rate limiting ✅. |
+| **Fuga de secretos** | Exponer llaves BYOK | Nunca se persisten; viajan en cabeceras `X-User-*` y se descartan ✅. La telemetría **redacta** claves sensibles ✅. No se loguean cabeceras ✅. `.env` fuera del bundle (`.gitignore`) ✅. |
+| **SSRF** (URLs de datos controladas por el usuario, p. ej. `X-User-Supabase-Url`) | Forzar al server a conectar a hosts internos | El usuario solo apunta a **su propia** BD; aun así, conviene **validar esquema/host** de `DATABASE_URL`/Supabase URL (📋 pendiente: allowlist de hosts `*.supabase.co`/`*.pooler.supabase.com`). |
+| **Inyección de prompt** (agente RAG) | Manipular al LLM | El agente solo expone **3 herramientas tipadas de solo-lectura** sobre la BD; no ejecuta acciones destructivas ✅. (📋 reforzar con validación de argumentos.) |
+| **Agotamiento de recursos** (polígonos enormes, heatmap) | OOM/CPU | `resx/resy` fijos y rango acotado en NDVI ✅; `MAX_UPLOAD_MB` en subidas ✅. (📋 validar área máx. de polígono.) |
+| **Clickjacking / MIME sniffing / XSS heredado** | Embeber la app, sniffing | Cabeceras `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Referrer-Policy` ✅. (📋 añadir `Content-Security-Policy` afinada para los CDNs usados.) |
+| **CORS demasiado abierto** | Peticiones cross-site con credenciales | UI y API son **mismo origen** en HF (no requiere CORS). `ALLOWED_ORIGINS` se restringe por entorno ✅. |
+| **Contenedor con privilegios** | Escalada si hay RCE | La imagen corre como **usuario no-root (1000)** ✅. |
+| **Vulnerabilidades en dependencias** | CVEs transitivas | (📋 añadir escaneo `pip-audit`/Dependabot en CI). Se redujo superficie al **eliminar Shiny** y su árbol ✅. |
+
+### 8.2 Defensa en profundidad (capas)
+
+1. **Borde del host (HF Spaces):** TLS y protección de red base.
+2. **Gateway:** rate limiting + cabeceras de hardening + tamaños de subida acotados.
+3. **Datos (Supabase):** RLS por usuario (efectiva si se adopta Auth multiusuario), Storage privado + Signed URLs.
+4. **BYOK:** sin secretos en el server → el impacto de un compromiso es mínimo.
+
+> **Honestidad operativa:** el rate limiting es **por proceso/en memoria** (sirve para una sola instancia HF). Un DDoS volumétrico real se contrarresta en el **borde de red** del host, no a nivel de app. Los ítems 📋 quedan como trabajo de endurecimiento futuro (sub fase 10.4).

@@ -14,7 +14,7 @@ license: agpl-3.0
 
 # AgroVisión — Plataforma de Monitoreo Agronómico
 
-Plataforma de [AgroVisión](docs/reference/description_proyecto_agrovision.md) para monitoreo agronómico de precisión: **gestión de parcelas**, **teledetección NDVI** (Sentinel-2, 5 años), **agente conversacional (RAG)** y **conteo de plantas por dron** (este último **en desarrollo**). Backend **FastAPI** (monolito modular), persistencia **Supabase (PostGIS) BYOK**, y UI en **migración de Shiny → Astro + Tailwind** (Agro-Stack).
+Plataforma de [AgroVisión](docs/reference/description_proyecto_agrovision.md) para monitoreo agronómico de precisión: **gestión de parcelas**, **teledetección NDVI** (Sentinel-2, 5 años), **agente conversacional (RAG)** y **conteo de plantas por dron** (este último **en desarrollo**). UI en **Astro + Tailwind** (estática) servida por el backend **FastAPI** (monolito modular), persistencia **Supabase (PostGIS) BYOK**. Despliegue en **Hugging Face Spaces** (Docker). *(Shiny fue eliminado en la Fase 10.)*
 
 > **Modelo BYOK, credenciales efímeras.** Las llaves del usuario (Supabase, Copernicus, Groq) viven **solo en memoria de sesión** y se envían por cabeceras `X-User-*`; nunca se persisten. Refrescar borra todo.
 >
@@ -27,18 +27,19 @@ Resumen de Campo · Creación de Parcelas · Teledetección · Conteo por Dron (
 ## Arquitectura
 
 ```
-Astro + Tailwind (UI, Fase 8)  ──HTTP /api──►  FastAPI (monolito modular)  ──►  Supabase (PostGIS) [BYOK]
-   (Shiny = legacy en /shiny)                    ├─ /api/fields    (parcelas)        ├─ Sentinel Hub / Copernicus (NDVI)
-                                                  ├─ /api/ndvi(+raster), /api/weather  ├─ Open-Meteo (clima, sin llave)
+Astro + Tailwind (UI estática)  ──fetch /api──►  FastAPI (monolito modular)  ──►  Supabase (PostGIS) [BYOK]
+   servida por el gateway en /                    ├─ /api/fields    (parcelas)        ├─ Sentinel Hub / Copernicus (NDVI)
+   (1 contenedor en HF Spaces)                    ├─ /api/ndvi(+raster), /api/weather  ├─ Open-Meteo (clima, sin llave)
                                                   ├─ /api/chat      (agente RAG)        └─ Groq / Llama 3 (LLM)
+                                                  ├─ /api/events    (telemetría)
                                                   └─ /api/count     (conteo, en desarrollo)
 ```
 
 ## Estructura
 
 ```
-backend/    # FastAPI: api/ (routers por dominio) · services/ (negocio) · core/ (dominio puro) · db/ (PostGIS) · main
-frontend/   # UI Shiny (legacy) → migrando a Astro + Tailwind (Fase 8)
+backend/    # FastAPI: api/ (routers por dominio) · services/ (negocio) · core/ (dominio puro) · db/ (PostGIS) · static (UI compilada) · main
+frontend/   # UI Astro + Tailwind (se compila a backend/static)
 supabase/   # migraciones SQL (PostGIS, índices, RLS, PGMQ)
 tests/      # unit · integration (Supabase/Copernicus/Groq, skip sin llaves) · e2e
 docs/       # reference/architect/db versionados; plan/task/investigation/doc_guia no
@@ -59,15 +60,17 @@ uv sync
 # 2) (una vez, si usarás parcelas) configurar DATABASE_URL en .env y aplicar migraciones
 uv run python -m backend.db.migrate
 
-# 3) Backend (FastAPI) en :8000  — o scripts/run_backend.ps1
+# 3) Compilar la UI Astro -> backend/static  — o scripts/build.ps1
+.\scripts\build.ps1
+
+# 4) Backend (FastAPI) en :8000 (sirve la UI en / y la API en /api) — o scripts/run_backend.ps1
 uv run python -u -m uvicorn backend.main:app --reload --port 8000 --log-level info
 
-# 4) UI Shiny LEGACY en :8001 (otra terminal) — o scripts/run_ui.ps1
-#    (la UI principal Astro se sirve desde el gateway en / cuando está compilada — Fase 8)
-uv run python -u -m uvicorn backend.dashboard:app --reload --port 8001
-# Atajo: ambos en ventanas separadas
+# Desarrollo de UI con hot-reload (Astro :4321 + backend :8000) en ventanas separadas:
 .\scripts\dev.ps1
 ```
+
+Despliegue a **Hugging Face Spaces**: `.\scripts\deploy_hf.ps1 -Force` (ver [`docs/ejecucion.md`](docs/ejecucion.md) §5).
 
 Detalle completo (credenciales por módulo, migraciones, troubleshooting): **[`docs/ejecucion.md`](docs/ejecucion.md)**.
 

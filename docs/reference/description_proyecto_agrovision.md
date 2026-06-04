@@ -2,7 +2,9 @@
 
 > **Propósito del documento:** Servir como única fuente de verdad técnica y funcional para desarrolladores, arquitectos y sistemas de inteligencia artificial. Define la arquitectura modular, flujos de datos, APIs, modelos de base de datos, lógica de negocio y configuraciones del sistema de la plataforma AgroVisión.
 >
-> **Stack confirmado:** UI en **Shiny for Python**, backend/gateway en **FastAPI**, base de datos en **Supabase (PostgreSQL + PostGIS + Storage + Queues/PGMQ)**, agente conversacional con **Groq (Llama 3)** y teledetección con **Copernicus Sentinel-2 / NASA POWER / Open-Meteo**. Despliegue gratuito: **ShinyApps.io + Render + Supabase**.
+> **Stack confirmado:** UI en **Astro + Tailwind** (SPA estática), backend/gateway en **FastAPI** (sirve la UI en `/` y la API en `/api`), base de datos en **Supabase (PostgreSQL + PostGIS + Storage + Queues/PGMQ)**, agente conversacional con **Groq (Llama 3)** y teledetección con **Copernicus Sentinel-2 / NASA POWER / Open-Meteo**. Despliegue gratuito: **Hugging Face Spaces (Docker)**; alternativa Render.
+>
+> ⚠️ **Actualización (Fases 8 y 10):** este documento se redactó con la UI original en **Shiny for Python**. Desde la **Fase 8** la UI es **Astro + Tailwind** servida por el gateway, y en la **Fase 10 Shiny se eliminó por completo** (sin `/shiny`) y el despliegue pasó a **Hugging Face Spaces** (shinyapps.io quedó descartado: solo hospeda Shiny, no FastAPI). Donde el texto diga "Shiny / reactive.value / WebSocket / ShinyApps.io", léase: **SPA Astro en el navegador / estado en memoria del navegador / HF Spaces**. La arquitectura vigente está en [`architecture_agrovision.md`](../architect/architecture_agrovision.md) (incl. §8 Seguridad).
 >
 > **Licencia y modelo:** AgroVisión es **open-source bajo AGPL-3.0** (lo que permite usar **YOLO26**). El modelo de conteo es **agnóstico**: la app consume el artefacto `agrovision-plantcount` (multi-candidato YOLO26/RF-DETR) por **contrato**, vía un adaptador de inferencia. El **módulo de conteo arranca en _standby_** (flag `COUNTING_ENABLED=false`) hasta que el **repo del modelo** (proyecto separado) publique el artefacto.
 >
@@ -33,7 +35,7 @@ El sistema se diseña sobre una arquitectura **de código abierto, sin servidore
 
 ## 1. Arquitectura de Componentes (Modular y Desacoplada)
 
-La plataforma sigue el esquema **de servicios separados** descrito en el Plan Detallado: la UI (Shiny) y el backend (FastAPI) se despliegan de forma independiente en dominios distintos y se comunican vía HTTPS + CORS. El cómputo pesado (inferencia de visión, descargas satelitales) queda aislado de la capa de presentación.
+La plataforma es un **gateway único**: el backend **FastAPI** sirve la **UI Astro estática** en `/` y la **API** en `/api` (mismo origen). *(El diseño original separaba UI Shiny y backend; desde la Fase 10 es un solo servicio — ver banner arriba.)* El cómputo pesado (inferencia de visión, descargas satelitales) queda aislado en `services/`.
 
 ```mermaid
 flowchart TD
@@ -44,9 +46,9 @@ flowchart TD
     classDef db fill:#E9D5FF,stroke:#7C3AED,color:#4C1D95
     classDef ext fill:#FECACA,stroke:#DC2626,color:#7F1D1D
 
-    UI["💻 Capa Cliente (UI)<br/>Shiny for Python (ASGI)<br/>5 nav_panel · ipyleaflet · Plotly<br/>Estado efímero en reactive.value<br/>Host: ShinyApps.io (Free)"]:::frontend
+    UI["💻 Capa Cliente (UI)<br/>Astro + Tailwind (SPA estática)<br/>6 vistas · Leaflet-draw · Chart.js<br/>Estado efímero en memoria del navegador<br/>Servida por el gateway en /"]:::frontend
 
-    GW["🔀 API Gateway / BFF<br/>FastAPI + Starlette (ASGI)<br/>CORSMiddleware · proxy efímero de llaves<br/>Host: Render (Free)"]:::gateway
+    GW["🔀 Gateway / BFF<br/>FastAPI + Starlette (ASGI)<br/>sirve UI en / + API en /api · rate limiting<br/>proxy efímero de llaves · Host: HF Spaces"]:::gateway
 
     WK["⚙️ Worker Asíncrono<br/>Consumidor PGMQ (vt=120)<br/>Inferencia RF-DETR-Nano (CPU)<br/>Mismo servicio/proceso de fondo en Render"]:::service
 
@@ -73,8 +75,8 @@ flowchart TD
 
 | Componente | Descripción de Responsabilidad | Tecnologías | Estrategia de Resiliencia / Despliegue |
 | :--- | :--- | :--- | :--- |
-| **Capa Cliente (UI)** | Interfaz interactiva de 5 módulos. Gestiona estado local **efímero** (credenciales, parcela activa, resultados) y orquesta llamadas al gateway. | Shiny for Python (Core API), `shinywidgets` + `ipyleaflet`, Plotly, `httpx` | App ASGI nativa en **ShinyApps.io** (5 apps / 25 h activas mes). Sesión por WebSocket; refrescar = reset total. |
-| **API Gateway / BFF** | Punto de entrada del backend. Valida CORS, recibe llaves dinámicas por cabecera, orquesta teledetección, encola inferencia y proxy del LLM. | FastAPI, Starlette, `httpx`, `pystac-client` | Stateless en **Render** (512 MB, duerme a 15 min). Sin secretos persistidos. |
+| **Capa Cliente (UI)** | Interfaz interactiva de 6 módulos. Gestiona estado local **efímero** (credenciales, parcela activa, resultados) y orquesta llamadas al gateway. | **Astro + Tailwind** (SPA estática), Leaflet-draw, Chart.js (CDN) | Compilada a estático y **servida por el gateway en `/`**. Estado en memoria del navegador; refrescar = reset total. |
+| **Gateway / BFF** | Punto de entrada único. Sirve la UI Astro, valida CORS, aplica rate limiting, recibe llaves por cabecera, orquesta teledetección, encola inferencia y proxy del LLM. | FastAPI, Starlette, `httpx` | 1 contenedor en **Hugging Face Spaces** (Docker). Sin secretos persistidos. |
 | **Worker Asíncrono** | Consume la cola PGMQ, ejecuta inferencia RF-DETR-Nano sobre ortomosaicos, persiste conteos y genera Signed URLs. | FastAPI background task / proceso, onnxruntime, OpenCV, `pgmq-sqlalchemy` (asyncpg) | Reintento automático por *visibility timeout* (vt=120). Tolerante a reinicios del contenedor gratuito. |
 | **Base de Datos + GIS** | Almacén relacional/espacial del dominio (parcelas, series NDVI, conteos, chat). | Supabase PostgreSQL + **PostGIS** | **Supabase Free** (500 MB DB). Índices GIST/GIN. Modelo BYOK (proyecto del usuario). Keep-alive contra pausa a 7 días. |
 | **Almacenamiento de Objetos** | Custodia privada de ortomosaicos e imágenes de resultado. | Supabase Storage | Bucket **privado**; visualización solo vía **Signed URLs** (`expires_in=600`). |
@@ -367,14 +369,15 @@ La UI es una **SPA de 5 módulos** construida con `ui.page_navbar` (un `nav_pane
 APP_ENV=development            # development | production
 LOG_LEVEL=info
 
-# --- UI (Shiny) ---
-SHINY_HOST=0.0.0.0
-SHINY_PORT=8001
-API_BASE_URL=http://localhost:8000   # En prod: URL pública del backend en Render
-
-# --- Backend (FastAPI) ---
+# --- Gateway (FastAPI sirve UI Astro en / + API en /api) ---
 API_PORT=8000
-ALLOWED_ORIGINS=http://localhost:8001,https://<tu-app>.shinyapps.io
+ALLOWED_ORIGINS=http://localhost:4321   # solo para el dev server de Astro (cross-origin);
+                                        # en HF Spaces UI y API comparten origen
+RATE_LIMIT_PER_MIN=120                  # rate limiting de /api (anti-abuso); 0 desactiva
+
+# --- Despliegue (Hugging Face Spaces) ---
+HF_TOKEN=                               # token write
+HF_SPACE_ID=                            # <usuario>/<space>
 
 # --- Modelo predeterminado (descargado de Hugging Face Hub en el build) ---
 MODEL_PATH=/app/models/agrovision-plantcount-v2.0.0.onnx
@@ -395,43 +398,26 @@ DEV_SUPABASE_ANON_KEY=
 
 ### 7.2 Dockerización y `docker-compose` (Local)
 
-Cada componente tiene su `Dockerfile` (multi-stage, base `python:3.13-slim`, gestor `uv`). El entorno local levanta todo el stack con contenedores e imágenes de ejemplo:
+Hay **un solo `Dockerfile`** (multi-stage: Node compila Astro → Python/uv corre el gateway que sirve UI + API). El `docker-compose.yml` actual levanta solo ese servicio:
 
 ```yaml
-# docker-compose.yml (referencia)
+# docker-compose.yml (real)
 services:
   api:
-    build: ./backend
-    ports: ["8000:8000"]
-    env_file: .env
-    volumes: ["./models:/models:ro", "./sample_data:/data:ro"]
-  worker:
-    build: ./backend
-    command: python -m backend.worker
-    env_file: .env
-    volumes: ["./models:/models:ro"]
-  ui:
-    build: ./frontend
-    ports: ["8001:8001"]
-    environment: ["API_BASE_URL=http://api:8000"]
-  postgis:
-    image: postgis/postgis:16-3.4    # Emula Supabase Postgres+PostGIS en local
-    environment: ["POSTGRES_PASSWORD=dev"]
-    ports: ["5432:5432"]
-  storage:
-    image: minio/minio              # Opcional: emula Supabase Storage en local
-    command: server /data
-    ports: ["9000:9000"]
+    build: { context: ., dockerfile: backend/Dockerfile }
+    ports: ["8000:8000"]            # sirve UI en / y API en /api
+    environment: [COUNTING_ENABLED=false]
+    volumes: ["./models:/app/models:ro", "./sample_data:/app/sample_data:ro"]
 ```
 
-> Las imágenes de dron de ejemplo viven en `sample_data/` para probar el conteo sin credenciales. El modelo predeterminado se monta read-only desde `models/`.
+> Ya **no hay** servicio `ui` aparte (la UI Astro la sirve el gateway). El `Dockerfile` de la **raíz** es el equivalente endurecido para Hugging Face Spaces (usuario 1000, `app_port` 8000). Las imágenes de dron de ejemplo viven en `sample_data/` para probar el conteo (mock).
 
 ### 7.3 Despliegue en Producción (Capa Gratuita)
 
 | Componente | Plataforma Gratuita | Límites Relevantes | Caveat |
 | :--- | :--- | :--- | :--- |
-| **UI (Shiny)** | [ShinyApps.io Free](https://support.posit.co/hc/en-us/articles/217592947-What-are-the-limits-of-the-shinyapps-io-Free-plan) | 5 apps · **25 h activas/mes** | App ASGI nativa; `rsconnect deploy shiny` (`rsconnect-python ≥ 1.22`). |
-| **Backend + Worker** | [Render Free](https://render.com/docs/free) | 512 MB RAM · 0.1 CPU · **duerme a 15 min** · 750 h/mes | *Cold start* 30–60 s; RF-DETR-Nano (ligero, optimizado para CPU) cabe en RAM. |
+| **Gateway (UI Astro + API)** | [Hugging Face Spaces](https://huggingface.co/docs/hub/spaces-sdks-docker) (SDK Docker) | CPU básica **2 vCPU · 16 GB RAM** · **duerme a 48 h** | 1 contenedor; HF construye el `Dockerfile` al hacer `git push`. Cold start 30–60 s. |
+| **Alternativa: gateway** | [Render Free](https://render.com/docs/free) | 512 MB RAM · 0.1 CPU · **duerme a 15 min** · 750 h/mes | `backend/Dockerfile` + `render.yaml`. |
 | **BD / Storage / Colas** | [Supabase Free](https://supabase.com/pricing) | 500 MB DB · 1 GB Storage · **pausa a 7 días** sin actividad | Keep-alive (cron ligero) para evitar la pausa. |
 | **LLM** | Groq Free | Rate limit por minuto/día | BYOK: la llave la pone el usuario. |
 | **Satélite / Clima** | Copernicus CDSE · NASA POWER · Open-Meteo | Cuotas públicas | Open-Meteo no requiere llave. |
@@ -439,16 +425,15 @@ services:
 **Pipeline de despliegue (resumen):**
 
 ```powershell
-# 1. UI Shiny -> ShinyApps.io
-uv run rsconnect deploy shiny ./frontend --name <cuenta> --title AgroVision-UI
+# 1. Gateway (UI Astro + API) -> Hugging Face Spaces (SDK Docker)
+#    HF construye el Dockerfile de la raíz; un git push basta.
+.\scripts\deploy_hf.ps1 -Force      # primer deploy
 
-# 2. Backend + Worker -> Render (vía Dockerfile + render.yaml o conexión de repo)
-#    Render detecta el Dockerfile y expone el puerto 8000.
-
-# 3. BD -> aplicar migraciones PostGIS al proyecto Supabase del usuario
+# 2. BD -> aplicar migraciones PostGIS al proyecto Supabase del usuario
+uv run python -m backend.db.migrate
 ```
 
-> **Sobre la "Regla de Oro" del plan de replicación:** el problema de enrutamiento de Astro (slugs `/_w_xxxx/`, SPA, rutas relativas) **no aplica** aquí, porque Shiny for Python es una aplicación ASGI nativa que ShinyApps.io enruta directamente vía WebSocket. Se conservan, eso sí, dos lecciones: (1) usar **rutas relativas** y la variable `API_BASE_URL` para apuntar al backend, y (2) configurar **CORS** correctamente entre el dominio de ShinyApps.io y el de Render.
+> **Un solo origen:** UI y API se sirven desde el mismo gateway, así que **no hay CORS entre front y back** ni `API_BASE_URL` apuntando a otro host. La "Regla de Oro" (rutas relativas, hash-routing, CSS inline) se conserva como salvaguarda para sub-paths. Detalle del despliegue en [`ejecucion.md`](../ejecucion.md) §5.
 
 ### 7.4 Gestión del Modelo Predeterminado
 

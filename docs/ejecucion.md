@@ -1,6 +1,6 @@
 # Guía de Ejecución y Despliegue: AgroVisión (Plataforma)
 
-> **Proyecto:** AgroVisión — UI **Astro + Tailwind** (6 módulos) servida por el backend **FastAPI** (monolito modular). *(Shiny queda como legacy en `:8001`.)*
+> **Proyecto:** AgroVisión — UI **Astro + Tailwind** (6 módulos) servida por el backend **FastAPI** (monolito modular). *(Shiny se eliminó en la Fase 10.)*
 > **Fecha de Actualización:** 2026-06-04
 > **Objetivo:** Runbook para clonar, levantar el entorno local y desplegar la plataforma sin fricciones (el pipeline de despliegue ya está automatizado — ver §5).
 >
@@ -80,7 +80,7 @@ cp .env.example .env
 
 ## 3. Ejecución en Desarrollo
 
-> **UI = Astro (Fase 8).** La UI principal es **Astro + Tailwind**, compilada a estático y **servida por el gateway FastAPI en `/`**. El Shiny (`backend/dashboard:app`) queda como *legacy* (`:8001`). Para desarrollo de UI con hot-reload se usa el dev server de Astro (`:4321`) que proxea `/api` al gateway.
+> **UI = Astro.** La UI es **Astro + Tailwind**, compilada a estático y **servida por el gateway FastAPI en `/`**. Para desarrollo de UI con hot-reload se usa el dev server de Astro (`:4321`) que proxea `/api` al gateway. *(Shiny se eliminó en la Fase 10.)*
 
 ### 3.1 Opción A: UI compilada servida por el gateway (lo más simple)
 
@@ -108,7 +108,7 @@ uv run python -u -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --relo
 cd frontend
 pnpm dev
 ```
-Abre **http://localhost:4321/**. *(UI Shiny legacy, opcional: `.\scripts\run_ui.ps1` en `:8001`.)*
+Abre **http://localhost:4321/**.
 
 ### 3.3 Puertos y Accesos Locales
 
@@ -117,7 +117,6 @@ Abre **http://localhost:4321/**. *(UI Shiny legacy, opcional: `.\scripts\run_ui.
 - **Backend / API**: `http://127.0.0.1:8000/api/...`
 - **Healthcheck**: `http://127.0.0.1:8000/api/status`
 - **Documentación API (Swagger)**: `http://127.0.0.1:8000/docs`
-- **UI Shiny legacy**: `http://127.0.0.1:8001`
 
 ### 3.4 Checklist de Verificación Rápida (Sanity Check)
 
@@ -202,7 +201,7 @@ Cada `git push` posterior **reconstruye el mismo Space** (no manejas ids de app:
 .\scripts\deploy_hf.ps1
 ```
 
-El script lee `HF_TOKEN`/`HF_SPACE_ID` del `.env`, arma la URL autenticada del Space y hace `git push HEAD:main`. **No compila en local** (HF construye el `Dockerfile` en su lado). Detalle en **§8.7**.
+El script lee `HF_TOKEN`/`HF_SPACE_ID` del `.env`, arma la URL autenticada del Space y hace `git push HEAD:main`. **No compila en local** (HF construye el `Dockerfile` en su lado). Detalle en **§8.5**.
 
 > **BYOK / seguridad:** el `.env` está en `.gitignore`, así que **no se sube** al Space; las `HF_TOKEN`/`HF_SPACE_ID` solo se usan **en tu máquina** para autenticar el push. Las llaves de datos (Supabase/Copernicus/Groq) las pone cada usuario por sesión (cabeceras `X-User-*`).
 > **Migraciones (BYOK):** el Space no tiene BD propia; para la demo, aplica las migraciones contra **tu** Supabase (`uv run python -m backend.db.migrate`) y pega tus llaves en la pestaña *Credenciales*.
@@ -218,7 +217,7 @@ El script lee `HF_TOKEN`/`HF_SPACE_ID` del `.env`, arma la URL autenticada del S
 ### 5.6 Alternativas de despliegue
 
 - **Render** (Docker, free tier): usa [`backend/Dockerfile`](../backend/Dockerfile) + [`render.yaml`](../render.yaml). Conectas el repo de GitHub y cada push redespliega. Duerme a los 15 min (cold start ~30–60 s) y da 512 MB de RAM.
-- **Posit Connect** (de pago/enterprise): ahí **sí** aplica `rsconnect deploy fastapi` vía [`scripts/deploy_prod.ps1`](../scripts/deploy_prod.ps1) (apuntándolo a tu servidor Connect, no a shinyapps.io). Ver §8.5.
+- **Posit Connect** (de pago/enterprise): soporta FastAPI vía `rsconnect deploy fastapi --server <url> --api-key <key>`. El script `deploy_prod.ps1` (flujo rsconnect) **se eliminó en la Fase 10** por ser específico de shinyapps; si algún día hay un Connect disponible, se re-añade apuntándolo a ese servidor.
 
 ---
 
@@ -227,7 +226,7 @@ El script lee `HF_TOKEN`/`HF_SPACE_ID` del `.env`, arma la URL autenticada del S
 | Problema / Mensaje de Error | Causa Probable | Solución / Workaround |
 |-----------------------------|----------------|-----------------------|
 | `failed to hardlink ... os error 396` / lock al instalar | `.venv` dentro de carpeta OneDrive | Crear el venv fuera: `$env:UV_PROJECT_ENVIRONMENT="$env:LOCALAPPDATA\agrovision-venv"`; `link-mode=copy` ya está en `pyproject.toml`. |
-| `Failed to spawn: uvicorn/shiny/pytest` (`os error 5`) | Los shims `.exe` se bloquean en OneDrive | Usar la forma de módulo: `uv run python -m uvicorn ...` / `uv run python -m pytest`. |
+| `Failed to spawn: uvicorn/pytest` (`os error 5`) | Los shims `.exe` se bloquean en OneDrive | Usar la forma de módulo: `uv run python -m uvicorn ...` / `uv run python -m pytest`. |
 | UI muestra "backend no disponible" | El backend (:8000) no está arriba | Levantar primero el backend o usar `.\scripts\dev.ps1`. |
 | `POST /api/count` devuelve `503` | Conteo en standby (esperado) | Es el comportamiento en desarrollo. Para probar: `COUNTING_ENABLED=true` + `MODEL_BACKEND=mock` (§3.5). |
 | `[WinError 10013]` al arrancar (bind) | El puerto (8000/8001) **ya está ocupado** por otro proceso (típico: un `uvicorn` previo que quedó vivo). En Windows esto se reporta como **10013 (acceso denegado)**, no como 10048 (en uso). | Liberar el puerto (ver **§6.1**) o usar otro `--port`. |
@@ -238,7 +237,7 @@ El script lee `HF_TOKEN`/`HF_SPACE_ID` del `.env`, arma la URL autenticada del S
 
 ```powershell
 # 1) Ver qué ocupa el puerto (el PID es la última columna)
-netstat -ano | findstr :8000        # usa :8001 para la UI
+netstat -ano | findstr :8000        # o :4321 para el dev server de Astro
 
 # 2) Identificar el proceso de ese PID
 tasklist /FI "PID eq <PID>"
@@ -287,11 +286,9 @@ Todos los `.ps1` viven en `scripts/`, se ejecutan **desde la raíz del repo** (r
 | Script | Para qué sirve | Uso típico |
 |--------|----------------|------------|
 | `run_backend.ps1` | Gateway FastAPI (`:8000`) con `--reload` | `.\scripts\run_backend.ps1` |
-| `run_ui.ps1` | UI **Shiny legacy** (`:8001`) | `.\scripts\run_ui.ps1` |
 | `dev.ps1` | Levanta **backend + Astro dev** en 2 ventanas | `.\scripts\dev.ps1` |
 | `build.ps1` | Compila la UI Astro → `backend/static` | `.\scripts\build.ps1` |
 | `deploy_hf.ps1` | **Despliega a Hugging Face Spaces** (vía activa) | `.\scripts\deploy_hf.ps1 -Force` (primer deploy) |
-| `deploy_prod.ps1` | Despliega a **Posit Connect** (de pago; *no* shinyapps) | `.\scripts\deploy_prod.ps1 -Name <server>` |
 | `inline_js.py` | Post-proceso del HTML (lo invoca `build.ps1`) | *(automático; ver abajo)* |
 | `make_sample_orthomosaic.py` | Genera ortomosaico mock para el conteo | `uv run python scripts/make_sample_orthomosaic.py` |
 
@@ -357,27 +354,11 @@ Abre **dos ventanas PowerShell**: una con `run_backend.ps1` (`:8000`) y otra con
 
 **Requisitos:** `uv`, Node + `pnpm`. Trabaja en **http://localhost:4321/**. *(La UI compilada en `:8000` sólo refleja cambios tras `build.ps1`.)*
 
-### 8.4 `run_ui.ps1` — Shiny legacy (`:8001`)
-
-Levanta la UI **Shiny** antigua (`backend.dashboard:app`) en `:8001`. Desde la Fase 8 la UI principal es Astro; esto queda sólo como referencia/legacy.
-
-```powershell
-.\scripts\run_ui.ps1          # -> http://127.0.0.1:8001
-```
-
-### 8.5 `deploy_prod.ps1` — despliegue a **Posit Connect** (alternativa de pago)
-
-> ⚠️ **No para shinyapps.io:** shinyapps.io solo hospeda apps Shiny, no FastAPI. Este script aplica a un servidor **Posit Connect** (de pago/enterprise). Para el despliegue gratuito usa **Hugging Face Spaces** (§8.7). Se conserva por si en el futuro hay un Connect disponible.
-
-Construye el bundle (compila la UI con `build.ps1`, genera `requirements.txt` con `uv export`, traduce `.rscignore` a `--exclude`) y publica con `rsconnect deploy fastapi . --entrypoint backend.main:app`. Acepta `-Name`, `-AppId` y `-New`.
-
-> **Estado: no es la vía actual.** El script se diseñó para el flujo `rsconnect`/shinyapps, pero **shinyapps.io no hospeda FastAPI**. Para que funcione necesitarías un servidor **Posit Connect** real y autenticar con `--server <url> --api-key <key>` (variables `CONNECT_SERVER`/`CONNECT_API_KEY`), **no** con `SHINYAPPS_*`. Mientras no haya un Connect disponible, **usa Hugging Face Spaces (§8.7)**. Se conserva como base para una futura integración con Connect.
-
-### 8.6 `inline_js.py` — post-proceso del HTML (auxiliar)
+### 8.4 `inline_js.py` — post-proceso del HTML (auxiliar)
 
 No se llama a mano normalmente (lo invoca `build.ps1`). Reescribe `frontend/dist/index.html` *in place*: inyecta inline cualquier `/_astro/*.js`, y relativiza rutas absolutas (favicon, assets) para que la SPA funcione bajo un sub-path dinámico. Es **idempotente**. Ejecutarlo suelto (depurar): `uv run python scripts/inline_js.py` (requiere haber hecho `pnpm build` antes). *(En HF Spaces y Render la app se sirve en la raíz del dominio, así que la "Regla de Oro" no es estrictamente necesaria; el script queda como salvaguarda.)*
 
-### 8.7 `deploy_hf.ps1` — despliegue a Hugging Face Spaces (**vía activa**)
+### 8.5 `deploy_hf.ps1` — despliegue a Hugging Face Spaces (**vía activa**)
 
 Publica el gateway en un **Docker Space**. No compila en local: hace `git push` del repo al Space y **HF construye el `Dockerfile`** de la raíz (multi-stage Astro→FastAPI, usuario `1000`, puerto `app_port: 8000` del `README.md`).
 
