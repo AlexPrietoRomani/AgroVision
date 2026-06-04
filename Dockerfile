@@ -26,9 +26,10 @@ FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
 #   libglib2.0-0 → requerido por opencv-python-headless (cv2 se importa al arrancar)
 #   libgomp1     → requerido por onnxruntime (import diferido; al activar el conteo)
 #   libxcb1      → requerido por opencv-python-headless (librería X11 en Debian)
+#   libgl1       → requerido por opencv-python-headless (libGL.so.1)
 # --no-install-recommends + limpieza de listas: nada de basura de apt en la capa.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libglib2.0-0 libgomp1 libxcb1 \
+    && apt-get install -y --no-install-recommends libglib2.0-0 libgomp1 libxcb1 libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Usuario no-root (UID 1000). Se cambia a USER antes de WORKDIR para que el directorio
