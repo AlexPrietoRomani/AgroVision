@@ -11,4 +11,3 @@ Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$ro
 Write-Host "API:                 http://127.0.0.1:8000/api/status"
 Write-Host "UI (Astro, dev):     http://localhost:4321/        (hot-reload)"
 Write-Host "UI (compilada):      http://127.0.0.1:8000/        (tras .\scripts\build.ps1)"
-Write-Host "UI Shiny (legacy):   .\scripts\run_ui.ps1          -> http://127.0.0.1:8001"
