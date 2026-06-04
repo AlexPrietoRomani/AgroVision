@@ -187,6 +187,8 @@ uv run rsconnect add --account <cuenta> --name <cuenta> --token <TOKEN> --secret
 El script ejecuta el pipeline completo de extremo a extremo. **Tú solo corres un comando:**
 
 ```powershell
+# Compilar la UI:
+.\scripts\build.ps1
 # Primer deploy (crea la app en ShinyApps.io y te devuelve su app-id):
 .\scripts\deploy_prod.ps1 -Name <cuenta>
 # Redeploy (cuando ya tengas el app-id del primer deploy):
@@ -197,7 +199,7 @@ Internamente `deploy_prod.ps1` hace, sin intervención:
 1. **(0)** Compila la UI con `build.ps1` (`pnpm build` → `inline_js.py` → `backend/static`).
 2. **(1)** Genera `requirements.txt` (`uv export --no-dev --no-hashes --no-emit-project`) — ShinyApps instala desde ahí, no usa `uv`.
 3. **(2)** Traduce cada línea de `.rscignore` a flags `--exclude` (rsconnect-python no lee `.rscignore` solo).
-4. **(3)** `rsconnect deploy shiny . --entrypoint backend.main:app --name <cuenta> [--app-id <id>]`.
+4. **(3)** `rsconnect deploy fastapi . --entrypoint backend.main:app --name <cuenta> [--app-id <id>]` *(es `deploy fastapi`, no `deploy shiny`: el gateway es una app FastAPI/ASGI)*.
 
 > Parámetros (`-Name`, `-AppId`) y el detalle paso a paso del script están en **§8.5**.
 > **BYOK / seguridad:** el `.env` **NO** viaja en el bundle (está en `.rscignore`); en producción las llaves las pone el usuario por sesión (cabeceras `X-User-*`).
@@ -362,7 +364,7 @@ Despliega el repo como una app ASGI cuyo entrypoint es el **gateway** (`backend.
 0. **`build.ps1`** (compila la UI a `backend/static`).
 1. **`uv export --no-dev --no-hashes --no-emit-project -o requirements.txt`** (ShinyApps instala desde `requirements.txt`, no usa `uv`).
 2. Traduce cada línea de **`.rscignore`** a flags `--exclude` (rsconnect-python no lee `.rscignore` solo).
-3. **`rsconnect deploy shiny . --entrypoint backend.main:app --name <cuenta> [--app-id <id>] @exclude`**.
+3. **`rsconnect deploy fastapi . --entrypoint backend.main:app --name <cuenta> [--app-id <id>] @exclude`** — subcomando **`fastapi`** (no `shiny`): el entrypoint es una app FastAPI/ASGI, y `rsconnect` soporta FastAPI en shinyapps.io.
 
 **Parámetros:**
 

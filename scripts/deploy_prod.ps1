@@ -52,11 +52,14 @@ if ($Name -eq "<TU_CUENTA_SHINYAPPS>") {
     exit 1
 }
 
-# 3) Desplegar (entrypoint = gateway FastAPI que sirve la UI Astro + /api + /shiny)
-Write-Host "`n[3/3] Desplegando (entrypoint backend.main:app)..." -ForegroundColor Yellow
+# 3) Desplegar como app FastAPI (ASGI). OJO: NO es 'deploy shiny' (eso espera una app
+#    Shiny); el gateway es FastAPI, así que el subcomando correcto es 'deploy fastapi'
+#    (rsconnect lo soporta para shinyapps.io). El entrypoint es el gateway que sirve
+#    la UI Astro en / y la API en /api.
+Write-Host "`n[3/3] Desplegando (deploy fastapi, entrypoint backend.main:app)..." -ForegroundColor Yellow
 $appIdArgs = @()
 if ($AppId) { $appIdArgs = @("--app-id", $AppId) }
-& uv run python -c "from rsconnect.main import cli; cli()" deploy shiny . `
+& uv run python -c "from rsconnect.main import cli; cli()" deploy fastapi . `
     --entrypoint backend.main:app --name $Name @appIdArgs @excludeArgs
 
 Write-Host "`n=== Despliegue completado ===" -ForegroundColor Green
