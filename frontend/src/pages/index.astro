@@ -21,10 +21,18 @@ import "../styles/global.css";
       @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
       .nav-btn-active { background-color: #15803d; color: #fff !important; box-shadow: 0 4px 6px -1px rgba(21,128,61,.2); }
       #map, #map-readonly { height: 340px; border-radius: 0.5rem; z-index: 0; }
+      /* Sidebar: control de visibilidad con la propiedad `transform` (Tailwind v4 usa
+         la propiedad `translate`, que no se puede cancelar con transform inline). */
+      #sidebar { transform: translateX(-100%); transition: transform 0.3s ease; }
+      #sidebar.is-open { transform: translateX(0); }
+      @media (min-width: 768px) {
+        #sidebar { transform: translateX(0); }
+        #sidebar.is-collapsed { transform: translateX(-100%); }
+      }
     </style>
   </head>
 
-  <body class="flex flex-col md:flex-row h-screen overflow-hidden text-stone-900">
+  <body class="h-screen overflow-hidden text-stone-900">
     <!-- Notificación flotante -->
     <div
       id="notif"
@@ -34,19 +42,29 @@ import "../styles/global.css";
       <p class="text-xs text-stone-300 mt-0.5" id="notif-body"></p>
     </div>
 
-    <!-- Botón hamburguesa (móvil) -->
+    <!-- Botón hamburguesa (móvil): abre el sidebar -->
     <button
       id="btn-hamburger"
       class="md:hidden fixed top-3 left-3 z-40 bg-stone-900 text-white w-10 h-10 rounded-lg shadow-lg"
-      aria-label="Menú"
+      aria-label="Abrir menú"
     >
       <i class="fa-solid fa-bars"></i>
     </button>
+    <!-- Botón reabrir (desktop, cuando el sidebar está plegado) -->
+    <button
+      id="btn-reopen"
+      class="hidden fixed top-3 left-3 z-40 bg-stone-900 text-white w-10 h-10 rounded-lg shadow-lg"
+      aria-label="Mostrar menú"
+    >
+      <i class="fa-solid fa-bars"></i>
+    </button>
+    <!-- Backdrop (móvil) -->
+    <div id="backdrop" class="fixed inset-0 bg-black/40 z-20 hidden md:hidden"></div>
 
     <!-- SIDEBAR -->
     <aside
       id="sidebar"
-      class="fixed md:static inset-y-0 left-0 w-72 bg-stone-900 text-stone-200 flex flex-col z-30 border-r border-stone-800 shrink-0 -translate-x-full md:translate-x-0 transition-transform duration-300"
+      class="fixed inset-y-0 left-0 w-72 bg-stone-900 text-stone-200 flex flex-col z-30 border-r border-stone-800"
     >
       <div class="p-5 border-b border-stone-800 flex items-center justify-between">
         <div>
@@ -113,9 +131,9 @@ import "../styles/global.css";
     </aside>
 
     <!-- MAIN -->
-    <main class="flex-1 overflow-y-auto flex flex-col h-full bg-stone-50">
+    <main id="main" class="h-full overflow-y-auto flex flex-col bg-stone-50 md:ml-72 transition-[margin] duration-300">
       <header class="bg-white border-b border-stone-200 px-6 md:px-8 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
-        <div class="pl-10 md:pl-0">
+        <div id="titlebox" class="pl-12 md:pl-0">
           <h2 id="header-title" class="text-lg font-bold text-stone-800">Resumen de Campo</h2>
           <p id="header-desc" class="text-xs text-stone-500">Visión analítica unificada de parcelas.</p>
         </div>
@@ -171,6 +189,9 @@ import "../styles/global.css";
               <input id="parcela-name" type="text" placeholder="Lote Sur (Arándano - 12 Ha)" class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-stone-50 mb-3 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
               <button id="btn-save-parcela" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-4 py-3 rounded-lg transition-all flex items-center justify-center gap-2">
                 <i class="fa-solid fa-floppy-disk"></i> Guardar y disparar backfill
+              </button>
+              <button id="btn-demo" class="w-full mt-2 bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold text-xs px-4 py-2 rounded-lg transition-all flex items-center justify-center gap-2">
+                <i class="fa-solid fa-mountain-sun"></i> Cargar parcela demo (Lomas de Lachay)
               </button>
               <h4 class="font-bold text-xs text-stone-800 mt-5 mb-2">Parcelas registradas</h4>
               <ul id="parcelas-list" class="space-y-2 text-xs"></ul>
@@ -245,6 +266,10 @@ import "../styles/global.css";
             <div><label class="block text-xs font-bold text-stone-600 mb-1">Copernicus Client Secret</label><input id="in-copsecret" type="password" class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-stone-50" /></div>
             <div><label class="block text-xs font-bold text-stone-600 mb-1">Supabase URL</label><input id="in-sburl" type="text" placeholder="https://xxxx.supabase.co" class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-stone-50" /></div>
             <div><label class="block text-xs font-bold text-stone-600 mb-1">Supabase anon key</label><input id="in-sbkey" type="password" class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-stone-50" /></div>
+            <div class="md:col-span-2 bg-stone-50 border border-stone-200 rounded-lg p-3 flex items-center justify-between gap-3">
+              <span class="text-[11px] text-stone-600" id="env-status">¿Tienes un <code>.env</code> en el servidor (desarrollo local)? Úsalo sin reescribir las llaves.</span>
+              <button id="btn-check-env" class="bg-stone-800 hover:bg-stone-700 text-white font-bold text-xs px-4 py-2 rounded-lg whitespace-nowrap"><i class="fa-solid fa-file-shield"></i> Revisar .env del servidor</button>
+            </div>
             <div class="md:col-span-2 flex items-center justify-between pt-2 border-t border-stone-100">
               <span class="text-[11px] text-amber-600"><i class="fa-solid fa-triangle-exclamation"></i> <span id="creds-state">0 llaves activas (se borran al refrescar)</span></span>
               <button id="btn-save-creds" class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-5 py-3 rounded-lg">Usar en esta sesión</button>
@@ -312,15 +337,41 @@ import "../styles/global.css";
         if (id === "tab-parcelas") setTimeout(initMap, 50);
         if (id === "tab-satelite") setTimeout(() => { loadTeledeteccion(); }, 50);
         if (id === "tab-resumen") loadResumen();
-        if (window.innerWidth < 768) $("sidebar").classList.add("-translate-x-full");
+        if (window.innerWidth < 768) closeSidebar();
       }
       document.querySelectorAll(".nav-btn").forEach((b) =>
         b.addEventListener("click", () => switchTab(b.dataset.tab))
       );
 
-      // ===== Plegables / responsive =====
-      $("btn-hamburger").addEventListener("click", () => $("sidebar").classList.toggle("-translate-x-full"));
-      $("btn-collapse").addEventListener("click", () => $("sidebar").classList.add("-translate-x-full"));
+      // ===== Sidebar plegable / responsive =====
+      // Estado del sidebar vía clases CSS propias: `is-open` (móvil) / `is-collapsed`
+      // (desktop). El CSS (#sidebar) usa la propiedad `transform`, controlada por estas
+      // clases, sin chocar con las utilidades translate de Tailwind v4.
+      function openSidebar() {
+        if (window.innerWidth < 768) {
+          $("sidebar").classList.add("is-open");
+          $("backdrop").classList.remove("hidden");
+        } else {
+          $("sidebar").classList.remove("is-collapsed");
+          $("main").classList.add("md:ml-72"); $("main").classList.remove("md:ml-0");
+          $("btn-reopen").classList.add("hidden");
+          $("titlebox").classList.remove("md:pl-12");
+        }
+      }
+      function closeSidebar() {
+        $("sidebar").classList.remove("is-open");
+        $("backdrop").classList.add("hidden");
+        if (window.innerWidth >= 768) {
+          $("sidebar").classList.add("is-collapsed");
+          $("main").classList.remove("md:ml-72"); $("main").classList.add("md:ml-0");
+          $("btn-reopen").classList.remove("hidden");
+          $("titlebox").classList.add("md:pl-12");
+        }
+      }
+      $("btn-hamburger").addEventListener("click", openSidebar);
+      $("btn-reopen").addEventListener("click", openSidebar);
+      $("btn-collapse").addEventListener("click", closeSidebar);
+      $("backdrop").addEventListener("click", closeSidebar);
       $("btn-footer").addEventListener("click", () => {
         $("footer-body").classList.toggle("hidden");
         $("footer-chevron").classList.toggle("fa-chevron-up");
@@ -343,8 +394,11 @@ import "../styles/global.css";
       }
       function initMap() {
         if (map) { map.invalidateSize(); return; }
-        map = L.map("map").setView([-12.05, -77.04], 6);
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap" }).addTo(map);
+        const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap" });
+        const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { attribution: "© Esri World Imagery", maxZoom: 19 });
+        const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { attribution: "© OpenTopoMap", maxZoom: 17 });
+        map = L.map("map", { center: [-11.37, -77.37], zoom: 11, layers: [sat] }); // Lomas de Lachay
+        L.control.layers({ "Satélite": sat, "Normal": osm, "Relieve": topo }).addTo(map);
         drawnItems = new L.FeatureGroup().addTo(map);
         const drawControl = new L.Control.Draw({
           draw: { polygon: true, marker: false, polyline: false, circle: false, rectangle: false, circlemarker: false },
@@ -363,6 +417,15 @@ import "../styles/global.css";
         try {
           const r = await api("/fields", { method: "POST", body: JSON.stringify({ name, geojson: drawnGeojson }) });
           if (r.ok) { notify("Parcela guardada", `${name}: backfill NDVI en curso…`); $("parcela-name").value = ""; drawnGeojson = null; drawnItems.clearLayers(); refreshParcels(); }
+          else { const e = await r.json().catch(() => ({})); notify("Error " + r.status, e.detail || ""); }
+        } catch (e) { notify("Error de red", String(e)); }
+      });
+      $("btn-demo").addEventListener("click", async () => {
+        // Lomas de Lachay (reserva con vegetación estacional → buena variación NDVI)
+        const geojson = { type: "Polygon", coordinates: [[[-77.40, -11.40], [-77.40, -11.34], [-77.34, -11.34], [-77.34, -11.40], [-77.40, -11.40]]] };
+        try {
+          const r = await api("/fields", { method: "POST", body: JSON.stringify({ name: "Lomas de Lachay (demo)", geojson }) });
+          if (r.ok) { notify("Parcela demo creada", "Lomas de Lachay: backfill NDVI (5 años) en curso…"); refreshParcels(); }
           else { const e = await r.json().catch(() => ({})); notify("Error " + r.status, e.detail || ""); }
         } catch (e) { notify("Error de red", String(e)); }
       });
@@ -449,6 +512,17 @@ import "../styles/global.css";
         $("creds-state").innerText = `${n} llave(s) activas (se borran al refrescar)`;
         notify("Credenciales en sesión", `${n} llave(s) activas solo en esta sesión.`);
         refreshParcels();
+      });
+      $("btn-check-env").addEventListener("click", async () => {
+        try {
+          const r = await fetch("./api/credentials/status");
+          if (!r.ok) return notify("No disponible", "No se pudo consultar el .env del servidor.");
+          const s = await r.json();
+          const have = Object.entries({ Groq: s.groq, Copernicus: s.copernicus, Supabase: s.supabase }).filter(([, v]) => v).map(([k]) => k);
+          $("env-status").innerHTML = have.length
+            ? `✅ En el servidor (.env): <b>${have.join(", ")}</b>. Se usan automáticamente; no necesitas reescribirlas aquí.`
+            : "No se detectaron credenciales en el .env del servidor.";
+        } catch { notify("Error", "No se pudo consultar el .env del servidor."); }
       });
 
       // ===== Init =====
