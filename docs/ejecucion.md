@@ -128,7 +128,9 @@ Abre **http://localhost:4321/**. *(UI Shiny legacy, opcional: `.\scripts\run_ui.
 5. [ ] (Con `DATABASE_URL` + Copernicus configurados) **Creación de Parcelas**: dibujar un polígono, nombrarlo y *Guardar* → aparece en la lista; tras unos segundos, en **Teledetección** se ve la serie NDVI de 5 años.
 6. [ ] (Con Groq) **Asistente**: preguntar *"¿cómo evolucionó el NDVI de \<parcela\>?"* → responde citando la herramienta usada.
 
-> **Pruebas en vivo del backend** (sin la UI): `http://127.0.0.1:8000/docs` (Swagger) lista `/api/fields`, `/api/ndvi`, `/api/ndvi/raster`, `/api/weather`, `/api/chat`. Recuerda aplicar migraciones (`uv run python -m backend.db.migrate`) antes de usar parcelas.
+> **Pruebas en vivo del backend** (sin la UI): `http://127.0.0.1:8000/docs` (Swagger) lista `/api/fields`, `/api/ndvi`, `/api/ndvi/raster`, `/api/weather`, `/api/chat` y `/api/events` (telemetría: `POST /api/events`, `GET /api/events/recent?session_id=`). Recuerda aplicar migraciones (`uv run python -m backend.db.migrate`) antes de usar parcelas.
+>
+> **Telemetría (Fase 9):** cada acción de la UI emite un evento (sin secretos) que se loguea en stdout y se guarda en un buffer en memoria, consultable en `GET /api/events/recent`. Para depurar una sesión: `GET /api/events/recent?session_id=<id>`. La persistencia en la tabla `events` es **opcional** (`EVENTS_PERSIST=true`).
 
 ### 3.5 (Opcional) Demostrar el Conteo con Datos Mock
 

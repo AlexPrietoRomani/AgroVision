@@ -141,6 +141,19 @@ erDiagram
 
 ---
 
+### 3.5 Tabla: `events` (Telemetría de UI — Fase 9, persistencia **opcional**)
+*   **Descripción:** Traza de acciones de la UI para depurar. Se escribe **solo** si `EVENTS_PERSIST=true` (best-effort; un fallo de BD nunca rompe la UI). El backend **redacta** `meta` antes de insertar: **nunca** contiene secretos. Por defecto la telemetría vive solo en stdout + un ring buffer en memoria (`GET /api/events/recent`).
+
+| Campo | Tipo de Dato | Modificadores | Descripción / Regla de Negocio |
+| :--- | :--- | :--- | :--- |
+| `id` | `BIGSERIAL` | `PK` | Identificador secuencial. |
+| `action` | `TEXT` | `NOT NULL` | Acción (`nav`, `creds_set`, `parcel_create`, `chart_view`, `api_error`…). |
+| `session_id` | `TEXT` | `NOT NULL` | Correlación por sesión de UI. |
+| `meta` | `JSONB` | `NOT NULL DEFAULT '{}'` | Contexto **ya redactado** (contadores, pestaña, status…). |
+| `created_at` | `TIMESTAMP` | `DEFAULT now()` | Orden temporal. |
+
+---
+
 ## 4. Matriz de Accesos y CRUD por Componente
 
 | Tabla | Gateway (FastAPI) | Worker Asíncrono | UI (Shiny) | Permisos | Notas de Diseño |
@@ -149,6 +162,7 @@ erDiagram
 | `ndvi_timeseries` | `RemoteSensingService` (write, mensual) | *Ninguno* | lectura vía API (*Teledetección*, *Resumen*) | `API: Read/Write` | Escritura tras estadística zonal + agregación mensual; idempotente por `UNIQUE(field_id,date)`. |
 | `plant_counts` | `CountService` (read) | `InferenceWorker` (write) | lectura vía API | `API: Read` <br> `Worker: Write` | **En desarrollo:** sin escrituras hasta `COUNTING_ENABLED=true`. |
 | `chat_messages` | `AgentService` | *Ninguno* | lectura vía API (*Asistente*) | `API: Read/Write` | Memoria del agente (Memory Buffer). |
+| `events` | `events` router (write best-effort) | *Ninguno* | escritura vía `POST /api/events` (telemetría) | `API: Write` <br> (opcional) | **Opcional** (`EVENTS_PERSIST=true`). Sin secretos (redactado). Por defecto solo buffer en memoria. |
 | `pgmq.count_tasks` (cola) | `CountService` (produce) | `InferenceWorker` (consume) | — | `API: send` <br> `Worker: read/archive` | **En desarrollo:** cola creada pero inactiva hasta activar el conteo. |
 
 > **NDVI raster / heatmap:** el endpoint `POST /api/ndvi/raster` genera un PNG colorizado **on-demand** (no escribe en BD ni en Storage; se regenera). No aparece en la matriz por no tocar persistencia.
@@ -164,6 +178,7 @@ erDiagram
 *   **`ndvi_field_date_idx`** en `ndvi_timeseries (field_id, date)` — optimiza filtros de fecha del agente.
 *   **`plant_counts_json_gin_idx`** en `plant_counts USING gin (result_json)` — búsquedas/agregaciones sobre el JSONB de detecciones.
 *   **`chat_session_history_idx`** en `chat_messages (session_id, created_at)` — recuperación ordenada del historial.
+*   **`events_session_created_idx`** en `events (session_id, created_at)` — traza de una sesión ordenada (depuración; tabla opcional).
 
 ### 5.2 Control de Concurrencia y Seguridad
 *   **Row Level Security (RLS):** políticas `auth.uid() = user_id` en todas las tablas para aislar usuarios dentro del mismo proyecto Supabase.
