@@ -4,7 +4,7 @@ Plataforma de [AgroVisión](docs/reference/description_proyecto_agrovision.md) p
 
 > **Modelo BYOK, credenciales efímeras.** Las llaves del usuario (Supabase, Copernicus, Groq) viven **solo en memoria de sesión** y se envían por cabeceras `X-User-*`; nunca se persisten. Refrescar borra todo.
 >
-> **Conteo por dron — EN DESARROLLO.** Arranca deshabilitado (`COUNTING_ENABLED=false`); la cola/worker/tabla existen pero inactivos hasta que el [repo del modelo](docs/reference/description_proyecto_modelo_conteo_plantas.md) publique el artefacto `agrovision-plantcount` en Hugging Face Hub. **Licencia: AGPL-3.0.**
+> **Conteo por dron — EN DESARROLLO.** Arranca deshabilitado (`COUNTING_ENABLED=false`); la cola/worker/tabla existen pero inactivos hasta que el **repo del modelo** (proyecto separado) publique el artefacto `agrovision-plantcount` en Hugging Face Hub. **Licencia: AGPL-3.0.**
 
 ## Módulos (6)
 

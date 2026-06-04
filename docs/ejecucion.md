@@ -9,7 +9,7 @@
 > **La app abre SIN credenciales** (verás los 6 módulos). Para *usar* cada módulo necesitas las llaves BYOK (todas de capa gratuita), que pones en `.env` (local) o en la pestaña **Credenciales** (sesión):
 > - **Parcelas / Teledetección / Resumen** → Supabase (`DATABASE_URL`) y, para NDVI, **Copernicus** (`DEV_COPERNICUS_CLIENT_ID/SECRET`). El clima (Open-Meteo) no necesita llave.
 > - **Asistente** → **Groq** (`DEV_GROQ_API_KEY`).
-> - **Conteo** → **EN DESARROLLO** (standby): la pestaña muestra *"Módulo en preparación"*. Se habilita cuando el [repo del modelo](reference/description_proyecto_modelo_conteo_plantas.md) publique el artefacto. Para demostrar el flujo con datos de prueba (mock) — ver §3.5.
+> - **Conteo** → **EN DESARROLLO** (standby): la pestaña muestra *"Módulo en preparación"*. Se habilita cuando el **repo del modelo** (proyecto separado) publique el artefacto. Para demostrar el flujo con datos de prueba (mock) — ver §3.5.
 
 ---
 

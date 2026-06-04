@@ -2,7 +2,7 @@
 
 > **Propósito:** Definir el modelo físico y lógico de persistencia de AgroVisión, justificar la elección del motor y servir como mapa de referencia para migraciones e implementación.
 > **Origen:** Se construye a partir de [`docs/reference/description_proyecto_agrovision.md`](../reference/description_proyecto_agrovision.md).
-> **Aplicabilidad:** Solo la **plataforma completa**. El [MVP](../reference/description_proyecto_agrovision_mvp.md) opera en **modo efímero sin base de datos** (todo en memoria de sesión).
+> **Aplicabilidad:** Solo la **plataforma completa**. (El MVP histórico operaba en modo efímero sin base de datos.)
 >
 > **Alcance de construcción (esta iteración):** se implementan **todas** las tablas, pero con dos matices:
 > - **`fields`, `ndvi_timeseries`, `chat_messages`** se usan activamente (parcelas, teledetección 5 años, agente).

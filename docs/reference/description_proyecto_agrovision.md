@@ -4,11 +4,10 @@
 >
 > **Stack confirmado:** UI en **Shiny for Python**, backend/gateway en **FastAPI**, base de datos en **Supabase (PostgreSQL + PostGIS + Storage + Queues/PGMQ)**, agente conversacional con **Groq (Llama 3)** y teledetección con **Copernicus Sentinel-2 / NASA POWER / Open-Meteo**. Despliegue gratuito: **ShinyApps.io + Render + Supabase**.
 >
-> **Licencia y modelo:** AgroVisión es **open-source bajo AGPL-3.0** (lo que permite usar **YOLO26**). El modelo de conteo es **agnóstico**: la app consume el artefacto `agrovision-plantcount` (multi-candidato YOLO26/RF-DETR) por **contrato**, vía un adaptador de inferencia. El **módulo de conteo arranca en _standby_** (flag `COUNTING_ENABLED=false`) hasta que el [repo del modelo](description_proyecto_modelo_conteo_plantas.md) publique el artefacto.
+> **Licencia y modelo:** AgroVisión es **open-source bajo AGPL-3.0** (lo que permite usar **YOLO26**). El modelo de conteo es **agnóstico**: la app consume el artefacto `agrovision-plantcount` (multi-candidato YOLO26/RF-DETR) por **contrato**, vía un adaptador de inferencia. El **módulo de conteo arranca en _standby_** (flag `COUNTING_ENABLED=false`) hasta que el **repo del modelo** (proyecto separado) publique el artefacto.
 >
 > **Documentos relacionados:**
-> - MVP reducido: [`description_proyecto_agrovision_mvp.md`](description_proyecto_agrovision_mvp.md)
-> - Repo del modelo de conteo (produce los pesos predeterminados): [`description_proyecto_modelo_conteo_plantas.md`](description_proyecto_modelo_conteo_plantas.md)
+> - El modelo de conteo se desarrolla en un **repo separado** (produce los pesos predeterminados).
 > - Investigación base: [`Plan Detallado Data Science Agrícola.md`](../investigation/Plan%20Detallado%20Data%20Science%20Agr%C3%ADcola.md)
 > - Mockup interactivo: [`agrovisi_n_spa_prototype.html`](../investigation/agrovisi_n_spa_prototype.html)
 
@@ -453,7 +452,7 @@ uv run rsconnect deploy shiny ./frontend --name <cuenta> --title AgroVision-UI
 
 ### 7.4 Gestión del Modelo Predeterminado
 
-*   AgroVisión **no entrena**: consume pesos producidos por el [repo del modelo de conteo](description_proyecto_modelo_conteo_plantas.md).
+*   AgroVisión **no entrena**: consume pesos producidos por el **repo del modelo de conteo** (proyecto separado).
 *   El artefacto `agrovision-plantcount-v2.0.0.onnx` (RF-DETR-Nano exportado a ONNX) se **publica en Hugging Face Hub** y se descarga con `hf_hub_download` durante el build de la imagen del backend, copiándose a `/app/models/` (`MODEL_VERSION` fija la trazabilidad). El nombre es de **marca, desacoplado de la arquitectura** interna.
 *   **Contrato de inferencia** que el worker espera: entrada = tile RGB; salida = `{"boxes":[[x1,y1,x2,y2,conf,cls]], "count":int}` compatible con `plant_counts.result_json`.
 

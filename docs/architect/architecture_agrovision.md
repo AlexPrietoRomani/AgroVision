@@ -1,7 +1,7 @@
 # Arquitectura — AgroVisión (Plataforma Completa)
 
 > **Audiencia:** Arquitectos de solución, líderes técnicos, desarrolladores.
-> **Alcance:** Estructura fundamental del sistema, interacciones de alto nivel (C4), esquema de datos y modelo de despliegue de la **plataforma completa** (**6 módulos**). Para especificaciones funcionales, ver [`description_proyecto_agrovision.md`](../reference/description_proyecto_agrovision.md). Para el alcance reducido, ver [`architecture_agrovision_mvp.md`](architecture_agrovision_mvp.md).
+> **Alcance:** Estructura fundamental del sistema, interacciones de alto nivel (C4), esquema de datos y modelo de despliegue de la **plataforma completa** (**6 módulos**). Para especificaciones funcionales, ver [`description_proyecto_agrovision.md`](../reference/description_proyecto_agrovision.md).
 >
 > **Estilo arquitectónico:** **monolito modular** (un solo backend FastAPI con límites por dominio bien aislados — `api/` HTTP + `services/` negocio), **microservices-ready**: cada dominio puede extraerse a un servicio propio sin reescribir la UI. Elegido sobre microservicios reales por la realidad de la **capa gratuita** (Render free duerme a 15 min y multiplica cold-starts/CORS por servicio). Ver ADR en §7.
 >
