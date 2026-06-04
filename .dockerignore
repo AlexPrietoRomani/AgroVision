@@ -1,0 +1,65 @@
+# .dockerignore — contexto de build mínimo para la imagen (Hugging Face Spaces / Render).
+#
+# Es el equivalente de lo que `.rscignore` hacía en shinyapps: como el deploy a HF
+# consiste en CONSTRUIR el Dockerfile, esto define qué llega al *build context*.
+# Resultado: builds más rápidos e imagen sin archivos innecesarios.
+#
+# El Dockerfile solo necesita:  frontend/ (fuente Astro) · backend/ · pyproject.toml · uv.lock
+# Todo lo demás se excluye aquí. (NO afecta lo que se sube al repo del Space: eso lo
+# controla .gitignore + el push; ver docs/ejecucion.md §5.)
+
+# --- Entornos y dependencias (se instalan/compilan dentro de la imagen) ---
+.venv/
+**/__pycache__/
+node_modules/
+frontend/node_modules/
+
+# --- Artefactos regenerados durante el build ---
+frontend/dist/
+frontend/.astro/
+backend/static/
+requirements.txt
+
+# --- Caches de herramientas ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.cache/
+
+# --- Git / CI / editores / agentes / MCP ---
+.git/
+.gitignore
+.gitattributes
+.github/
+.vscode/
+.idea/
+.claude/
+.agents/
+.playwright-mcp/
+
+# --- No necesarios en runtime (la imagen no los usa) ---
+docs/
+tests/
+scripts/
+supabase/
+models/
+sample_data/
+notebooks/
+scratch/
+
+# --- Infra que no entra en la imagen ---
+render.yaml
+docker-compose.yml
+
+# --- Secretos: jamás al contexto ---
+.env
+.env.*
+
+# --- Binarios / datos sueltos ---
+*.db
+*.sqlite
+*.log
+*.tmp
+*.onnx
+*.pt

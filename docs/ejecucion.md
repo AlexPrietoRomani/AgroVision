@@ -182,6 +182,9 @@ Un solo servicio: el **gateway FastAPI** (`backend.main:app`) sirve la **UI Astr
 
 Cada `git push` posterior **reconstruye el mismo Space** (no manejas ids de app: HF detecta que es el mismo repo).
 
+> **¿Qué se sube y qué se construye? (equivalente de `.rscignore`)** HF no tiene un flag `--exclude` como `rsconnect`; el Space *es un repo git*, así que se suben los archivos **versionados** (lo pesado ya lo filtra `.gitignore`: `.env`, `.venv`, `node_modules`, `frontend/dist`, `backend/static`, modelos, imágenes…). Lo que mantiene el **build/imagen** mínimos es **[`.dockerignore`](../.dockerignore)**: excluye del *build context* todo lo que el `Dockerfile` no usa (docs, tests, scripts, supabase, caches, `.git`…), dejando solo `frontend/`, `backend/`, `pyproject.toml` y `uv.lock`. → builds más rápidos e imagen sin basura.
+> *(Si además quieres un repo de Space mínimo —sin docs/tests visibles—, se puede empujar un subárbol curado; hoy se sube el repo completo por simplicidad.)*
+
 ### 5.3 Preparación (una sola vez)
 
 1. **Crea el Space** en la web: [huggingface.co/new-space](https://huggingface.co/new-space) → **SDK: Docker** → *Blank* → nómbralo (p. ej. `agrovision`).
