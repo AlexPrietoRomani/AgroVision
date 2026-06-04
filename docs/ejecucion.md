@@ -38,7 +38,7 @@ Para **abrir** la app no necesitas nada. Para **usar** cada módulo en local, cr
 
 **Migraciones de BD** (una vez, tras configurar `DATABASE_URL`): `uv run python -m backend.db.migrate` crea tablas, índices, RLS y la extensión PGMQ.
 
-Para **desplegar** (pipeline ya automatizado, ver §5): un único servicio (el **gateway FastAPI** que sirve UI + API) en **ShinyApps.io** vía `scripts/deploy_prod.ps1`; la BD es **Supabase**; y Hugging Face Hub alojará el modelo de conteo cuando se publique. Todas las variables están declaradas en `.env.example`.
+Para **desplegar** (ver §5): un único servicio (el **gateway FastAPI** que sirve UI + API) en **Hugging Face Spaces** (SDK Docker) vía `scripts/deploy_hf.ps1`; la BD es **Supabase**; y Hugging Face Hub alojará el modelo de conteo cuando se publique. Alternativas: **Render** (Docker) o **Posit Connect** (de pago). Todas las variables están en `.env.example`.
 
 ---
 
@@ -74,7 +74,7 @@ cp .env.example .env
 
 - Para correr el MVP en local **no necesitas ningún secreto**: los valores por defecto bastan.
 - `COUNTING_ENABLED=false` deja el conteo **en desarrollo** (standby).
-- Los tokens de despliegue (ShinyApps/Render/Supabase/HF) se completan solo cuando toque desplegar.
+- Los tokens de despliegue (Hugging Face/Render/Supabase) se completan solo cuando toque desplegar (§5).
 
 ---
 
@@ -162,7 +162,9 @@ docker compose up --build    # gateway en :8000 (sirve API + UI Astro compilada)
 
 ## 5. Despliegue en Producción / Cloud
 
-> **Estado: pipeline automatizado y listo.** El despliegue está totalmente *scriptado* en [`scripts/deploy_prod.ps1`](../scripts/deploy_prod.ps1) (que se apoya en [`scripts/build.ps1`](../scripts/build.ps1) e [`scripts/inline_js.py`](../scripts/inline_js.py)). Lo **único pendiente** es la acción manual de la primera publicación: registrar el token de ShinyApps.io y lanzar el primer deploy para obtener el `app-id` (ver §5.2–§5.3).
+> **Destino elegido: Hugging Face Spaces (SDK Docker).** Es gratis, soporta FastAPI nativo vía Docker, da **16 GB de RAM** en CPU básica y no requiere tarjeta. HF construye el [`Dockerfile`](../Dockerfile) de la raíz (gateway FastAPI: UI Astro en `/` + API en `/api`) y lo sirve en el puerto `app_port` (8000) declarado en el `README.md`. El deploy es un `git push` al repo del Space ([`scripts/deploy_hf.ps1`](../scripts/deploy_hf.ps1)).
+>
+> ⚠️ **shinyapps.io NO sirve** para esta app: solo hospeda apps **Shiny** (R/Python), no FastAPI/ASGI. `rsconnect deploy fastapi` solo aplica a **Posit Connect** (de pago) — ver alternativas en §5.5.
 >
 > El conteo permanece **en desarrollo (standby)** hasta publicar el modelo; la app se despliega igual.
 
@@ -170,59 +172,53 @@ docker compose up --build    # gateway en :8000 (sirve API + UI Astro compilada)
 
 > [!IMPORTANT]
 > - Verifica `uv run ruff check .` y `uv run python -m pytest` en verde antes de desplegar.
-> - No se versionan secretos: configúralos en el panel de cada plataforma.
+> - No se versionan secretos: el modelo es **BYOK** (cada usuario pone sus llaves de datos por sesión; no hay secretos en la imagen).
 
-### 5.2 Modelo de despliegue (Agro-Stack)
+### 5.2 Modelo de despliegue (Agro-Stack en HF Spaces)
 
-Un solo servicio: el **gateway FastAPI** (`backend.main:app`) sirve la **UI Astro compilada** en `/`, la **API** en `/api` y (opcional) el Shiny legacy en `/shiny`. Se despliega a **ShinyApps.io** con `rsconnect deploy fastapi` (app ASGI), aplicando la **Regla de Oro** (JS inline + rutas relativas vía `scripts/inline_js.py`). Todo lo orquesta `deploy_prod.ps1`.
+Un solo servicio: el **gateway FastAPI** (`backend.main:app`) sirve la **UI Astro compilada** en `/` y la **API** en `/api`. El Space es un **repo git** en `huggingface.co/spaces/<usuario>/<space>`; al hacer `git push`, HF:
+1. construye el `Dockerfile` de la raíz (multi-stage: Node compila Astro → Python/uv corre el gateway, como usuario `1000`);
+2. arranca el contenedor escuchando en el puerto `app_port: 8000` (definido en el frontmatter del `README.md`);
+3. expone la app en `https://<usuario>-<space>.hf.space`.
 
-**Credenciales: directamente desde el `.env`** (sin paso manual). Pon en tu `.env`:
-```bash
-SHINYAPPS_ACCOUNT=<tu_cuenta>
-SHINYAPPS_TOKEN=<token>
-SHINYAPPS_SECRET=<secret>
-```
-> El TOKEN/SECRET se obtienen en ShinyApps.io → *Account → Tokens*. `deploy_prod.ps1` los **lee del `.env`** y los exporta al entorno; `rsconnect` toma `--account/--token/--secret` de esas mismas variables. **No necesitas `rsconnect add`.** *(Alternativa equivalente, registrar el servidor una vez: `uv run rsconnect add --account <cuenta> --name <cuenta> --token <TOKEN> --secret <SECRET>`.)*
->
-> **shinyapps.io no soporta variables de entorno de runtime**, por eso el modelo es **BYOK**: no se ponen secretos de datos en el server; cada usuario pega sus llaves por sesión.
+Cada `git push` posterior **reconstruye el mismo Space** (no manejas ids de app: HF detecta que es el mismo repo).
 
-### 5.3 Ejecución del Despliegue (automatizada con `deploy_prod.ps1`)
+### 5.3 Preparación (una sola vez)
 
-El script ejecuta el pipeline completo de extremo a extremo (compila, empaqueta y despliega). **Tú solo corres un comando** — con las `SHINYAPPS_*` en el `.env` ni siquiera pasas la cuenta:
+1. **Crea el Space** en la web: [huggingface.co/new-space](https://huggingface.co/new-space) → **SDK: Docker** → *Blank* → nómbralo (p. ej. `agrovision`).
+2. **Token de escritura** en [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) (tipo *Write*).
+3. **Pon en tu `.env`** (no se versiona):
+   ```bash
+   HF_TOKEN=hf_xxxxxxxx                 # token write
+   HF_SPACE_ID=<tu_usuario>/agrovision  # <usuario>/<space>
+   ```
+
+### 5.4 Ejecución del Despliegue (`deploy_hf.ps1`)
 
 ```powershell
-# Primer deploy (toma la cuenta del .env; crea la app):
-.\scripts\deploy_prod.ps1
-# (equivalente, cuenta explícita):  .\scripts\deploy_prod.ps1 -Name <cuenta>
-
-# Redeploy de una app existente (la actualiza):
-.\scripts\deploy_prod.ps1 -AppId <id>
-
-# Forzar una app NUEVA aparte (aunque exista metadata de un deploy previo):
-.\scripts\deploy_prod.ps1 -New
+# Primer deploy (sobrescribe el commit inicial del Space):
+.\scripts\deploy_hf.ps1 -Force
+# Despliegues siguientes (cada push reconstruye el Space):
+.\scripts\deploy_hf.ps1
 ```
 
-> **No hace falta** correr a mano nada como `rsconnect deploy ... --entrypoint ... --new`: el script ya lo hace por ti, con `--title "AgroVisión"` y el manejo de nuevo/actualizar.
+El script lee `HF_TOKEN`/`HF_SPACE_ID` del `.env`, arma la URL autenticada del Space y hace `git push HEAD:main`. **No compila en local** (HF construye el `Dockerfile` en su lado). Detalle en **§8.7**.
 
-Internamente `deploy_prod.ps1` hace, sin intervención:
-1. **(0)** Lee `SHINYAPPS_*` del `.env` y compila la UI con `build.ps1` (`pnpm build` → `inline_js.py` → `backend/static`).
-2. **(1)** Genera `requirements.txt` (`uv export --no-dev --no-hashes --no-emit-project`) — ShinyApps instala desde ahí, no usa `uv`.
-3. **(2)** Traduce cada línea de `.rscignore` a flags `--exclude` (rsconnect-python no lee `.rscignore` solo).
-4. **(3)** `rsconnect deploy fastapi . --entrypoint backend.main:app --title "AgroVisión" --account <cuenta> [--app-id <id> | --new] @exclude` *(es `deploy fastapi`, no `deploy shiny`: el gateway es FastAPI/ASGI)*.
+> **BYOK / seguridad:** el `.env` está en `.gitignore`, así que **no se sube** al Space; las `HF_TOKEN`/`HF_SPACE_ID` solo se usan **en tu máquina** para autenticar el push. Las llaves de datos (Supabase/Copernicus/Groq) las pone cada usuario por sesión (cabeceras `X-User-*`).
+> **Migraciones (BYOK):** el Space no tiene BD propia; para la demo, aplica las migraciones contra **tu** Supabase (`uv run python -m backend.db.migrate`) y pega tus llaves en la pestaña *Credenciales*.
 
-**Nuevo vs. actualizar** (semántica de `rsconnect`): por defecto reutiliza la *metadata* del deploy anterior (actualiza la misma app si existe, o la crea si no). `-AppId <id>` actualiza una app concreta por su id; `-New` fuerza una **app nueva** (no combinar con `-AppId`).
+### 5.5 Verificación Post-Despliegue
 
-> Parámetros (`-Name`, `-AppId`, `-New`) y el detalle paso a paso están en **§8.5**.
-> **BYOK / seguridad:** el `.env` **NO** viaja en el bundle (está en `.rscignore`); en producción las llaves de datos las pone el usuario por sesión (cabeceras `X-User-*`). Las `SHINYAPPS_*` solo se usan **en tu máquina** para autenticar el deploy.
-> **Estado del app-id:** AgroVisión **aún no se ha publicado**; el primer deploy crea la app y ShinyApps te muestra su `app-id`. A partir de ahí redespliega con `-AppId <id>` (o sin nada, reutilizando la metadata local).
-> **Alternativa:** backend en **Render** con `backend/Dockerfile` (etapa Node compila Astro y el gateway sirve `/`).
+- [ ] El build del Space termina en verde (pestaña *Logs* del Space).
+- [ ] La URL pública (`https://<usuario>-<space>.hf.space/`) carga la UI Astro.
+- [ ] `https://<usuario>-<space>.hf.space/api/status` responde `200`.
+- [ ] Recargar (F5) no rompe la app (hash-routing + rutas relativas).
+- [ ] Las credenciales se ingresan en la pestaña *Credenciales* (BYOK; no hay secretos en la imagen).
 
-### 5.4 Verificación Post-Despliegue
+### 5.6 Alternativas de despliegue
 
-- [ ] URL pública accesible vía HTTPS; `/` carga la UI Astro.
-- [ ] `https://<app>/api/status` responde `200`.
-- [ ] Recargar (F5) no rompe la app: la SPA usa **hash-routing** + **rutas relativas** (Regla de Oro), así que el slug dinámico de ShinyApps no produce 404.
-- [ ] Las credenciales se ingresan en la pestaña *Credenciales* (BYOK; no hay secretos en el bundle).
+- **Render** (Docker, free tier): usa [`backend/Dockerfile`](../backend/Dockerfile) + [`render.yaml`](../render.yaml). Conectas el repo de GitHub y cada push redespliega. Duerme a los 15 min (cold start ~30–60 s) y da 512 MB de RAM.
+- **Posit Connect** (de pago/enterprise): ahí **sí** aplica `rsconnect deploy fastapi` vía [`scripts/deploy_prod.ps1`](../scripts/deploy_prod.ps1) (apuntándolo a tu servidor Connect, no a shinyapps.io). Ver §8.5.
 
 ---
 
@@ -294,7 +290,8 @@ Todos los `.ps1` viven en `scripts/`, se ejecutan **desde la raíz del repo** (r
 | `run_ui.ps1` | UI **Shiny legacy** (`:8001`) | `.\scripts\run_ui.ps1` |
 | `dev.ps1` | Levanta **backend + Astro dev** en 2 ventanas | `.\scripts\dev.ps1` |
 | `build.ps1` | Compila la UI Astro → `backend/static` | `.\scripts\build.ps1` |
-| `deploy_prod.ps1` | Despliega a ShinyApps.io (Agro-Stack) | `.\scripts\deploy_prod.ps1` (cuenta/token del `.env`; `-AppId`/`-New` opcionales) |
+| `deploy_hf.ps1` | **Despliega a Hugging Face Spaces** (vía activa) | `.\scripts\deploy_hf.ps1 -Force` (primer deploy) |
+| `deploy_prod.ps1` | Despliega a **Posit Connect** (de pago; *no* shinyapps) | `.\scripts\deploy_prod.ps1 -Name <server>` |
 | `inline_js.py` | Post-proceso del HTML (lo invoca `build.ps1`) | *(automático; ver abajo)* |
 | `make_sample_orthomosaic.py` | Genera ortomosaico mock para el conteo | `uv run python scripts/make_sample_orthomosaic.py` |
 
@@ -306,7 +303,7 @@ Todos los `.ps1` viven en `scripts/`, se ejecutan **desde la raíz del repo** (r
 Pipeline de 3 pasos que deja la UI lista para que el gateway la sirva en `/`:
 
 1. **`pnpm install` + `pnpm build`** en `frontend/` (aborta si `pnpm build` falla).
-2. **`inline_js.py`** → inyecta el JS inline y relativiza rutas de assets (Regla de Oro, para que funcione bajo el sub-path de ShinyApps).
+2. **`inline_js.py`** → inyecta el JS inline y relativiza rutas de assets (Regla de Oro; salvaguarda para sub-paths). *(En HF Spaces/Render se sirve en la raíz, así que no es imprescindible.)*
 3. **Copia** `frontend/dist/*` → `backend/static/` (limpia el destino pero **preserva `.gitkeep`**).
 
 ```powershell
@@ -368,41 +365,32 @@ Levanta la UI **Shiny** antigua (`backend.dashboard:app`) en `:8001`. Desde la F
 .\scripts\run_ui.ps1          # -> http://127.0.0.1:8001
 ```
 
-### 8.5 `deploy_prod.ps1` — despliegue a ShinyApps.io (Agro-Stack)
+### 8.5 `deploy_prod.ps1` — despliegue a **Posit Connect** (alternativa de pago)
 
-Despliega el repo como una app FastAPI/ASGI cuyo entrypoint es el **gateway** (`backend.main:app`). Pasos:
+> ⚠️ **No para shinyapps.io:** shinyapps.io solo hospeda apps Shiny, no FastAPI. Este script aplica a un servidor **Posit Connect** (de pago/enterprise). Para el despliegue gratuito usa **Hugging Face Spaces** (§8.7). Se conserva por si en el futuro hay un Connect disponible.
 
-0. Lee `SHINYAPPS_*` del `.env` y corre **`build.ps1`** (compila la UI a `backend/static`).
-1. **`uv export --no-dev --no-hashes --no-emit-project -o requirements.txt`** (ShinyApps instala desde `requirements.txt`, no usa `uv`).
-2. Traduce cada línea de **`.rscignore`** a flags `--exclude` (rsconnect-python no lee `.rscignore` solo).
-3. **`rsconnect deploy fastapi . --entrypoint backend.main:app --title "AgroVisión" --account <cuenta> [--app-id <id> | --new] @exclude`** — subcomando **`fastapi`** (no `shiny`): el entrypoint es una app FastAPI/ASGI, y `rsconnect` la soporta en shinyapps.io.
+Construye el bundle (compila la UI con `build.ps1`, genera `requirements.txt` con `uv export`, traduce `.rscignore` a `--exclude`) y publica con `rsconnect deploy fastapi . --entrypoint backend.main:app`. Acepta `-Name`, `-AppId` y `-New`.
 
-**Credenciales (desde `.env`):** el script carga `SHINYAPPS_ACCOUNT/TOKEN/SECRET` del `.env` al entorno; `rsconnect` las consume directamente (esas variables alimentan `--account/--token/--secret`). Si **no** están, cae a `--name <cuenta>` asumiendo un `rsconnect add` previo.
-
-**Parámetros:**
-
-| Parámetro | Obligatorio | Descripción |
-|-----------|:-----------:|-------------|
-| `-Name <cuenta>` | No | Cuenta de ShinyApps.io. Si se omite, se toma de `SHINYAPPS_ACCOUNT` (`.env`). Sin cuenta por ningún lado, el script **avisa y sale**. |
-| `-AppId <id>` | No | Actualiza (**reemplaza**) una app existente por su id. Mutuamente excluyente con `-New`. |
-| `-New` | No | Fuerza una **app nueva** aunque exista metadata de un deploy previo. Útil si quieres una copia aparte. |
-
-Sin `-AppId` ni `-New`, `rsconnect` **reutiliza la metadata** del último deploy (actualiza la misma app, o la crea si es la primera vez).
-
-```powershell
-# Primer deploy (cuenta y token salen del .env):
-.\scripts\deploy_prod.ps1
-
-# Redeploy de una app concreta:
-.\scripts\deploy_prod.ps1 -AppId <id>
-
-# Forzar una app nueva aparte:
-.\scripts\deploy_prod.ps1 -New
-```
-
-> **BYOK / seguridad:** `.env` está en `.rscignore`, así que **no viaja** en el bundle; en producción las llaves de datos las pone el usuario por sesión (cabeceras `X-User-*`). Las `SHINYAPPS_*` solo autentican el deploy **en tu máquina**. Lo que **sí** va en el bundle: `backend/` (incl. `backend/static`), `pyproject.toml`, `uv.lock`, `requirements.txt` y `.env.example`.
-> **Aún no hay app-id** para AgroVisión: el primer deploy lo crea; guárdalo para los redeploys con `-AppId`.
+> **Estado: no es la vía actual.** El script se diseñó para el flujo `rsconnect`/shinyapps, pero **shinyapps.io no hospeda FastAPI**. Para que funcione necesitarías un servidor **Posit Connect** real y autenticar con `--server <url> --api-key <key>` (variables `CONNECT_SERVER`/`CONNECT_API_KEY`), **no** con `SHINYAPPS_*`. Mientras no haya un Connect disponible, **usa Hugging Face Spaces (§8.7)**. Se conserva como base para una futura integración con Connect.
 
 ### 8.6 `inline_js.py` — post-proceso del HTML (auxiliar)
 
-No se llama a mano normalmente (lo invoca `build.ps1`). Reescribe `frontend/dist/index.html` *in place*: inyecta inline cualquier `/_astro/*.js`, y relativiza rutas absolutas (favicon, assets) para que la SPA funcione bajo el sub-path dinámico de ShinyApps. Es **idempotente**. Ejecutarlo suelto (depurar): `uv run python scripts/inline_js.py` (requiere haber hecho `pnpm build` antes).
+No se llama a mano normalmente (lo invoca `build.ps1`). Reescribe `frontend/dist/index.html` *in place*: inyecta inline cualquier `/_astro/*.js`, y relativiza rutas absolutas (favicon, assets) para que la SPA funcione bajo un sub-path dinámico. Es **idempotente**. Ejecutarlo suelto (depurar): `uv run python scripts/inline_js.py` (requiere haber hecho `pnpm build` antes). *(En HF Spaces y Render la app se sirve en la raíz del dominio, así que la "Regla de Oro" no es estrictamente necesaria; el script queda como salvaguarda.)*
+
+### 8.7 `deploy_hf.ps1` — despliegue a Hugging Face Spaces (**vía activa**)
+
+Publica el gateway en un **Docker Space**. No compila en local: hace `git push` del repo al Space y **HF construye el `Dockerfile`** de la raíz (multi-stage Astro→FastAPI, usuario `1000`, puerto `app_port: 8000` del `README.md`).
+
+**Requisitos en `.env`** (no se versiona): `HF_TOKEN` (token *write*) y `HF_SPACE_ID` (`<usuario>/<space>`). El Space debe existir (créalo en la web con **SDK: Docker**). Ver §5.3.
+
+| Parámetro | Obligatorio | Descripción |
+|-----------|:-----------:|-------------|
+| `-SpaceId <u/s>` | No | Id del Space. Si se omite, se toma de `HF_SPACE_ID` (`.env`). |
+| `-Force` | No | Fuerza el push (necesario en el **primer** deploy: sobrescribe el commit inicial del Space). |
+
+```powershell
+.\scripts\deploy_hf.ps1 -Force   # primer deploy
+.\scripts\deploy_hf.ps1          # siguientes (cada push reconstruye el Space)
+```
+
+> El token va en la URL solo durante el push (no se guarda como remote). El `.env` está en `.gitignore`, así que no se sube al Space. Tras el push, sigue el build en la pestaña *Logs* del Space (§5.5).
