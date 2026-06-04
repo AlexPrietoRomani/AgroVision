@@ -39,6 +39,8 @@ frontend/pnpm-debug.log*
 backend/static/
 backend/static/*
 !backend/static/.gitkeep
+# requirements.txt se genera en el deploy (uv export); la fuente es pyproject + uv.lock
+requirements.txt
 
 # --- Data & SQLite ---
 data/*

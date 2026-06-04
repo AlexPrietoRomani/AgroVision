@@ -34,6 +34,7 @@ dev = [
     "pytest>=8",
     "ruff>=0.6",
     "playwright>=1.45",
+    "rsconnect-python>=1.28",        # deploy a ShinyApps.io (scripts/deploy_prod.ps1)
 ]
 
 [tool.uv]

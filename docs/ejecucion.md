@@ -61,7 +61,7 @@ uv sync
 
 La UI es **Astro + Tailwind** (Node/pnpm). Compílala a estático con:
 ```powershell
-.\scripts\build_ui.ps1     # = pnpm install + pnpm build (en frontend/) -> backend/static
+.\scripts\build.ps1        # = pnpm build + inline_js.py + copia a backend/static
 ```
 El gateway sirve ese build en `/`. Para hot-reload usa `pnpm dev` (ver §3.2).
 
@@ -86,7 +86,7 @@ cp .env.example .env
 
 ```powershell
 # 1) Compilar la UI Astro -> backend/static (una vez, o tras cambios de UI)
-.\scripts\build_ui.ps1
+.\scripts\build.ps1
 # 2) Levantar el gateway (sirve la UI en / y la API en /api)
 .\scripts\run_backend.ps1
 ```
@@ -168,29 +168,35 @@ docker compose up --build    # gateway en :8000 (sirve API + UI Astro compilada)
 > - Verifica `uv run ruff check .` y `uv run python -m pytest` en verde antes de desplegar.
 > - No se versionan secretos: configúralos en el panel de cada plataforma.
 
-### 5.2 Configuración del Entorno de Despliegue
+### 5.2 Modelo de despliegue (Agro-Stack)
 
-```bash
-# UI -> ShinyApps.io (token desde https://www.shinyapps.io/admin/#/tokens)
+Un solo servicio: el **gateway FastAPI** (`backend.main:app`) sirve la **UI Astro compilada** en `/`, la **API** en `/api` y (opcional) el Shiny legacy en `/shiny`. Se despliega a **ShinyApps.io** con `rsconnect` (como app ASGI), aplicando la **Regla de Oro** (JS inline + rutas relativas vía `scripts/inline_js.py`).
+
+Registrar el token (una vez):
+```powershell
 uv run rsconnect add --account <cuenta> --name <cuenta> --token <TOKEN> --secret <SECRET>
 ```
 
-### 5.3 Ejecución del Despliegue
+### 5.3 Ejecución del Despliegue (script)
 
-```bash
-# UI (Shiny) -> ShinyApps.io
-uv run rsconnect deploy shiny ./frontend --name <cuenta> --title AgroVision-MVP
-
-# Backend -> Render (detecta backend/Dockerfile vía render.yaml)
-#   Conecta el repo en el panel de Render o usa la API con RENDER_API_KEY.
+```powershell
+# Primer deploy (crea la app en ShinyApps.io):
+.\scripts\deploy_prod.ps1 -Name <cuenta>
+# Redeploy (cuando ya exista el app-id):
+.\scripts\deploy_prod.ps1 -Name <cuenta> -AppId <id>
 ```
+`deploy_prod.ps1` hace: (0) compila la UI (`build.ps1`), (1) genera `requirements.txt` (`uv export`), (2) traduce `.rscignore` a flags `--exclude`, (3) `rsconnect deploy shiny . --entrypoint backend.main:app`.
+
+> **BYOK / seguridad:** el `.env` **NO** viaja en el bundle (está en `.rscignore`); en producción las llaves las pone el usuario por sesión (cabeceras `X-User-*`).
+> **Aún no hay app-id** para AgroVisión: el primer deploy con `-Name` lo crea; luego reutiliza el id con `-AppId` para redeploy.
+> **Alternativa:** backend en **Render** con `backend/Dockerfile` (etapa Node compila Astro y el gateway sirve `/`).
 
 ### 5.4 Verificación Post-Despliegue
 
-- [ ] URL pública de la UI accesible vía HTTPS.
-- [ ] `https://<backend-en-render>/api/status` responde `200`.
-- [ ] CORS entre la UI (ShinyApps.io) y el backend (Render) configurado (`ALLOWED_ORIGINS`).
-- [ ] Recargar la UI (F5) no rompe la sesión (Shiny es ASGI nativo en ShinyApps.io).
+- [ ] URL pública accesible vía HTTPS; `/` carga la UI Astro.
+- [ ] `https://<app>/api/status` responde `200`.
+- [ ] Recargar (F5) no rompe la app: la SPA usa **hash-routing** + **rutas relativas** (Regla de Oro), así que el slug dinámico de ShinyApps no produce 404.
+- [ ] Las credenciales se ingresan en la pestaña *Credenciales* (BYOK; no hay secretos en el bundle).
 
 ---
 

@@ -1,0 +1,61 @@
+# Exclusiones para el deploy a ShinyApps.io.
+#
+# IMPORTANTE: rsconnect-python NO lee este archivo por sí solo. Lo consume
+# `scripts/deploy_prod.ps1`, que convierte cada línea en un flag `--exclude` de
+# `rsconnect deploy shiny .`. Nombrar una carpeta basta (rsconnect la expande).
+#
+# Lo que SÍ va en el bundle: backend/ (incl. backend/static = UI Astro compilada),
+# pyproject.toml, uv.lock, requirements.txt y .env.example.
+
+# --- Entornos / dependencias (pesados) ---
+.venv
+node_modules
+frontend/node_modules
+
+# --- Caches de herramientas ---
+.hypothesis
+.pytest_cache
+.mypy_cache
+.ruff_cache
+__pycache__
+.git
+.astro
+
+# --- Fuente del frontend (lo compilado vive en backend/static) ---
+frontend
+
+# --- Desarrollo / no necesarios en runtime ---
+tests
+scripts
+docs
+notebooks
+scratch
+supabase
+models
+sample_data
+.playwright-mcp
+.claude
+.agents
+.vscode
+.idea
+.github
+
+# --- SECRETOS: el modelo es BYOK (el usuario pone sus llaves por sesión).
+#     NO subir .env al bundle. ---
+.env
+.env.local
+
+# --- Archivos sueltos ---
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.csv
+*.xlsx
+*.db
+*.sqlite
+*.onnx
+*.pt
+*.log
+*.tmp
