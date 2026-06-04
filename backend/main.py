@@ -45,6 +45,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.api.chat import router as chat_router
 from backend.api.count import router as count_router
 from backend.api.credentials import router as credentials_router
+from backend.api.data import router as data_router
 from backend.api.events import router as events_router
 from backend.api.fields import router as fields_router
 from backend.api.ndvi import router as ndvi_router
@@ -148,6 +149,7 @@ def create_app() -> FastAPI:
     app.include_router(chat_router)  # Asistente Agéntico (RAG)
     app.include_router(credentials_router)  # Presencia de .env (dev)
     app.include_router(events_router)  # Telemetría de UI (Fase 9)
+    app.include_router(data_router)  # Explorador de Datos (Fase 11)
     app.include_router(count_router)  # Conteo (en desarrollo / standby)
 
     # UI Astro estática (Fase 8): se monta en "/" AL FINAL, tras los routers /api y

@@ -101,6 +101,9 @@ import "../styles/global.css";
         <button data-tab="tab-chat" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-stone-400 hover:bg-stone-800 hover:text-white transition-all">
           <i class="fa-solid fa-robot w-5"></i> Asistente Agéntico
         </button>
+        <button data-tab="tab-data" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-stone-400 hover:bg-stone-800 hover:text-white transition-all">
+          <i class="fa-solid fa-database w-5"></i> Explorador de Datos
+        </button>
         <button data-tab="tab-config" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-stone-400 hover:bg-stone-800 hover:text-white transition-all">
           <i class="fa-solid fa-sliders w-5"></i> Credenciales & APIs
         </button>
@@ -255,10 +258,56 @@ import "../styles/global.css";
           </div>
         </section>
 
+        <!-- EXPLORADOR DE DATOS (Fase 11) -->
+        <section id="tab-data" class="tab-content space-y-6">
+          <div class="bg-white p-6 rounded-xl border border-stone-200 shadow-sm">
+            <h3 class="text-base font-bold text-stone-800 mb-2">Explorador de Datos</h3>
+            <p class="text-sm text-stone-600 leading-relaxed">
+              Consulta las tablas de tu base de datos Supabase directamente. Selecciona una tabla para ver sus registros o ejecuta consultas SQL personalizadas.
+            </p>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- Selector de tabla -->
+            <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm lg:col-span-4">
+              <h3 class="font-bold text-sm text-stone-800 mb-3">Tablas disponibles</h3>
+              <div class="space-y-2" id="tables-list">
+                <p class="text-xs text-stone-500">Cargando tablas...</p>
+              </div>
+            </div>
+            <!-- Vista de datos -->
+            <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm lg:col-span-8">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="font-bold text-sm text-stone-800" id="data-view-title">Selecciona una tabla</h3>
+                <span class="text-[10px] text-stone-500" id="data-view-count"></span>
+              </div>
+              <div id="data-view-content" class="overflow-x-auto max-h-[400px] overflow-y-auto">
+                <p class="text-xs text-stone-500">Los datos aparecerán aquí.</p>
+              </div>
+            </div>
+          </div>
+          <!-- Consulta SQL personalizada -->
+          <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm">
+            <h3 class="font-bold text-sm text-stone-800 mb-3">Consulta SQL personalizada</h3>
+            <textarea id="sql-query" rows="4" placeholder="SELECT * FROM fields LIMIT 10;" class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-stone-50 font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 mb-3"></textarea>
+            <div class="flex gap-2">
+              <button id="btn-run-query" class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-4 py-2 rounded-lg">
+                <i class="fa-solid fa-play"></i> Ejecutar
+              </button>
+              <button id="btn-clear-query" class="bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold text-xs px-4 py-2 rounded-lg">
+                <i class="fa-solid fa-eraser"></i> Limpiar
+              </button>
+            </div>
+            <div id="query-result" class="mt-4 overflow-x-auto max-h-[300px] overflow-y-auto"></div>
+          </div>
+        </section>
+
         <!-- CREDENCIALES -->
         <section id="tab-config" class="tab-content space-y-6">
-          <div class="bg-amber-50 border border-amber-300 text-amber-900 p-4 rounded-xl text-sm">
+          <div id="creds-warning" class="bg-amber-50 border border-amber-300 text-amber-900 p-4 rounded-xl text-sm">
             ⚠️ <strong>Tus credenciales se usan solo en esta sesión. No se guardan ni almacenan.</strong> Si actualizas o cierras la página, todo se borrará.
+          </div>
+          <div id="creds-production-warning" class="hidden bg-red-50 border border-red-300 text-red-900 p-4 rounded-xl text-sm">
+            🌐 <strong>Entorno de producción:</strong> Debes ingresar tus propias credenciales para usar la plataforma. Las credenciales del servidor no están disponibles en este entorno.
           </div>
           <div class="bg-white p-6 rounded-xl border border-stone-200 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-5">
             <div><label class="block text-xs font-bold text-stone-600 mb-1">Groq API Key (asistente RAG)</label><input id="in-groq" type="password" placeholder="gsk_..." class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-stone-50" /></div>
@@ -347,6 +396,7 @@ import "../styles/global.css";
         "tab-satelite": ["Teledetección (GIS)", "NDVI 5 años + clima + heatmap (solo lectura)."],
         "tab-vision": ["Detección por Dron", "Conteo de plantas — EN DESARROLLO."],
         "tab-chat": ["Asistente Agéntico", "Agente RAG sobre tus parcelas."],
+        "tab-data": ["Explorador de Datos", "Consulta tus datos directamente (Fase 11)."],
         "tab-config": ["Credenciales & APIs", "Llaves efímeras (solo en esta sesión)."],
       };
       function switchTab(id) {
@@ -362,6 +412,7 @@ import "../styles/global.css";
         if (id === "tab-parcelas") setTimeout(initMap, 50);
         if (id === "tab-satelite") setTimeout(() => { loadTeledeteccion(); }, 50);
         if (id === "tab-resumen") loadResumen();
+        if (id === "tab-data") loadDataExplorer();
         if (window.innerWidth < 768) closeSidebar();
       }
       document.querySelectorAll(".nav-btn").forEach((b) =>
@@ -563,7 +614,56 @@ import "../styles/global.css";
       $("btn-chat").addEventListener("click", sendChat);
       $("chat-input").addEventListener("keydown", (e) => { if (e.key === "Enter") sendChat(); });
 
+      // ===== Explorador de Datos (Fase 11) =====
+      const TABLES = ["fields", "ndvi_timeseries", "chat_messages", "events"];
+      async function loadDataExplorer() {
+        const list = $("tables-list");
+        list.innerHTML = TABLES.map((t) =>
+          `<button data-table="${t}" class="w-full text-left text-xs px-3 py-2 rounded-lg border border-stone-200 bg-stone-50 hover:bg-stone-100 font-semibold text-stone-700"><i class="fa-solid fa-table mr-1 text-emerald-600"></i>${t}</button>`
+        ).join("");
+        list.querySelectorAll("button").forEach((b) =>
+          b.addEventListener("click", () => loadTableData(b.dataset.table))
+        );
+      }
+      async function loadTableData(table) {
+        $("data-view-title").innerText = `Tabla: ${table}`;
+        $("data-view-content").innerHTML = '<p class="text-xs text-stone-500">Cargando...</p>';
+        try {
+          const r = await api(`/data/${table}`);
+          if (!r.ok) { $("data-view-content").innerHTML = '<p class="text-xs text-red-500">Error al cargar. Verifica credenciales.</p>'; return; }
+          const d = await r.json();
+          const rows = d.rows || [];
+          $("data-view-count").innerText = `${rows.length} registros`;
+          if (!rows.length) { $("data-view-content").innerHTML = '<p class="text-xs text-stone-500">Sin registros.</p>'; return; }
+          const cols = Object.keys(rows[0]);
+          const html = `<table class="w-full text-[10px] border-collapse"><thead><tr>${cols.map((c) => `<th class="border border-stone-200 px-2 py-1 bg-stone-100 font-bold text-stone-700">${c}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${cols.map((c) => `<td class="border border-stone-200 px-2 py-1">${formatCell(row[c])}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+          $("data-view-content").innerHTML = html;
+        } catch (e) { $("data-view-content").innerHTML = `<p class="text-xs text-red-500">Error: ${e}</p>`; }
+      }
+      function formatCell(v) {
+        if (v === null || v === undefined) return '<span class="text-stone-400">NULL</span>';
+        if (typeof v === "object") return `<code class="text-[9px] bg-stone-100 px-1 rounded">${JSON.stringify(v).slice(0, 80)}</code>`;
+        return String(v).slice(0, 100);
+      }
+      $("btn-run-query").addEventListener("click", async () => {
+        const sql = $("sql-query").value.trim();
+        if (!sql) return notify("Falta la consulta", "Escribe una consulta SQL.");
+        $("query-result").innerHTML = '<p class="text-xs text-stone-500">Ejecutando...</p>';
+        try {
+          const r = await api("/data/query", { method: "POST", body: JSON.stringify({ sql }) });
+          if (!r.ok) { const e = await r.json().catch(() => ({})); $("query-result").innerHTML = `<p class="text-xs text-red-500">Error: ${e.detail || r.status}</p>`; return; }
+          const d = await r.json();
+          const rows = d.rows || [];
+          if (!rows.length) { $("query-result").innerHTML = '<p class="text-xs text-stone-500">Sin resultados.</p>'; return; }
+          const cols = Object.keys(rows[0]);
+          const html = `<table class="w-full text-[10px] border-collapse"><thead><tr>${cols.map((c) => `<th class="border border-stone-200 px-2 py-1 bg-stone-100 font-bold text-stone-700">${c}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${cols.map((c) => `<td class="border border-stone-200 px-2 py-1">${formatCell(row[c])}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+          $("query-result").innerHTML = html;
+        } catch (e) { $("query-result").innerHTML = `<p class="text-xs text-red-500">Error: ${e}</p>`; }
+      });
+      $("btn-clear-query").addEventListener("click", () => { $("sql-query").value = ""; $("query-result").innerHTML = ""; });
+
       // ===== Credenciales (efímeras) =====
+      let appEnv = "development"; // se actualiza en init()
       $("btn-save-creds").addEventListener("click", () => {
         creds = { groq: $("in-groq").value, copId: $("in-copid").value, copSecret: $("in-copsecret").value, sbUrl: $("in-sburl").value, sbKey: $("in-sbkey").value };
         const n = Object.values(creds).filter(Boolean).length;
@@ -577,11 +677,16 @@ import "../styles/global.css";
           const r = await fetch("./api/credentials/status");
           if (!r.ok) return notify("No disponible", "No se pudo consultar el .env del servidor.");
           const s = await r.json();
+          appEnv = s.env || "development";
           const have = Object.entries({ Groq: s.groq, Copernicus: s.copernicus, Supabase: s.supabase }).filter(([, v]) => v).map(([k]) => k);
-          track("env_check", { have });
-          $("env-status").innerHTML = have.length
-            ? `✅ En el servidor (.env): <b>${have.join(", ")}</b>. Se usan automáticamente; no necesitas reescribirlas aquí.`
-            : "No se detectaron credenciales en el .env del servidor.";
+          track("env_check", { have, env: appEnv });
+          if (appEnv === "production") {
+            $("env-status").innerHTML = " <b>Producción:</b> cada usuario debe ingresar sus propias credenciales.";
+          } else {
+            $("env-status").innerHTML = have.length
+              ? `✅ En el servidor (.env): <b>${have.join(", ")}</b>. Se usan automáticamente; no necesitas reescribirlas aquí.`
+              : "No se detectaron credenciales en el .env del servidor.";
+          }
         } catch { notify("Error", "No se pudo consultar el .env del servidor."); }
       });
 
@@ -599,6 +704,18 @@ import "../styles/global.css";
           $("db-status-text").innerText = ok ? "Backend conectado" : "Backend no disponible";
           if (ok) { $("db-status-text").classList.replace("text-stone-400", "text-emerald-400"); }
         } catch { $("db-status-text").innerText = "Backend no disponible"; }
+        // Detectar entorno y mostrar aviso si es producción
+        try {
+          const r = await fetch("./api/credentials/status");
+          if (r.ok) {
+            const s = await r.json();
+            appEnv = s.env || "development";
+            if (appEnv === "production") {
+              $("creds-production-warning").classList.remove("hidden");
+              $("btn-check-env").style.display = "none";
+            }
+          }
+        } catch {}
         await refreshParcels();
         const initial = (location.hash || "#tab-resumen").slice(1);
         switchTab(document.getElementById(initial) ? initial : "tab-resumen");
