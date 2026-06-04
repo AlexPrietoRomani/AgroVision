@@ -63,7 +63,7 @@ La UI es **Astro + Tailwind** (Node/pnpm). Compílala a estático con:
 ```powershell
 .\scripts\build.ps1        # = pnpm build + inline_js.py + copia a backend/static
 ```
-El gateway sirve ese build en `/`. Para hot-reload usa `pnpm dev` (ver §3.2).
+El gateway sirve ese build en `/`. Para hot-reload usa `pnpm dev` (ver §3.2). Detalle de cada script y sus equivalentes manuales en **§8 (Referencia de Scripts)**.
 
 ### 2.3 Configuración de Variables de Entorno
 
@@ -185,7 +185,7 @@ uv run rsconnect add --account <cuenta> --name <cuenta> --token <TOKEN> --secret
 # Redeploy (cuando ya exista el app-id):
 .\scripts\deploy_prod.ps1 -Name <cuenta> -AppId <id>
 ```
-`deploy_prod.ps1` hace: (0) compila la UI (`build.ps1`), (1) genera `requirements.txt` (`uv export`), (2) traduce `.rscignore` a flags `--exclude`, (3) `rsconnect deploy shiny . --entrypoint backend.main:app`.
+`deploy_prod.ps1` hace: (0) compila la UI (`build.ps1`), (1) genera `requirements.txt` (`uv export`), (2) traduce `.rscignore` a flags `--exclude`, (3) `rsconnect deploy shiny . --entrypoint backend.main:app`. Parámetros (`-Name`, `-AppId`) y pasos al detalle en **§8.5**.
 
 > **BYOK / seguridad:** el `.env` **NO** viaja en el bundle (está en `.rscignore`); en producción las llaves las pone el usuario por sesión (cabeceras `X-User-*`).
 > **Aún no hay app-id** para AgroVisión: el primer deploy con `-Name` lo crea; luego reutiliza el id con `-AppId` para redeploy.
@@ -255,3 +255,123 @@ uv run python -m pytest tests/e2e -v
 > - `test_agent.py` → requiere `DATABASE_URL` + Groq.
 >
 > Con todas las llaves puestas corren ~58 pruebas en verde. Se usa `python -m pytest` (no el shim `pytest.exe`) por el tema de OneDrive descrito en §6.
+
+---
+
+## 8. Referencia de Scripts (`scripts/`)
+
+Todos los `.ps1` viven en `scripts/`, se ejecutan **desde la raíz del repo** (resuelven la raíz solos con `Split-Path -Parent $PSScriptRoot`, así que da igual desde dónde los llames) y fijan `UV_PROJECT_ENVIRONMENT` al venv fuera de OneDrive. Cada uno tiene su **equivalente manual** por si prefieres la terminal.
+
+| Script | Para qué sirve | Uso típico |
+|--------|----------------|------------|
+| `run_backend.ps1` | Gateway FastAPI (`:8000`) con `--reload` | `.\scripts\run_backend.ps1` |
+| `run_ui.ps1` | UI **Shiny legacy** (`:8001`) | `.\scripts\run_ui.ps1` |
+| `dev.ps1` | Levanta **backend + Astro dev** en 2 ventanas | `.\scripts\dev.ps1` |
+| `build.ps1` | Compila la UI Astro → `backend/static` | `.\scripts\build.ps1` |
+| `deploy_prod.ps1` | Despliega a ShinyApps.io (Agro-Stack) | `.\scripts\deploy_prod.ps1 -Name <cuenta> [-AppId <id>]` |
+| `inline_js.py` | Post-proceso del HTML (lo invoca `build.ps1`) | *(automático; ver abajo)* |
+| `make_sample_orthomosaic.py` | Genera ortomosaico mock para el conteo | `uv run python scripts/make_sample_orthomosaic.py` |
+
+> Si ves un error de *execution policy* al lanzar un `.ps1`, ábrelo así en esa sesión:
+> `powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1`
+
+### 8.1 `build.ps1` — compilar la UI (Astro → `backend/static`)
+
+Pipeline de 3 pasos que deja la UI lista para que el gateway la sirva en `/`:
+
+1. **`pnpm install` + `pnpm build`** en `frontend/` (aborta si `pnpm build` falla).
+2. **`inline_js.py`** → inyecta el JS inline y relativiza rutas de assets (Regla de Oro, para que funcione bajo el sub-path de ShinyApps).
+3. **Copia** `frontend/dist/*` → `backend/static/` (limpia el destino pero **preserva `.gitkeep`**).
+
+```powershell
+.\scripts\build.ps1
+```
+
+**Requisitos:** Node + `pnpm` instalados; `uv` (para el paso 2). No necesita credenciales.
+**Cuándo:** tras cualquier cambio en `frontend/` que quieras ver servido por el gateway (`:8000`). Para iterar UI con recarga en vivo, usa el modo dev (§3.2) en vez de recompilar.
+
+<details><summary>Equivalente manual</summary>
+
+```powershell
+$env:UV_PROJECT_ENVIRONMENT = "$env:LOCALAPPDATA\agrovision-venv"
+Set-Location frontend; pnpm install; pnpm build; Set-Location ..
+uv run python scripts/inline_js.py
+# copiar frontend\dist\* a backend\static\ (preservando .gitkeep)
+Copy-Item -Path frontend\dist\* -Destination backend\static -Recurse -Force
+```
+</details>
+
+### 8.2 `run_backend.ps1` — gateway FastAPI (`:8000`)
+
+Hace `uv sync` y arranca `backend.main:app` con `--reload` y `--reload-exclude` por capa (no reinicia por cambios en `frontend/`, `docs/`, `tests/`, etc.). Sirve la **API** en `/api`, la **UI compilada** en `/` (si existe `backend/static/index.html`) y el **Swagger** en `/docs`.
+
+```powershell
+.\scripts\run_backend.ps1     # -> http://127.0.0.1:8000/
+```
+
+**Requisitos:** `uv`. Para *usar* los módulos, `.env` con las llaves BYOK (§1.2) y migraciones aplicadas (`uv run python -m backend.db.migrate`). Ciérralo con **Ctrl+C** para no dejar huérfanos (§6.1).
+
+<details><summary>Equivalente manual</summary>
+
+```powershell
+$env:UV_PROJECT_ENVIRONMENT = "$env:LOCALAPPDATA\agrovision-venv"
+$env:UV_LINK_MODE = "copy"; $env:PYTHONUNBUFFERED = "1"
+uv sync
+uv run python -u -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload --log-level info `
+  --reload-exclude ".venv" --reload-exclude "frontend" --reload-exclude "docs" `
+  --reload-exclude "tests" --reload-exclude "scripts" --reload-exclude "supabase" `
+  --reload-exclude "models" --reload-exclude "sample_data" --reload-exclude "scratch"
+```
+</details>
+
+### 8.3 `dev.ps1` — backend + Astro dev (hot-reload de UI)
+
+Abre **dos ventanas PowerShell**: una con `run_backend.ps1` (`:8000`) y otra con `pnpm dev` en `frontend/` (Astro en `:4321`, que proxea `/api` → `:8000`). Es la forma cómoda de desarrollar UI: editas en `frontend/src/` y recarga en vivo, sin recompilar a `backend/static`.
+
+```powershell
+.\scripts\dev.ps1
+```
+
+**Requisitos:** `uv`, Node + `pnpm`. Trabaja en **http://localhost:4321/**. *(La UI compilada en `:8000` sólo refleja cambios tras `build.ps1`.)*
+
+### 8.4 `run_ui.ps1` — Shiny legacy (`:8001`)
+
+Levanta la UI **Shiny** antigua (`backend.dashboard:app`) en `:8001`. Desde la Fase 8 la UI principal es Astro; esto queda sólo como referencia/legacy.
+
+```powershell
+.\scripts\run_ui.ps1          # -> http://127.0.0.1:8001
+```
+
+### 8.5 `deploy_prod.ps1` — despliegue a ShinyApps.io (Agro-Stack)
+
+Despliega el repo como una app ASGI cuyo entrypoint es el **gateway** (`backend.main:app`). Pasos:
+
+0. **`build.ps1`** (compila la UI a `backend/static`).
+1. **`uv export --no-dev --no-hashes --no-emit-project -o requirements.txt`** (ShinyApps instala desde `requirements.txt`, no usa `uv`).
+2. Traduce cada línea de **`.rscignore`** a flags `--exclude` (rsconnect-python no lee `.rscignore` solo).
+3. **`rsconnect deploy shiny . --entrypoint backend.main:app --name <cuenta> [--app-id <id>] @exclude`**.
+
+**Parámetros:**
+
+| Parámetro | Obligatorio | Descripción |
+|-----------|:-----------:|-------------|
+| `-Name <cuenta>` | **Sí** | Tu cuenta/destino de ShinyApps.io. Sin él (queda el placeholder), el script **avisa y sale** sin desplegar. |
+| `-AppId <id>` | No | Vacío = **primer deploy** (crea la app). Una vez creada, reutiliza el id para **redeploy**. |
+
+```powershell
+# 0) (Una sola vez) registrar el token de ShinyApps:
+uv run rsconnect add --account <cuenta> --name <cuenta> --token <TOKEN> --secret <SECRET>
+
+# 1) Primer deploy (crea la app y devuelve su app-id):
+.\scripts\deploy_prod.ps1 -Name <cuenta>
+
+# 2) Redeploy (cuando ya tengas el app-id):
+.\scripts\deploy_prod.ps1 -Name <cuenta> -AppId <id>
+```
+
+> **BYOK / seguridad:** `.env` está en `.rscignore`, así que **no viaja** en el bundle; en producción las llaves las pone el usuario por sesión (cabeceras `X-User-*`). Lo que **sí** va: `backend/` (incl. `backend/static`), `pyproject.toml`, `uv.lock`, `requirements.txt` y `.env.example`.
+> **Aún no hay app-id** para AgroVisión: el primer deploy con `-Name` lo crea; guárdalo para los redeploys con `-AppId`.
+
+### 8.6 `inline_js.py` — post-proceso del HTML (auxiliar)
+
+No se llama a mano normalmente (lo invoca `build.ps1`). Reescribe `frontend/dist/index.html` *in place*: inyecta inline cualquier `/_astro/*.js`, y relativiza rutas absolutas (favicon, assets) para que la SPA funcione bajo el sub-path dinámico de ShinyApps. Es **idempotente**. Ejecutarlo suelto (depurar): `uv run python scripts/inline_js.py` (requiere haber hecho `pnpm build` antes).
