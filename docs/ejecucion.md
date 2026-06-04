@@ -174,36 +174,47 @@ docker compose up --build    # gateway en :8000 (sirve API + UI Astro compilada)
 
 ### 5.2 Modelo de despliegue (Agro-Stack)
 
-Un solo servicio: el **gateway FastAPI** (`backend.main:app`) sirve la **UI Astro compilada** en `/`, la **API** en `/api` y (opcional) el Shiny legacy en `/shiny`. Se despliega a **ShinyApps.io** con `rsconnect` (como app ASGI), aplicando la **Regla de Oro** (JS inline + rutas relativas vía `scripts/inline_js.py`). Todo esto lo orquesta `deploy_prod.ps1`; no hay pasos manuales más allá del registro del token.
+Un solo servicio: el **gateway FastAPI** (`backend.main:app`) sirve la **UI Astro compilada** en `/`, la **API** en `/api` y (opcional) el Shiny legacy en `/shiny`. Se despliega a **ShinyApps.io** con `rsconnect deploy fastapi` (app ASGI), aplicando la **Regla de Oro** (JS inline + rutas relativas vía `scripts/inline_js.py`). Todo lo orquesta `deploy_prod.ps1`.
 
-Registrar el token (**una sola vez**, acción manual previa al primer deploy):
-```powershell
-uv run rsconnect add --account <cuenta> --name <cuenta> --token <TOKEN> --secret <SECRET>
+**Credenciales: directamente desde el `.env`** (sin paso manual). Pon en tu `.env`:
+```bash
+SHINYAPPS_ACCOUNT=<tu_cuenta>
+SHINYAPPS_TOKEN=<token>
+SHINYAPPS_SECRET=<secret>
 ```
-> El TOKEN/SECRET se obtienen en ShinyApps.io → *Account → Tokens*. Quedan en la config local de `rsconnect` (no en el repo).
+> El TOKEN/SECRET se obtienen en ShinyApps.io → *Account → Tokens*. `deploy_prod.ps1` los **lee del `.env`** y los exporta al entorno; `rsconnect` toma `--account/--token/--secret` de esas mismas variables. **No necesitas `rsconnect add`.** *(Alternativa equivalente, registrar el servidor una vez: `uv run rsconnect add --account <cuenta> --name <cuenta> --token <TOKEN> --secret <SECRET>`.)*
+>
+> **shinyapps.io no soporta variables de entorno de runtime**, por eso el modelo es **BYOK**: no se ponen secretos de datos en el server; cada usuario pega sus llaves por sesión.
 
 ### 5.3 Ejecución del Despliegue (automatizada con `deploy_prod.ps1`)
 
-El script ejecuta el pipeline completo de extremo a extremo. **Tú solo corres un comando:**
+El script ejecuta el pipeline completo de extremo a extremo (compila, empaqueta y despliega). **Tú solo corres un comando** — con las `SHINYAPPS_*` en el `.env` ni siquiera pasas la cuenta:
 
 ```powershell
-# Compilar la UI:
-.\scripts\build.ps1
-# Primer deploy (crea la app en ShinyApps.io y te devuelve su app-id):
-.\scripts\deploy_prod.ps1 -Name <cuenta>
-# Redeploy (cuando ya tengas el app-id del primer deploy):
-.\scripts\deploy_prod.ps1 -Name <cuenta> -AppId <id>
+# Primer deploy (toma la cuenta del .env; crea la app):
+.\scripts\deploy_prod.ps1
+# (equivalente, cuenta explícita):  .\scripts\deploy_prod.ps1 -Name <cuenta>
+
+# Redeploy de una app existente (la actualiza):
+.\scripts\deploy_prod.ps1 -AppId <id>
+
+# Forzar una app NUEVA aparte (aunque exista metadata de un deploy previo):
+.\scripts\deploy_prod.ps1 -New
 ```
 
+> **No hace falta** correr a mano nada como `rsconnect deploy ... --entrypoint ... --new`: el script ya lo hace por ti, con `--title "AgroVisión"` y el manejo de nuevo/actualizar.
+
 Internamente `deploy_prod.ps1` hace, sin intervención:
-1. **(0)** Compila la UI con `build.ps1` (`pnpm build` → `inline_js.py` → `backend/static`).
+1. **(0)** Lee `SHINYAPPS_*` del `.env` y compila la UI con `build.ps1` (`pnpm build` → `inline_js.py` → `backend/static`).
 2. **(1)** Genera `requirements.txt` (`uv export --no-dev --no-hashes --no-emit-project`) — ShinyApps instala desde ahí, no usa `uv`.
 3. **(2)** Traduce cada línea de `.rscignore` a flags `--exclude` (rsconnect-python no lee `.rscignore` solo).
-4. **(3)** `rsconnect deploy fastapi . --entrypoint backend.main:app --name <cuenta> [--app-id <id>]` *(es `deploy fastapi`, no `deploy shiny`: el gateway es una app FastAPI/ASGI)*.
+4. **(3)** `rsconnect deploy fastapi . --entrypoint backend.main:app --title "AgroVisión" --account <cuenta> [--app-id <id> | --new] @exclude` *(es `deploy fastapi`, no `deploy shiny`: el gateway es FastAPI/ASGI)*.
 
-> Parámetros (`-Name`, `-AppId`) y el detalle paso a paso del script están en **§8.5**.
-> **BYOK / seguridad:** el `.env` **NO** viaja en el bundle (está en `.rscignore`); en producción las llaves las pone el usuario por sesión (cabeceras `X-User-*`).
-> **Estado del app-id:** AgroVisión **aún no se ha publicado**, así que todavía no hay `app-id`. El primer deploy con `-Name` lo crea; a partir de ahí, redespliega siempre con `-AppId <id>`.
+**Nuevo vs. actualizar** (semántica de `rsconnect`): por defecto reutiliza la *metadata* del deploy anterior (actualiza la misma app si existe, o la crea si no). `-AppId <id>` actualiza una app concreta por su id; `-New` fuerza una **app nueva** (no combinar con `-AppId`).
+
+> Parámetros (`-Name`, `-AppId`, `-New`) y el detalle paso a paso están en **§8.5**.
+> **BYOK / seguridad:** el `.env` **NO** viaja en el bundle (está en `.rscignore`); en producción las llaves de datos las pone el usuario por sesión (cabeceras `X-User-*`). Las `SHINYAPPS_*` solo se usan **en tu máquina** para autenticar el deploy.
+> **Estado del app-id:** AgroVisión **aún no se ha publicado**; el primer deploy crea la app y ShinyApps te muestra su `app-id`. A partir de ahí redespliega con `-AppId <id>` (o sin nada, reutilizando la metadata local).
 > **Alternativa:** backend en **Render** con `backend/Dockerfile` (etapa Node compila Astro y el gateway sirve `/`).
 
 ### 5.4 Verificación Post-Despliegue
@@ -283,7 +294,7 @@ Todos los `.ps1` viven en `scripts/`, se ejecutan **desde la raíz del repo** (r
 | `run_ui.ps1` | UI **Shiny legacy** (`:8001`) | `.\scripts\run_ui.ps1` |
 | `dev.ps1` | Levanta **backend + Astro dev** en 2 ventanas | `.\scripts\dev.ps1` |
 | `build.ps1` | Compila la UI Astro → `backend/static` | `.\scripts\build.ps1` |
-| `deploy_prod.ps1` | Despliega a ShinyApps.io (Agro-Stack) | `.\scripts\deploy_prod.ps1 -Name <cuenta> [-AppId <id>]` |
+| `deploy_prod.ps1` | Despliega a ShinyApps.io (Agro-Stack) | `.\scripts\deploy_prod.ps1` (cuenta/token del `.env`; `-AppId`/`-New` opcionales) |
 | `inline_js.py` | Post-proceso del HTML (lo invoca `build.ps1`) | *(automático; ver abajo)* |
 | `make_sample_orthomosaic.py` | Genera ortomosaico mock para el conteo | `uv run python scripts/make_sample_orthomosaic.py` |
 
@@ -359,33 +370,38 @@ Levanta la UI **Shiny** antigua (`backend.dashboard:app`) en `:8001`. Desde la F
 
 ### 8.5 `deploy_prod.ps1` — despliegue a ShinyApps.io (Agro-Stack)
 
-Despliega el repo como una app ASGI cuyo entrypoint es el **gateway** (`backend.main:app`). Pasos:
+Despliega el repo como una app FastAPI/ASGI cuyo entrypoint es el **gateway** (`backend.main:app`). Pasos:
 
-0. **`build.ps1`** (compila la UI a `backend/static`).
+0. Lee `SHINYAPPS_*` del `.env` y corre **`build.ps1`** (compila la UI a `backend/static`).
 1. **`uv export --no-dev --no-hashes --no-emit-project -o requirements.txt`** (ShinyApps instala desde `requirements.txt`, no usa `uv`).
 2. Traduce cada línea de **`.rscignore`** a flags `--exclude` (rsconnect-python no lee `.rscignore` solo).
-3. **`rsconnect deploy fastapi . --entrypoint backend.main:app --name <cuenta> [--app-id <id>] @exclude`** — subcomando **`fastapi`** (no `shiny`): el entrypoint es una app FastAPI/ASGI, y `rsconnect` soporta FastAPI en shinyapps.io.
+3. **`rsconnect deploy fastapi . --entrypoint backend.main:app --title "AgroVisión" --account <cuenta> [--app-id <id> | --new] @exclude`** — subcomando **`fastapi`** (no `shiny`): el entrypoint es una app FastAPI/ASGI, y `rsconnect` la soporta en shinyapps.io.
+
+**Credenciales (desde `.env`):** el script carga `SHINYAPPS_ACCOUNT/TOKEN/SECRET` del `.env` al entorno; `rsconnect` las consume directamente (esas variables alimentan `--account/--token/--secret`). Si **no** están, cae a `--name <cuenta>` asumiendo un `rsconnect add` previo.
 
 **Parámetros:**
 
 | Parámetro | Obligatorio | Descripción |
 |-----------|:-----------:|-------------|
-| `-Name <cuenta>` | **Sí** | Tu cuenta/destino de ShinyApps.io. Sin él (queda el placeholder), el script **avisa y sale** sin desplegar. |
-| `-AppId <id>` | No | Vacío = **primer deploy** (crea la app). Una vez creada, reutiliza el id para **redeploy**. |
+| `-Name <cuenta>` | No | Cuenta de ShinyApps.io. Si se omite, se toma de `SHINYAPPS_ACCOUNT` (`.env`). Sin cuenta por ningún lado, el script **avisa y sale**. |
+| `-AppId <id>` | No | Actualiza (**reemplaza**) una app existente por su id. Mutuamente excluyente con `-New`. |
+| `-New` | No | Fuerza una **app nueva** aunque exista metadata de un deploy previo. Útil si quieres una copia aparte. |
+
+Sin `-AppId` ni `-New`, `rsconnect` **reutiliza la metadata** del último deploy (actualiza la misma app, o la crea si es la primera vez).
 
 ```powershell
-# 0) (Una sola vez) registrar el token de ShinyApps:
-uv run rsconnect add --account <cuenta> --name <cuenta> --token <TOKEN> --secret <SECRET>
+# Primer deploy (cuenta y token salen del .env):
+.\scripts\deploy_prod.ps1
 
-# 1) Primer deploy (crea la app y devuelve su app-id):
-.\scripts\deploy_prod.ps1 -Name <cuenta>
+# Redeploy de una app concreta:
+.\scripts\deploy_prod.ps1 -AppId <id>
 
-# 2) Redeploy (cuando ya tengas el app-id):
-.\scripts\deploy_prod.ps1 -Name <cuenta> -AppId <id>
+# Forzar una app nueva aparte:
+.\scripts\deploy_prod.ps1 -New
 ```
 
-> **BYOK / seguridad:** `.env` está en `.rscignore`, así que **no viaja** en el bundle; en producción las llaves las pone el usuario por sesión (cabeceras `X-User-*`). Lo que **sí** va: `backend/` (incl. `backend/static`), `pyproject.toml`, `uv.lock`, `requirements.txt` y `.env.example`.
-> **Aún no hay app-id** para AgroVisión: el primer deploy con `-Name` lo crea; guárdalo para los redeploys con `-AppId`.
+> **BYOK / seguridad:** `.env` está en `.rscignore`, así que **no viaja** en el bundle; en producción las llaves de datos las pone el usuario por sesión (cabeceras `X-User-*`). Las `SHINYAPPS_*` solo autentican el deploy **en tu máquina**. Lo que **sí** va en el bundle: `backend/` (incl. `backend/static`), `pyproject.toml`, `uv.lock`, `requirements.txt` y `.env.example`.
+> **Aún no hay app-id** para AgroVisión: el primer deploy lo crea; guárdalo para los redeploys con `-AppId`.
 
 ### 8.6 `inline_js.py` — post-proceso del HTML (auxiliar)
 
