@@ -112,6 +112,7 @@ docs/investigation/
 docs/plan/
 docs/task/
 docs/logs/
+!docs/assets/*.png
 
 # Playwright MCP artifacts
 .playwright-mcp/

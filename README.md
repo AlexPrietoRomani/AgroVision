@@ -14,24 +14,65 @@ license: agpl-3.0
 
 # AgroVisión — Plataforma de Monitoreo Agronómico
 
-Plataforma de [AgroVisión](docs/reference/description_proyecto_agrovision.md) para monitoreo agronómico de precisión: **gestión de parcelas**, **teledetección NDVI** (Sentinel-2, 5 años), **agente conversacional (RAG)** y **conteo de plantas por dron** (este último **en desarrollo**). UI en **Astro + Tailwind** (estática) servida por el backend **FastAPI** (monolito modular), persistencia **Supabase (PostGIS) BYOK**. Despliegue en **Hugging Face Spaces** (Docker). *(Shiny fue eliminado en la Fase 10.)*
+> Plataforma de precisión para gestión de parcelas, NDVI satelital, agente RAG y conteo por dron. BYOK, Docker, Hugging Face Spaces.
 
-> **Modelo BYOK, credenciales efímeras.** Las llaves del usuario (Supabase, Copernicus, Groq) viven **solo en memoria de sesión** y se envían por cabeceras `X-User-*`; nunca se persisten. Refrescar borra todo.
->
-> **Conteo por dron — EN DESARROLLO.** Arranca deshabilitado (`COUNTING_ENABLED=false`); la cola/worker/tabla existen pero inactivos hasta que el **repo del modelo** (proyecto separado) publique el artefacto `agrovision-plantcount` en Hugging Face Hub. **Licencia: AGPL-3.0.**
+Plataforma de [AgroVisión](docs/reference/description_proyecto_agrovision.md) para monitoreo agronómico de precisión: **gestión de parcelas**, **teledetección NDVI** (Sentinel-2, 5 años), **agente conversacional (RAG)**, **explorador de datos SQL** y **conteo de plantas por dron** (este último **en desarrollo**). UI en **Astro + Tailwind** (estática) servida por el backend **FastAPI** (monolito modular), persistencia **Supabase (PostGIS) BYOK**. Despliegue en **Hugging Face Spaces** (Docker). *(Shiny fue eliminado en la Fase 10.)*
 
-## Módulos (6)
+## Estado actual
 
-Resumen de Campo · Creación de Parcelas · Teledetección · Conteo por Dron (en desarrollo) · Asistente Agéntico · Credenciales.
+### ✅ Implementado
+- **Gestión de parcelas:** creación, edición y persistencia en Supabase (PostGIS)
+- **NDVI satelital:** Sentinel-2, serie histórica 5 años, heatmap zonal
+- **Clima básico:** temperatura y precipitación (Open-Meteo)
+- **Agente RAG:** chat conversacional con Groq/Llama 3
+- **Explorador de Datos:** consultas SQL directas a tablas de Supabase
+- **Telemetría:** visor de eventos de sesión (memoria o BD)
+- **BYOK:** credenciales efímeras, nunca persistidas
+
+###  En desarrollo
+- **Conteo por dron:** modelo `agrovision-plantcount` (AGPL-3.0) — cola/worker listos, pendiente publicación del modelo en Hugging Face Hub
+- **Variables climáticas adicionales:** humedad, viento, radiación solar, evapotranspiración
+- **Índices satelitales adicionales:** EVI, SAVI, NDWI, LST (temperatura superficial)
+- **Alertas automatizadas:** umbrales configurables por parcela
+- **Exportación de reportes:** PDF/CSV con datos de NDVI + clima
+
+> **Nota:** Los módulos en desarrollo están visibles en la UI pero con funcionalidad limitada. Las variables climáticas actuales (temperatura y precipitación) son la base; se expandirán en fases posteriores.
+
+## Módulos (8)
+
+| Módulo | Estado | Descripción |
+|--------|--------|-------------|
+| **Resumen de Campo** | ✅ | KPIs de NDVI, tendencia y área por parcela |
+| **Creación de Parcelas** | ✅ | Dibujo de polígonos (EPSG:4326) con Leaflet-draw |
+| **Teledetección** | ✅ | NDVI Sentinel-2 (5 años) + clima básico |
+| **Conteo por Dron** |  | Modelo YOLO/RF-DETR — pendiente publicación |
+| **Asistente Agéntico** | ✅ | Chat RAG con Groq/Llama 3 |
+| **Explorador de Datos** | ✅ | Consultas SQL directas a Supabase |
+| **Credenciales** | ✅ | BYOK efímero (Supabase, Copernicus, Groq) |
+| **Telemetría** | ✅ | Visor de eventos de sesión |
+
+> **Próximas mejoras:** más variables climáticas (humedad, viento, radiación) e índices satelitales (EVI, SAVI, NDWI, LST).
+
+## Capturas
+
+| Módulo | Vista |
+|--------|-------|
+| **Resumen de Campo** | ![Resumen](docs/assets/resumen-campo.png) |
+| **Creación de Parcelas** | ![Parcelas](docs/assets/creacion-parcelas.png) |
+| **Teledetección NDVI** | ![NDVI](docs/assets/teledeteccion-ndvi.png) |
+| **Explorador de Datos** | ![Datos](docs/assets/explorador-datos.png) |
+| **Credenciales BYOK** | ![Credenciales](docs/assets/credenciales.png) |
+| **Telemetría de Sesión** | ![Telemetría](docs/assets/telemetria-modal.png) |
 
 ## Arquitectura
 
 ```
-Astro + Tailwind (UI estática)  ──fetch /api──►  FastAPI (monolito modular)  ──►  Supabase (PostGIS) [BYOK]
+Astro + Tailwind (UI estática)  ──fetch /api──►  FastAPI (monolito modular)  ─►  Supabase (PostGIS) [BYOK]
    servida por el gateway en /                    ├─ /api/fields    (parcelas)        ├─ Sentinel Hub / Copernicus (NDVI)
    (1 contenedor en HF Spaces)                    ├─ /api/ndvi(+raster), /api/weather  ├─ Open-Meteo (clima, sin llave)
                                                   ├─ /api/chat      (agente RAG)        └─ Groq / Llama 3 (LLM)
                                                   ├─ /api/events    (telemetría)
+                                                  ├─ /api/data      (explorador SQL)
                                                   └─ /api/count     (conteo, en desarrollo)
 ```
 
@@ -45,7 +86,15 @@ tests/      # unit · integration (Supabase/Copernicus/Groq, skip sin llaves) ·
 docs/       # reference/architect/db versionados; plan/task/investigation/doc_guia no
 ```
 
-## Arranque rápido (local, sin Docker)
+## Arranque rápido
+
+### Con Docker (recomendado)
+
+```powershell
+docker-compose up --build    # http://localhost:8000/
+```
+
+### Local (sin Docker)
 
 > **Windows + OneDrive:** la carpeta está sincronizada por la nube, lo que rompe los *hardlinks* y bloquea el `.venv`. Crea el entorno **fuera** de OneDrive:
 > ```powershell
