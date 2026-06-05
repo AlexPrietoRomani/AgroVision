@@ -16,6 +16,8 @@ license: agpl-3.0
 
 > Plataforma de precisión para gestión de parcelas, NDVI satelital, agente RAG y conteo por dron. BYOK, Docker, Hugging Face Spaces.
 
+**Demo en vivo:** [alexp97-agrovision.hf.space](https://alexp97-agrovision.hf.space)
+
 Plataforma de [AgroVisión](docs/reference/description_proyecto_agrovision.md) para monitoreo agronómico de precisión: **gestión de parcelas**, **teledetección NDVI** (Sentinel-2, 5 años), **agente conversacional (RAG)**, **explorador de datos SQL** y **conteo de plantas por dron** (este último **en desarrollo**). UI en **Astro + Tailwind** (estática) servida por el backend **FastAPI** (monolito modular), persistencia **Supabase (PostGIS) BYOK**. Despliegue en **Hugging Face Spaces** (Docker). *(Shiny fue eliminado en la Fase 10.)*
 
 ## Estado actual
