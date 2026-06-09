@@ -1,22 +1,13 @@
----
-title: AgroVisión
-emoji: 🫐
-colorFrom: green
-colorTo: blue
-sdk: docker
-app_port: 8000
-pinned: false
-license: agpl-3.0
----
+# AgroVisión 🫐
 
-<!-- ↑ Frontmatter requerido por Hugging Face Spaces (SDK Docker). En GitHub se ve
-     como una tabla. El runbook de despliegue está en docs/ejecucion.md §5. -->
+Plataforma de precisión para gestión de parcelas, NDVI satelital, agente RAG y conteo por dron.
 
-# AgroVisión — Plataforma de Monitoreo Agronómico
-
-> Plataforma de precisión para gestión de parcelas, NDVI satelital, agente RAG y conteo por dron. BYOK, Docker, Hugging Face Spaces.
-
-**Demo en vivo:** [alexp97-agrovision.hf.space](https://alexp97-agrovision.hf.space)
+[![demo](https://img.shields.io/badge/demo-Hugging%20Face-blue?style=flat&logo=huggingface&logoColor=yellow)](https://alexp97-agrovision.hf.space)
+[![license](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE)
+[![python](https://img.shields.io/badge/python-3.11+-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![frontend](https://img.shields.io/badge/frontend-Astro%205-orange?logo=astro&logoColor=white)](https://astro.build/)
+[![styling](https://img.shields.io/badge/styling-Tailwind%204-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![database](https://img.shields.io/badge/database-Supabase%20PostGIS-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com/)
 
 Plataforma de [AgroVisión](docs/reference/description_proyecto_agrovision.md) para monitoreo agronómico de precisión: **gestión de parcelas**, **teledetección NDVI** (Sentinel-2, 5 años), **agente conversacional (RAG)**, **explorador de datos SQL** y **conteo de plantas por dron** (este último **en desarrollo**). UI en **Astro + Tailwind** (estática) servida por el backend **FastAPI** (monolito modular), persistencia **Supabase (PostGIS) BYOK**. Despliegue en **Hugging Face Spaces** (Docker). *(Shiny fue eliminado en la Fase 10.)*
 

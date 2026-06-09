@@ -47,17 +47,39 @@ $remote = "https://${owner}:$($env:HF_TOKEN)@huggingface.co/spaces/$SpaceId"
 # Aviso: el Space debe existir (SDK Docker). El primer push suele necesitar -Force
 # porque el Space arranca con un commit inicial (README) distinto a nuestro historial.
 Write-Host "Space: huggingface.co/spaces/$SpaceId  (rama main)" -ForegroundColor Yellow
-Write-Host "Empujando el repo (HEAD -> main); HF construirá el Dockerfile..." -ForegroundColor Yellow
+
+# Preparar temporalmente el README con frontmatter para Hugging Face
+Write-Host "Preparando README.md con frontmatter para Hugging Face Spaces..." -ForegroundColor Yellow
+$readmeContent = Get-Content "README.md" -Raw
+$frontmatter = Get-Content ".huggingface_frontmatter" -Raw
+$tempReadme = $frontmatter + "`n" + $readmeContent
+Set-Content "README.md" -Value $tempReadme -NoNewline
+
+Write-Host "Creando commit temporal para el despliegue..." -ForegroundColor Yellow
+& git add README.md
+& git commit -m "build: deploy to Hugging Face Spaces with metadata"
+$temporaryCommitCreated = $true
 
 $pushArgs = @("push")
 if ($Force) { $pushArgs += "--force" }
 $pushArgs += @($remote, "HEAD:main")
 
-# Nota: el token va en la URL solo para este push (no se guarda como remote).
-& git @pushArgs
-if ($LASTEXITCODE -ne 0) {
-    Write-Warning "El push falló. Si es el primer deploy, reintenta con:  .\scripts\deploy_hf.ps1 -Force"
-    exit 1
+try {
+    Write-Host "Empujando el repo (HEAD -> main); HF construirá el Dockerfile..." -ForegroundColor Yellow
+    # Nota: el token va en la URL solo para este push (no se guarda como remote).
+    & git @pushArgs
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "El push falló. Si es el primer deploy, reintenta con:  .\scripts\deploy_hf.ps1 -Force"
+        exit 1
+    }
+}
+finally {
+    if ($temporaryCommitCreated) {
+        Write-Host "Restaurando README.md y limpiando commit temporal..." -ForegroundColor Yellow
+        & git reset --mixed HEAD~1
+        Set-Content "README.md" -Value $readmeContent -NoNewline
+        & git checkout -- README.md
+    }
 }
 
 Write-Host "`n=== Push completado. Sigue el build en huggingface.co/spaces/$SpaceId ===" -ForegroundColor Green
