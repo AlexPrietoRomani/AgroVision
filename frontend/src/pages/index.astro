@@ -667,12 +667,12 @@ import "../styles/global.css";
         const series = r.ok ? (await r.json()).series : [];
         if (!series.length) { $("kpi-ndvi").innerText = "sin datos"; $("kpi-trend").innerText = "—"; $("resumen-empty").classList.remove("hidden"); return; }
         $("resumen-empty").classList.add("hidden");
-        const last = series[series.length - 1].mean_ndvi, delta = last - series[0].mean_ndvi;
+        const last = series[series.length - 1].mean_value, delta = last - series[0].mean_value;
         $("kpi-ndvi").innerText = last.toFixed(2);
         $("kpi-trend").innerText = (delta >= 0 ? "+" : "") + delta.toFixed(2);
         const ctx = $("chart-resumen");
         chartResumen?.destroy();
-        chartResumen = new Chart(ctx, { type: "line", data: { labels: series.map((p) => p.date), datasets: [{ label: "NDVI", data: series.map((p) => p.mean_ndvi), borderColor: "#15803d", backgroundColor: "rgba(21,128,61,.08)", fill: true, tension: 0.3 }] }, options: { plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 1 } } } });
+        chartResumen = new Chart(ctx, { type: "line", data: { labels: series.map((p) => p.date), datasets: [{ label: "NDVI", data: series.map((p) => p.mean_value), borderColor: "#15803d", backgroundColor: "rgba(21,128,61,.08)", fill: true, tension: 0.3 }] }, options: { plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 1 } } } });
         track("chart_view", { chart: "resumen", points: series.length });
       }
 
@@ -881,13 +881,18 @@ import "../styles/global.css";
           if (!r.ok) { el.innerHTML = '<p class="text-xs text-stone-500">Error al cargar esquema.</p>'; return; }
           const d = await r.json();
           const tables = d.tables || {};
+          const shortType = (t) => {
+            if (t.includes("timestamp")) return "timestamptz";
+            if (t.includes("double")) return "float";
+            if (t === "USER-DEFINED") return "geometry";
+            return t;
+          };
           let mmd = "erDiagram\n";
           for (const [name, cols] of Object.entries(tables)) {
             mmd += `  ${name} {\n`;
             for (const c of cols) {
               const ann = c.name === "id" ? " PK" : c.name.endsWith("_id") ? " FK" : "";
-              const t = c.type.replace("timestamp without time zone", "timestamptz").replace("character varying", "text");
-              mmd += `    ${t} ${c.name}${ann}\n`;
+              mmd += `    ${shortType(c.type)} ${c.name}${ann}\n`;
             }
             mmd += "  }\n";
           }
@@ -896,11 +901,11 @@ import "../styles/global.css";
           mmd += '  fields ||--o{ plant_counts : "tiene"\n';
           mmd += '  fields ||--o{ events : "genera"\n';
           mmd += '  fields ||--o{ chat_messages : "genera"\n';
-          el.innerHTML = '<div class="mermaid">' + mmd + '</div>';
-          await mermaid.initialize({ startOnLoad: false, theme: "neutral", securityLevel: "loose" });
-          await mermaid.run({ nodes: el.querySelectorAll(".mermaid") });
+          const id = "er-" + Date.now();
+          const { svg } = await mermaid.render(id, mmd);
+          el.innerHTML = svg;
         } catch (e) {
-          el.innerHTML = '<p class="text-xs text-red-500">Error al renderizar diagrama ER: ' + e + '</p>';
+          el.innerHTML = '<p class="text-xs text-red-500">Error al renderizar diagrama ER: ' + String(e?.message || e) + '</p>';
         }
       }
       async function loadTableData(table) {
