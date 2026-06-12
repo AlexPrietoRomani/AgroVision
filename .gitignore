@@ -108,6 +108,7 @@ scratch/
 # --- Docs internos: NO versionar en git, pero SÍ legibles localmente / por Claude ---
 # (El .gitignore solo afecta a git; la lectura de archivos por herramientas/Claude es independiente.)
 docs/doc_guia/
+docs/articles/
 docs/investigation/
 docs/plan/
 docs/task/
