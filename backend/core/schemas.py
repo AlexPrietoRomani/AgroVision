@@ -91,6 +91,18 @@ class NDVIPoint(BaseModel):
     source: str = Field(default="sentinel2", description="Origen de la observación")
 
 
+class IndexPoint(BaseModel):
+    """Observación de la serie temporal de un índice espectral genérico."""
+
+    date: dt.date = Field(description="Fecha de la escena (primer día del mes)")
+    index_type: str = Field(description="Tipo de índice: ndvi, evi, savi, ndwi, ndre")
+    mean_value: float = Field(description="Valor medio zonal del índice")
+    min_value: float | None = Field(default=None)
+    max_value: float | None = Field(default=None)
+    cloud_cover: float | None = Field(default=None, ge=0, le=100)
+    source: str = Field(default="sentinel2")
+
+
 class WeatherPoint(BaseModel):
     """Observación agroclimática por fecha (todas las variables son opcionales)."""
 

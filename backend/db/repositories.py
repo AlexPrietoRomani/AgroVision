@@ -203,6 +203,69 @@ async def get_ndvi_series(session: AsyncSession, field_id: Any) -> list[dict]:
     return [dict(r._mapping) for r in result.all()]
 
 
+async def upsert_index_points(
+    session: AsyncSession, field_id: Any, points: list[dict], index: str
+) -> int:
+    """
+    Inserta/actualiza puntos de un índice espectral de forma idempotente.
+
+    Args:
+        session (AsyncSession): Sesión async.
+        field_id (Any): Parcela asociada.
+        points (list[dict]): Puntos con claves 'date', 'mean_<index>' y opcionales
+            'min_<index>', 'max_<index>', 'cloud_cover', 'source'.
+        index (str): Nombre del índice ('evi', 'savi', 'ndwi', 'ndre').
+
+    Returns:
+        int: Número de puntos procesados.
+    """
+    if not points:
+        return 0
+    key_mean = f"mean_{index}"
+    key_min = f"min_{index}"
+    key_max = f"max_{index}"
+    params = [
+        {
+            "field_id": str(field_id),
+            "index_type": index,
+            "date": _to_date(p["date"]),
+            "mean_value": p[key_mean],
+            "min_value": p.get(key_min),
+            "max_value": p.get(key_max),
+            "cloud_cover": p.get("cloud_cover"),
+            "source": p.get("source", "sentinel2"),
+        }
+        for p in points
+    ]
+    await session.execute(
+        text(
+            "insert into vegetation_indices "
+            "(field_id, index_type, date, mean_value, min_value, max_value, cloud_cover, source) "
+            "values (:field_id, :index_type, :date, :mean_value, :min_value, :max_value, "
+            ":cloud_cover, coalesce(:source, 'sentinel2')) "
+            "on conflict (field_id, index_type, date) do update set "
+            "mean_value = excluded.mean_value, min_value = excluded.min_value, "
+            "max_value = excluded.max_value, cloud_cover = excluded.cloud_cover"
+        ),
+        params,
+    )
+    await session.commit()
+    return len(params)
+
+
+async def get_index_series(session: AsyncSession, field_id: Any, index: str) -> list[dict]:
+    """Devuelve la serie de un índice espectral de una parcela, ordenada por fecha."""
+    result = await session.execute(
+        text(
+            "select date, mean_value, min_value, max_value, cloud_cover "
+            "from vegetation_indices "
+            "where field_id = :fid and index_type = :idx order by date"
+        ),
+        {"fid": str(field_id), "idx": index},
+    )
+    return [dict(r._mapping) for r in result.all()]
+
+
 async def insert_event(
     session: AsyncSession,
     *,

@@ -49,6 +49,7 @@ from backend.api.data import router as data_router
 from backend.api.events import router as events_router
 from backend.api.fields import router as fields_router
 from backend.api.ndvi import router as ndvi_router
+from backend.api.vegetation import router as vegetation_router
 from backend.api.weather import router as weather_router
 from backend.config import get_settings
 from backend.core.inference import ModelNotAvailableError, create_adapter
@@ -144,7 +145,8 @@ def create_app() -> FastAPI:
         return response
 
     app.include_router(fields_router)  # Creación de Parcelas
-    app.include_router(ndvi_router)  # Teledetección NDVI
+    app.include_router(ndvi_router)  # Teledetección NDVI (legacy)
+    app.include_router(vegetation_router)  # Índices espectrales (Fase 13)
     app.include_router(weather_router)  # Clima
     app.include_router(chat_router)  # Asistente Agéntico (RAG)
     app.include_router(credentials_router)  # Presencia de .env (dev)
