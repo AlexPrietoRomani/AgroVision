@@ -49,6 +49,8 @@ var/*.db
 var/*.sqlite
 *.db
 *.sqlite
+*.sql
+!supabase/migrations/*.sql
 *.csv
 *.xlsx
 *.parquet
@@ -114,6 +116,7 @@ docs/plan/
 docs/task/
 docs/logs/
 !docs/assets/*.png
+docs/ejecucion.md
 
 # Playwright MCP artifacts
 .playwright-mcp/
