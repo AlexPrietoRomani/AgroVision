@@ -39,7 +39,6 @@ ALLOWED_TABLES: frozenset[str] = frozenset(
     {
         "fields",
         "vegetation_indices",
-        "ndvi_timeseries",
         "chat_messages",
         "events",
         "plant_counts",

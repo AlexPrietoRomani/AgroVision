@@ -149,60 +149,6 @@ async def delete_field(session: AsyncSession, field_id: Any) -> bool:
     return deleted
 
 
-async def upsert_ndvi_points(session: AsyncSession, field_id: Any, points: list[dict]) -> int:
-    """
-    [DEPRECATED] Inserta puntos NDVI en ndvi_timeseries (tabla legacy).
-
-    Usar `upsert_index_points(session, field_id, points, index="ndvi")` en su lugar.
-    Se mantiene solo para compatibilidad con tests existentes.
-    """
-    if not points:
-        return 0
-    params = [
-        {
-            "field_id": str(field_id),
-            "date": _to_date(p["date"]),
-            "mean_ndvi": p["mean_ndvi"],
-            "min_ndvi": p.get("min_ndvi"),
-            "max_ndvi": p.get("max_ndvi"),
-            "cloud_cover": p.get("cloud_cover"),
-            "source": p.get("source", "sentinel2"),
-        }
-        for p in points
-    ]
-    await session.execute(
-        text(
-            "insert into ndvi_timeseries "
-            "(field_id, date, mean_ndvi, min_ndvi, max_ndvi, cloud_cover, source) "
-            "values (:field_id, :date, :mean_ndvi, :min_ndvi, :max_ndvi, "
-            ":cloud_cover, coalesce(:source, 'sentinel2')) "
-            "on conflict (field_id, date) do update set "
-            "mean_ndvi = excluded.mean_ndvi, min_ndvi = excluded.min_ndvi, "
-            "max_ndvi = excluded.max_ndvi, cloud_cover = excluded.cloud_cover"
-        ),
-        params,
-    )
-    await session.commit()
-    return len(params)
-
-
-async def get_ndvi_series(session: AsyncSession, field_id: Any) -> list[dict]:
-    """
-    [DEPRECATED] Devuelve la serie NDVI desde ndvi_timeseries (tabla legacy).
-
-    Usar `get_index_series(session, field_id, index="ndvi")` en su lugar.
-    Se mantiene solo para compatibilidad.
-    """
-    result = await session.execute(
-        text(
-            "select date, mean_ndvi, min_ndvi, max_ndvi, cloud_cover "
-            "from ndvi_timeseries where field_id = :fid order by date"
-        ),
-        {"fid": str(field_id)},
-    )
-    return [dict(r._mapping) for r in result.all()]
-
-
 async def upsert_index_points(
     session: AsyncSession, field_id: Any, points: list[dict], index: str
 ) -> int:

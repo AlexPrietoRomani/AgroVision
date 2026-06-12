@@ -85,7 +85,6 @@ def test_migraciones_crean_las_tablas() -> None:
                     "names": [
                         "fields",
                         "vegetation_indices",
-                        "ndvi_timeseries",
                         "plant_counts",
                         "chat_messages",
                     ]
@@ -95,7 +94,6 @@ def test_migraciones_crean_las_tablas() -> None:
         assert present == {
             "fields",
             "vegetation_indices",
-            "ndvi_timeseries",
             "plant_counts",
             "chat_messages",
         }
