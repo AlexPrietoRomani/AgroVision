@@ -54,7 +54,7 @@ flowchart TD
 
     Q["✉️ Cola de Mensajes<br/>Supabase Queues (PGMQ)<br/>count_tasks"]:::broker
 
-    DB[("🗄️ Base de Datos<br/>Supabase PostgreSQL + PostGIS<br/>fields · ndvi_timeseries · plant_counts · chat_messages")]:::db
+    DB[("🗄️ Base de Datos<br/>Supabase PostgreSQL + PostGIS<br/>fields · vegetation_indices · plant_counts · chat_messages")]:::db
     ST[("🗄️ Almacenamiento<br/>Supabase Storage (bucket privado)<br/>Signed URLs efímeras")]:::db
 
     MODEL["🧠 Modelo Predeterminado<br/>RF-DETR-Nano (.pt / ONNX)<br/>Empaquetado en la imagen del backend<br/>Producido por el repo del modelo"]:::service
@@ -94,7 +94,7 @@ flowchart TD
     *   *Sincronizaciones Externas:* Sentinel-2 L2A (Copernicus CDSE vía STAC), NASA POWER (REST por coordenadas), Open-Meteo (REST público sin llave), Groq (inferencia LLM).
 *   **Salidas del Sistema:**
     *   *Visualizaciones:* KPIs, series NDVI vs. clima (Plotly), ortomosaico con *bounding boxes* (Signed URL efímera), respuestas del agente.
-    *   *Persistencia opcional (Supabase del usuario):* `fields`, `ndvi_timeseries`, `plant_counts`, `chat_messages`.
+    *   *Persistencia opcional (Supabase del usuario):* `fields`, `vegetation_indices`, `plant_counts`, `chat_messages`.
 
 ### 2.2 Grafo de Dependencias Reactivas y Propagación
 
@@ -124,7 +124,7 @@ flowchart LR
 ```mermaid
 erDiagram
     USUARIO ||--o{ FIELDS : "posee"
-    FIELDS ||--o{ NDVI_TIMESERIES : "registra"
+    FIELDS ||--o{ VEGETATION_INDICES : "registra"
     FIELDS ||--o{ PLANT_COUNTS : "asocia"
     USUARIO ||--o{ PLANT_COUNTS : "ejecuta"
     USUARIO ||--o{ CHAT_MESSAGES : "conversa"
@@ -141,14 +141,15 @@ erDiagram
         geometry geom "Polygon, 4326 (GIST)"
         timestamp created_at
     }
-    NDVI_TIMESERIES {
+    VEGETATION_INDICES {
         int id PK
         uuid field_id FK
+        string index_type "ndvi|evi|savi|ndwi|ndre"
         date date
-        float mean_ndvi
-        float min_ndvi
-        float max_ndvi
-        float cloud_cover
+        double mean_value
+        double min_value
+        double max_value
+        double cloud_cover
         string source "sentinel2"
     }
     PLANT_COUNTS {
@@ -186,19 +187,20 @@ create table fields (
 );
 create index fields_geom_gist_idx on fields using gist (geom);
 
--- 2. Serie temporal de índices vegetativos (Sentinel-2)
-create table ndvi_timeseries (
+-- 2. Serie temporal de índices espectrales (Sentinel-2)
+create table vegetation_indices (
   id serial primary key,
   field_id uuid references fields on delete cascade,
+  index_type text not null,
   date date not null,
-  mean_ndvi float not null,
-  min_ndvi float,
-  max_ndvi float,
-  cloud_cover float,
+  mean_value double precision not null,
+  min_value double precision,
+  max_value double precision,
+  cloud_cover double precision,
   source text default 'sentinel2',
-  constraint unique_field_date unique (field_id, date)
+  constraint unique_field_index_date unique (field_id, index_type, date)
 );
-create index ndvi_field_date_idx on ndvi_timeseries (field_id, date);
+create index vegetation_indices_field_type_date_idx on vegetation_indices (field_id, index_type, date);
 
 -- 3. Conteos por dron
 create table plant_counts (
@@ -304,7 +306,7 @@ El agente (Llama 3 70B vía Groq) no especula: traduce la intención del usuario
 
 | Herramienta | Firma | Acción |
 | :--- | :--- | :--- |
-| `get_vegetation_index_trend` | `(field_name, start_date, end_date) -> str` | Une `fields` ⋈ `ndvi_timeseries`; calcula ΔNDVI y diagnóstico. |
+| `get_vegetation_index_trend` | `(field_name, start_date, end_date) -> str` | Une `fields` ⋈ `vegetation_indices`; calcula ΔNDVI y diagnóstico. |
 | `get_weather_context` | `(lat, lon, start_date, end_date) -> dict` | Llama NASA POWER: radiación, humedad, temperaturas extremas. |
 | `get_field_planting_density` | `(field_name) -> str` | `ST_Area` de la parcela + último conteo → densidad pl/Ha. |
 

@@ -5,7 +5,7 @@
 > **Aplicabilidad:** Solo la **plataforma completa**. (El MVP histórico operaba en modo efímero sin base de datos.)
 >
 > **Alcance de construcción (esta iteración):** se implementan **todas** las tablas, pero con dos matices:
-> - **`fields`, `ndvi_timeseries`, `chat_messages`** se usan activamente (parcelas, teledetección 5 años, agente).
+> - **`fields`, `vegetation_indices`, `chat_messages`** se usan activamente (parcelas, teledetección 5 índices espectrales, agente).
 > - **`plant_counts`** y la **cola PGMQ `count_tasks`** se crean en la migración pero quedan **inactivas** (el módulo de Conteo está **en desarrollo**); se activan con `COUNTING_ENABLED=true`.
 > - **Clima:** se consulta **on-demand** (Open-Meteo, sin llave) y **no se persiste** en esta versión (cacheable a futuro si hace falta). No hay tabla de clima por ahora (YAGNI).
 >
@@ -17,7 +17,7 @@
 
 *   **Motor Seleccionado:** **PostgreSQL 16 + extensión PostGIS 3.4**, provisto por **Supabase** (capa gratuita). Modelo **BYOK**: cada usuario aporta su propio proyecto Supabase; el repo entrega las migraciones.
 *   **Justificación Técnica:**
-    *   *Consistencia vs. Flexibilidad:* se elige **SQL relacional** porque el agente conversacional (function calling) ejecuta *joins* entre `fields` y `ndvi_timeseries`, requiere integridad referencial (FK con `ON DELETE CASCADE`) y cálculos agregados. Para los resultados heterogéneos de detección YOLO se usa una columna **`JSONB`** (`result_json`), obteniendo flexibilidad documental sin renunciar a ACID.
+    *   *Consistencia vs. Flexibilidad:* se elige **SQL relacional** porque el agente conversacional (function calling) ejecuta *joins* entre `fields` y `vegetation_indices`, requiere integridad referencial (FK con `ON DELETE CASCADE`) y cálculos agregados. Para los resultados heterogéneos de detección YOLO se usa una columna **`JSONB`** (`result_json`), obteniendo flexibilidad documental sin renunciar a ACID.
     *   *Capacidad espacial:* **PostGIS** es innegociable — almacena `geometry(Polygon, 4326)`, calcula áreas (`ST_Area`) para densidad pl/Ha e indexa con **GIST**. Ningún NoSQL ofrece este soporte geográfico nativo de forma gratuita y madura.
     *   *Cola embebida:* **Supabase Queues (PGMQ)** vive dentro del mismo Postgres, dando mensajería transaccional ACID sin broker externo (no Redis/RabbitMQ) — clave para el costo cero.
     *   *Concurrencia:* Postgres gestiona bloqueos de fila óptimamente; el worker usa *visibility timeout* (vt=120) de PGMQ para exclusión mutua sobre tareas.
@@ -32,7 +32,7 @@ erDiagram
     USUARIO ||--o{ FIELDS : "posee"
     USUARIO ||--o{ PLANT_COUNTS : "ejecuta"
     USUARIO ||--o{ CHAT_MESSAGES : "conversa"
-    FIELDS ||--o{ NDVI_TIMESERIES : "registra"
+    FIELDS ||--o{ VEGETATION_INDICES : "registra"
     FIELDS ||--o{ PLANT_COUNTS : "asocia"
 
     USUARIO {
@@ -49,14 +49,15 @@ erDiagram
         timestamp created_at "DEFAULT now()"
     }
 
-    NDVI_TIMESERIES {
+    VEGETATION_INDICES {
         int id PK "SERIAL"
         uuid field_id FK "CASCADE ON DELETE"
+        string index_type "ndvi|evi|savi|ndwi|ndre"
         date date "NOT NULL"
-        float mean_ndvi "NOT NULL"
-        float min_ndvi
-        float max_ndvi
-        float cloud_cover
+        double mean_value "NOT NULL"
+        double min_value
+        double max_value
+        double cloud_cover
         string source "DEFAULT 'sentinel2'"
     }
 
@@ -97,20 +98,21 @@ erDiagram
 
 *   **Restricciones:** `ST_IsValid(geom)` debe ser verdadero; SRID siempre 4326.
 
-### 3.2 Tabla: `ndvi_timeseries`
-*   **Descripción:** Serie temporal histórica de índices vegetativos derivados de Sentinel-2. Se persiste **agregada por mes** (un punto por mes, la escena de menor nubosidad), con un **backfill inicial de 5 años** al crear la parcela y refresco **incremental** después.
+### 3.2 Tabla: `vegetation_indices`
+*   **Descripción:** Serie temporal histórica de 5 índices espectrales (NDVI/EVI/SAVI/NDWI/NDRE) derivados de Sentinel-2. Se persiste **agregada por mes** (un punto por mes por índice, la escena de menor nubosidad), con un **backfill inicial de 5 años** al crear la parcela y refresco **incremental** después.
 
 | Campo | Tipo de Dato | Modificadores | Descripción / Regla de Negocio |
 | :--- | :--- | :--- | :--- |
 | `id` | `SERIAL` | `PK` | Identificador secuencial. |
 | `field_id` | `UUID` | `FK (fields.id)`, `ON DELETE CASCADE` | Lote asociado. |
-| `date` | `DATE` | `NOT NULL` | Fecha de la escena satelital. |
-| `mean_ndvi` | `FLOAT` | `NOT NULL` | NDVI medio zonal; rango razonable $[-1,1]$. |
-| `min_ndvi` / `max_ndvi` | `FLOAT` | — | Extremos zonales. |
-| `cloud_cover` | `FLOAT` | — | % de nubes; > 60 % marca baja confianza. |
+| `index_type` | `TEXT` | `NOT NULL` | Tipo de índice: `ndvi`, `evi`, `savi`, `ndwi`, `ndre`. |
+| `date` | `DATE` | `NOT NULL` | Fecha de la escena satelital (primer día del mes). |
+| `mean_value` | `DOUBLE PRECISION` | `NOT NULL` | Valor medio zonal del índice. |
+| `min_value` / `max_value` | `DOUBLE PRECISION` | — | Extremos zonales. |
+| `cloud_cover` | `DOUBLE PRECISION` | — | % de nubes; > 60 % marca baja confianza. |
 | `source` | `TEXT` | `DEFAULT 'sentinel2'` | Origen (minúsculas). |
 
-*   **Restricciones:** `UNIQUE (field_id, date)` — una observación por lote y fecha (con agregación mensual, `date` se normaliza al primer día del mes, p. ej. `2026-04-01`); el `UNIQUE` hace **idempotente** el backfill/refresco incremental (`ON CONFLICT DO NOTHING/UPDATE`).
+*   **Restricciones:** `UNIQUE (field_id, index_type, date)` — una observación por lote, índice y fecha (con agregación mensual, `date` se normaliza al primer día del mes); el `UNIQUE` hace **idempotente** el backfill/refresco incremental (`ON CONFLICT DO NOTHING/UPDATE`).
 
 ### 3.3 Tabla: `plant_counts` (creada, **inactiva** — Conteo en desarrollo)
 *   **Descripción:** Resultados de conteo por dron (inferencia del modelo **agnóstico** `agrovision-plantcount`, vía adaptador onnxruntime/ultralytics). La tabla se crea en la migración inicial pero **no recibe escrituras** hasta activar `COUNTING_ENABLED=true`.
@@ -158,8 +160,8 @@ erDiagram
 
 | Tabla | Gateway (FastAPI) | Worker Asíncrono | UI (Shiny) | Permisos | Notas de Diseño |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `fields` | `ParcelsService` (CRUD) + dispara backfill | *Ninguno* | vía API (módulo *Creación de Parcelas*) | `API: CRUD` | La UI nunca toca la BD directo; pasa por el gateway. Al crear, encola/lanza el backfill NDVI de 5 años. |
-| `ndvi_timeseries` | `RemoteSensingService` (write, mensual) | *Ninguno* | lectura vía API (*Teledetección*, *Resumen*) | `API: Read/Write` | Escritura tras estadística zonal + agregación mensual; idempotente por `UNIQUE(field_id,date)`. |
+| `fields` | `ParcelsService` (CRUD) + dispara backfill | *Ninguno* | vía API (módulo *Creación de Parcelas*) | `API: CRUD` | La UI nunca toca la BD directo; pasa por el gateway. Al crear, encola/lanza el backfill de 5 años. |
+| `vegetation_indices` | `RemoteSensingService` (write, mensual) | *Ninguno* | lectura vía API (*Teledetección*, *Resumen*) | `API: Read/Write` | Escritura tras estadística zonal + agregación mensual; idempotente por `UNIQUE(field_id,index_type,date)`. |
 | `plant_counts` | `CountService` (read) | `InferenceWorker` (write) | lectura vía API | `API: Read` <br> `Worker: Write` | **En desarrollo:** sin escrituras hasta `COUNTING_ENABLED=true`. |
 | `chat_messages` | `AgentService` | *Ninguno* | lectura vía API (*Asistente*) | `API: Read/Write` | Memoria del agente (Memory Buffer). |
 | `events` | `events` router (write best-effort) | *Ninguno* | escritura vía `POST /api/events` (telemetría) | `API: Write` <br> (opcional) | **Opcional** (`EVENTS_PERSIST=true`). Sin secretos (redactado). Por defecto solo buffer en memoria. |
@@ -175,7 +177,7 @@ erDiagram
 
 ### 5.1 Índices Planificados
 *   **`fields_geom_gist_idx`** en `fields USING gist (geom)` — acelera operaciones espaciales (intersección, área).
-*   **`ndvi_field_date_idx`** en `ndvi_timeseries (field_id, date)` — optimiza filtros de fecha del agente.
+*   **`vegetation_indices_field_type_date_idx`** en `vegetation_indices (field_id, index_type, date)` — optimiza filtros de fecha/índice del agente.
 *   **`plant_counts_json_gin_idx`** en `plant_counts USING gin (result_json)` — búsquedas/agregaciones sobre el JSONB de detecciones.
 *   **`chat_session_history_idx`** en `chat_messages (session_id, created_at)` — recuperación ordenada del historial.
 *   **`events_session_created_idx`** en `events (session_id, created_at)` — traza de una sesión ordenada (depuración; tabla opcional).

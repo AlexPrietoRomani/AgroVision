@@ -418,17 +418,6 @@ erDiagram
         text source "default: sentinel2"
     }
 
-    NDVI_TIMESERIES {
-        serial id PK
-        uuid field_id FK
-        date date
-        double mean_ndvi
-        double min_ndvi
-        double max_ndvi
-        double cloud_cover
-        text source "[DEPRECATED — solo lectura]"
-    }
-
     PLANT_COUNTS {
         serial id PK
         uuid user_id
@@ -457,7 +446,6 @@ erDiagram
     }
 
     FIELDS ||--o{ VEGETATION_INDICES : "tiene"
-    FIELDS ||--o{ NDVI_TIMESERIES : "tiene (legacy)"
     FIELDS ||--o{ PLANT_COUNTS : "tiene (standby)"
 ```
 
@@ -467,7 +455,6 @@ erDiagram
 |-------|-----------|-----------|-------------------|
 | `fields` | Parcelas agrícolas con geometría (Polygon 4326) | `0001_init.sql` | 1–50 por espacio |
 | `vegetation_indices` | Serie mensual de los 5 índices espectrales (NDVI/EVI/SAVI/NDWI/NDRE) | `0004_indices.sql` (Fase 13) | ~33 pts/mes × 5 índices = ~165 por parcela |
-| `ndvi_timeseries` | **[DEPRECATED]** Solo NDVI legacy. Datos migrados a `vegetation_indices` vía `0005_migrate_ndvi_legacy.sql`. Solo lectura. | `0001_init.sql` | ~33 por parcela (migrados) |
 | `plant_counts` | Resultados de conteo por dron (standby, sin escrituras) | `0001_init.sql` | 0 (inactiva) |
 | `chat_messages` | Memoria conversacional del agente RAG | `0001_init.sql` | Variable por sesión |
 | `events` | Telemetría de UI/backend (opcional, si `EVENTS_PERSIST=true`) | `0003_events.sql` (Fase 9) | ~500 últimos en buffer |
@@ -475,7 +462,6 @@ erDiagram
 ### 5.3 Constraints y Relaciones Clave
 
 - **`vegetation_indices`**: `UNIQUE(field_id, index_type, date)` — un valor por parcela/índice/mes
-- **`ndvi_timeseries`**: `UNIQUE(field_id, date)` — [DEPRECATED] solo lectura
 - **`fields.geom`**: índice GIST (`fields_geom_gist_idx`) para acelerar búsquedas espaciales
 - **`chat_messages`**: índice compuesto `(session_id, created_at)` para historial rápido
 - **`events`**: índice compuesto `(session_id, created_at)` para trazabilidad de sesión
@@ -486,7 +472,6 @@ erDiagram
 |------|-------------|------------|
 | Parcelas | `fields` | INSERT/UPDATE/DELETE vía repositorios |
 | Índices espectrales | `vegetation_indices` | Upsert idempotente (ON CONFLICT DO UPDATE) |
-| NDVI legacy | `ndvi_timeseries` | **[DEPRECATED]** Solo lectura; escrituras congeladas |
 | Clima | No persiste | On-demand desde Open-Meteo, agregación mensual en memoria |
 | Chat | `chat_messages` | INSERT al finalizar turno |
 | Telemetría | Buffer (`deque`) + opcional `events` | Buffer en memoria (500 máx); persistencia best-effort si `EVENTS_PERSIST=true` |
@@ -540,7 +525,6 @@ flowchart LR
 | **Colas PGMQ en Supabase** | Redis / RabbitMQ | Mensajería transaccional ACID embebida en Postgres; **cero costo** y sin infraestructura extra. |
 | **Credenciales efímeras (BYOK, solo memoria)** | Persistencia en localStorage o servidor | Elimina todo vector de fuga de secretos; refrescar borra todo. |
 | **5 índices espectrales en tabla genérica (vegetation_indices)** | Tabla separada por índice | Una sola tabla con `index_type` discrimina; misma estructura, un solo upsert genérico. |
-| **Migración NDVI legacy a vegetation_indices** | Mantener ndvi_timeseries con fallback | Datos históricos copiados a vegetation_indices (migración 0005); ndvi_timeseries declarado deprecated, sin fallback. |
 | **Reproceso vía endpoint dedicado (SF13.5)** | Solo backfill al crear parcela | Parcelas legacy necesitan recalcular índices nuevos; endpoint permite reproceso manual o por script. |
 | **Telemetría en buffer + tabla opcional** | Solo persistencia | Buffer en memoria es instantáneo y suficiente para depuración; BD opcional para trazabilidad larga. |
 
