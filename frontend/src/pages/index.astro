@@ -228,13 +228,16 @@ import "../styles/global.css";
             <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm lg:col-span-7">
               <div class="flex items-center justify-between mb-3">
                 <h3 class="font-bold text-sm text-stone-800">Índice espectral vs. Clima — últimos 5 años (mensual)</h3>
-                <select id="select-index" class="text-[11px] border border-stone-300 rounded-lg p-1.5 bg-stone-50 font-semibold focus:outline-none focus:border-emerald-600">
-                  <option value="ndvi">NDVI — Salud vegetal</option>
-                  <option value="evi">EVI — Vegetación densa</option>
-                  <option value="savi">SAVI — Suelo desnudo</option>
-                  <option value="ndwi">NDWI — Agua/humedad</option>
-                  <option value="ndre">NDRE — Clorofila/N</option>
-                </select>
+                <div class="flex items-center gap-2">
+                  <select id="select-index" class="text-[11px] border border-stone-300 rounded-lg p-1.5 bg-stone-50 font-semibold focus:outline-none focus:border-emerald-600">
+                    <option value="ndvi">NDVI — Salud vegetal</option>
+                    <option value="evi">EVI — Vegetación densa</option>
+                    <option value="savi">SAVI — Suelo desnudo</option>
+                    <option value="ndwi">NDWI — Agua/humedad</option>
+                    <option value="ndre">NDRE — Clorofila/N</option>
+                  </select>
+                  <button id="btn-reprocess" class="text-[11px] bg-amber-100 hover:bg-amber-200 text-amber-800 px-2 py-1.5 rounded font-bold whitespace-nowrap"><i class="fa-solid fa-rotate"></i> Reprocesar</button>
+                </div>
               </div>
               <canvas id="chart-satelite" height="150"></canvas>
               <p id="satelite-empty" class="text-xs text-stone-500 mt-2">Selecciona una parcela.</p>
@@ -281,6 +284,10 @@ import "../styles/global.css";
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <!-- Selector de tabla -->
             <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm lg:col-span-4">
+              <h3 class="font-bold text-sm text-stone-800 mb-3">Diagrama ER</h3>
+              <div id="er-diagram" class="w-full overflow-auto rounded-lg bg-stone-50 border border-stone-200 mb-4">
+                <p class="text-xs text-stone-500 p-3">Cargando esquema...</p>
+              </div>
               <h3 class="font-bold text-sm text-stone-800 mb-3">Tablas disponibles</h3>
               <div class="space-y-2" id="tables-list">
                 <p class="text-xs text-stone-500">Cargando tablas...</p>
@@ -368,10 +375,41 @@ import "../styles/global.css";
       </div>
     </div>
 
+    <!-- Modal de Reprocesar (SF13.1) -->
+    <div id="reprocess-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
+      <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-bold text-sm text-stone-800"><i class="fa-solid fa-rotate mr-2 text-amber-600"></i>Reprocesar datos</h3>
+          <button id="btn-close-reprocess" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+        <p class="text-xs text-stone-600 mb-4">Recalcular datos históricos para la parcela seleccionada. Los datos existentes se sobrescribirán.</p>
+        <div class="space-y-3 mb-5">
+          <label class="flex items-center gap-3 p-3 border border-stone-200 rounded-lg hover:bg-stone-50 cursor-pointer">
+            <input type="radio" name="reprocess-mode" value="indices" class="accent-emerald-600">
+            <div><span class="text-sm font-semibold text-stone-800">Solo Sentinel-2</span><br><span class="text-[11px] text-stone-500">Recalcular NDVI, EVI, SAVI, NDWI y NDRE</span></div>
+          </label>
+          <label class="flex items-center gap-3 p-3 border border-stone-200 rounded-lg hover:bg-stone-50 cursor-pointer">
+            <input type="radio" name="reprocess-mode" value="weather" class="accent-amber-600">
+            <div><span class="text-sm font-semibold text-stone-800">Solo clima</span><br><span class="text-[11px] text-stone-500">Recargar datos climáticos (temp, HR, radiación, viento)</span></div>
+          </label>
+          <label class="flex items-center gap-3 p-3 border border-stone-200 rounded-lg hover:bg-stone-50 cursor-pointer">
+            <input type="radio" name="reprocess-mode" value="all" checked class="accent-stone-600">
+            <div><span class="text-sm font-semibold text-stone-800">Ambos</span><br><span class="text-[11px] text-stone-500">Reprocesar índices espectrales y recargar clima</span></div>
+          </label>
+        </div>
+        <div class="flex gap-2 justify-end">
+          <button id="btn-cancel-reprocess" class="text-xs bg-stone-100 hover:bg-stone-200 text-stone-700 px-4 py-2 rounded-lg font-semibold">Cancelar</button>
+          <button id="btn-run-reprocess" class="text-xs bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-bold"><i class="fa-solid fa-play"></i> Ejecutar</button>
+        </div>
+        <div id="reprocess-status" class="hidden mt-3 text-xs text-stone-600"></div>
+      </div>
+    </div>
+
     <!-- Librerías CDN -->
     <script is:inline src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script is:inline src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script is:inline src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script is:inline src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 
     <script is:inline>
       // ===== Estado EFÍMERO (solo memoria; se borra al refrescar) =====
@@ -684,6 +722,56 @@ import "../styles/global.css";
         } catch (e) { $("heatmap-box").innerHTML = '<span class="text-xs text-red-500">Error de red.</span>'; }
       });
 
+      // ===== Reprocesar (SF13.1) =====
+      function showReprocessModal() {
+        const fid = $("select-parcela").value;
+        if (!fid) return notify("Selecciona una parcela", "");
+        $("reprocess-modal").classList.remove("hidden");
+        $("reprocess-modal").classList.add("flex");
+        $("reprocess-status").classList.add("hidden");
+        $("reprocess-status").innerText = "";
+        track("reprocess_modal_open", { field_id: fid });
+      }
+      function closeReprocessModal() {
+        $("reprocess-modal").classList.add("hidden");
+        $("reprocess-modal").classList.remove("flex");
+      }
+      $("btn-reprocess").addEventListener("click", showReprocessModal);
+      $("btn-close-reprocess").addEventListener("click", closeReprocessModal);
+      $("btn-cancel-reprocess").addEventListener("click", closeReprocessModal);
+      $("reprocess-modal").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeReprocessModal(); });
+      $("btn-run-reprocess").addEventListener("click", async () => {
+        const fid = $("select-parcela").value;
+        const mode = document.querySelector('input[name="reprocess-mode"]:checked')?.value || "all";
+        const btn = $("btn-run-reprocess");
+        btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procesando…';
+        $("reprocess-status").classList.remove("hidden");
+        $("reprocess-status").innerText = "Reprocesando… esto puede tomar varios minutos.";
+        track("reprocess_start", { field_id: fid, mode });
+        try {
+          const r = await api("/vegetation/reprocess", { method: "POST", body: JSON.stringify({ field_id: fid, mode }) });
+          if (r.ok) {
+            const data = await r.json();
+            const idxCount = data.indices?.length || 0;
+            const totalPoints = data.indices?.reduce((s, i) => s + i.points, 0) || 0;
+            $("reprocess-status").innerText = `Reproceso completado: ${idxCount} índices, ${totalPoints} puntos.${data.weather ? " Clima actualizado." : ""}`;
+            $("reprocess-status").className = "mt-3 text-xs text-emerald-600";
+            track("reprocess_done", { field_id: fid, mode, indices: idxCount, points: totalPoints });
+            setTimeout(() => { closeReprocessModal(); loadTeledeteccion(); }, 1500);
+          } else {
+            const err = await r.json().catch(() => ({}));
+            $("reprocess-status").innerText = "Error: " + (err.detail || r.status);
+            $("reprocess-status").className = "mt-3 text-xs text-red-600";
+            track("reprocess_error", { field_id: fid, mode, status: r.status });
+          }
+        } catch (e) {
+          $("reprocess-status").innerText = "Error de red: " + e;
+          $("reprocess-status").className = "mt-3 text-xs text-red-600";
+        } finally {
+          btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-play"></i> Ejecutar';
+        }
+      });
+
       // ===== Chat =====
       function appendChat(who, text, tools) {
         const div = document.createElement("div");
@@ -772,8 +860,9 @@ import "../styles/global.css";
       $("telemetry-modal").addEventListener("click", (e) => { if (e.target === $("telemetry-modal")) closeTelemetryModal(); });
 
       // ===== Explorador de Datos (Fase 11) =====
-      const TABLES = ["fields", "ndvi_timeseries", "chat_messages", "events"];
+      const TABLES = ["fields", "vegetation_indices", "ndvi_timeseries", "chat_messages", "events"];
       async function loadDataExplorer() {
+        loadSchema();
         const list = $("tables-list");
         list.innerHTML = TABLES.map((t) =>
           `<button data-table="${t}" class="w-full text-left text-xs px-3 py-2 rounded-lg border border-stone-200 bg-stone-50 hover:bg-stone-100 font-semibold text-stone-700"><i class="fa-solid fa-table mr-1 text-emerald-600"></i>${t}</button>`
@@ -781,6 +870,37 @@ import "../styles/global.css";
         list.querySelectorAll("button").forEach((b) =>
           b.addEventListener("click", () => loadTableData(b.dataset.table))
         );
+      }
+      async function loadSchema() {
+        const el = $("er-diagram");
+        try {
+          const r = await api("/data/schema");
+          if (!r.ok) { el.innerHTML = '<p class="text-xs text-stone-500">Error al cargar esquema.</p>'; return; }
+          const d = await r.json();
+          const tables = d.tables || {};
+          // Construir sentencia Mermaid ER
+          let mmd = "erDiagram\n";
+          for (const [name, cols] of Object.entries(tables)) {
+            const pks = cols.filter((c) => c.name === "id").map(() => "PK");
+            mmd += `  "${name}" {\n`;
+            for (const c of cols) {
+              const ann = c.name === "id" ? " PK" : c.name.includes("_id") ? " FK" : "";
+              mmd += `    ${c.type} "${c.name}"${ann}\n`;
+            }
+            mmd += "  }\n";
+          }
+          // Relaciones manuales
+          mmd += '  "fields" ||--o{ "vegetation_indices" : "tiene"\n';
+          mmd += '  "fields" ||--o{ "ndvi_timeseries" : "tiene_legacy"\n';
+          mmd += '  "fields" ||--o{ "plant_counts" : "tiene"\n';
+          mmd += '  "fields" ||--o{ "events" : "genera"\n';
+          el.innerHTML = `<pre class="hidden">${mmd.replace(/</g, "&lt;")}</pre><div class="mermaid">${mmd}</div>`;
+          mermaid.run({ nodes: [el.querySelector(".mermaid")] }).catch(() => {
+            el.innerHTML = '<p class="text-xs text-stone-500">Error al renderizar diagrama ER.</p>';
+          });
+        } catch (e) {
+          el.innerHTML = '<p class="text-xs text-red-500">Error al cargar esquema: ' + e + '</p>';
+        }
       }
       async function loadTableData(table) {
         $("data-view-title").innerText = `Tabla: ${table}`;
