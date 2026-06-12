@@ -1,23 +1,3 @@
-"""
-Archivo: fields.py
-Fecha de modificación: 03/06/2026
-Autor: Equipo AgroVisión
-
-Descripción:
-Router del módulo *Creación de Parcelas*: CRUD de parcelas (`/api/fields`). Al crear una
-parcela, dispara en segundo plano el backfill NDVI de 5 años (si hay credenciales de
-Copernicus). La geometría se valida con `FieldIn` (polígono cerrado EPSG:4326).
-
-Estructura Interna:
-    - `POST /api/fields`, `GET /api/fields`, `GET /api/fields/{id}`, `DELETE /api/fields/{id}`.
-
-Entradas / Dependencias:
-    - `backend.services.parcels`, `backend.api.deps`.
-
-Ejemplo de Integración:
-    from backend.api.fields import router
-"""
-
 from __future__ import annotations
 
 import json
@@ -26,6 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.deps import UserKeys, get_db, get_user_keys
+from backend.api.events import emit as emit_event
 from backend.core.schemas import FieldIn
 from backend.services import parcels
 
@@ -41,7 +22,8 @@ async def create_field(
 ) -> dict:
     """Crea una parcela y agenda el backfill NDVI de 5 años en segundo plano."""
     row = await parcels.create_parcel(session, body, user_id=None)
-    background.add_task(parcels.run_ndvi_backfill, str(row.id), body.geojson, keys)
+    emit_event("field_created", {"id": str(row.id), "name": row.name, "area_ha": row.area_ha})
+    background.add_task(parcels.run_ndvi_backfill, str(row.id), body.geojson, keys, row.name)
     return {"id": str(row.id), "name": row.name, "area_ha": row.area_ha}
 
 
@@ -78,7 +60,9 @@ async def get_field(field_id: str, session: AsyncSession = Depends(get_db)) -> d
 
 @router.delete("/{field_id}")
 async def delete_field(field_id: str, session: AsyncSession = Depends(get_db)) -> dict:
-    """Borra una parcela por id (404 si no existía)."""
-    if not await parcels.delete_parcel(session, field_id):
+    """Elimina una parcela por id."""
+    ok = await parcels.delete_parcel(session, field_id)
+    if not ok:
         raise HTTPException(status_code=404, detail="Parcela no encontrada")
-    return {"deleted": field_id}
+    emit_event("field_deleted", {"id": field_id})
+    return {"ok": True}

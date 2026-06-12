@@ -26,6 +26,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.deps import UserKeys, get_db, get_user_keys
+from backend.api.events import emit as emit_event
 from backend.db import repositories as repo
 from backend.services import remote_sensing
 
@@ -66,10 +67,15 @@ async def ndvi_series(
 ) -> dict:
     """Devuelve la serie NDVI mensual (persistida por parcela o calculada en vivo)."""
     if body.field_id:
-        series = await repo.get_ndvi_series(session, body.field_id)
+        series = await repo.get_index_series(session, body.field_id, "ndvi")
+        emit_event(
+            "ndvi_series",
+            {"field_id": body.field_id, "source": "db", "points": len(series)},
+        )
         return {"series": series}
     if body.geojson:
         _require_copernicus(keys)
+        emit_event("ndvi_series", {"source": "copernicus", "start": body.start, "end": body.end})
         series = await remote_sensing.ndvi_series_monthly(
             body.geojson, body.start, body.end, keys.copernicus_id, keys.copernicus_secret
         )

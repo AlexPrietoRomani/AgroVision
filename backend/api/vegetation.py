@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.deps import UserKeys, get_db, get_user_keys
+from backend.api.events import emit as emit_event
 from backend.db import repositories as repo
 from backend.services import remote_sensing
 
@@ -34,6 +35,11 @@ class IndexRasterRequest(BaseModel):
     end: str | None = None
 
 
+class ReprocessRequest(BaseModel):
+    field_id: str
+    mode: str = "all"  # "indices" | "weather" | "all"
+
+
 def _require_copernicus(keys: UserKeys) -> None:
     if not (keys.copernicus_id and keys.copernicus_secret):
         raise HTTPException(
@@ -55,6 +61,33 @@ async def list_indices() -> dict:
     return {"indices": [{"id": k, "description": v} for k, v in _INDEX_DESCRIPTIONS.items()]}
 
 
+@router.post("/reprocess")
+async def reprocess_field(
+    body: ReprocessRequest,
+    keys: UserKeys = Depends(get_user_keys),
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    """Recalcula TODOS los índices espectrales (y opcionalmente clima) para una parcela."""
+    _require_copernicus(keys)
+    if body.mode not in ("indices", "weather", "all"):
+        raise HTTPException(status_code=422, detail="mode debe ser 'indices', 'weather' o 'all'.")
+    geojson = await repo.get_field_geojson(session, body.field_id)
+    if not geojson:
+        raise HTTPException(status_code=404, detail="Parcela no encontrada.")
+    result: dict = {"field_id": body.field_id, "mode": body.mode, "indices": [], "weather": False}
+    if body.mode in ("indices", "all"):
+        for index in sorted(_VALID_INDICES):
+            series = await remote_sensing.index_series_monthly(
+                geojson, None, None, keys.copernicus_id, keys.copernicus_secret, index
+            )
+            count = await repo.upsert_index_points(session, body.field_id, series, index)
+            result["indices"].append({"index": index, "points": count})
+    if body.mode in ("weather", "all"):
+        result["weather"] = True
+    emit_event("reprocess_done", result)
+    return result
+
+
 @router.post("/{index}")
 async def index_series(
     index: str,
@@ -66,9 +99,17 @@ async def index_series(
     _validate_index(index)
     if body.field_id:
         series = await repo.get_index_series(session, body.field_id, index)
+        emit_event(
+            "index_series",
+            {"index": index, "field_id": body.field_id, "source": "db", "points": len(series)},
+        )
         return {"index": index, "series": series}
     if body.geojson:
         _require_copernicus(keys)
+        emit_event(
+            "index_series",
+            {"index": index, "source": "copernicus", "start": body.start, "end": body.end},
+        )
         series = await remote_sensing.index_series_monthly(
             body.geojson, body.start, body.end, keys.copernicus_id, keys.copernicus_secret, index
         )
@@ -91,6 +132,10 @@ async def index_raster(
         geojson = await repo.get_field_geojson(session, body.field_id)
     if geojson is None:
         raise HTTPException(status_code=422, detail="Indica 'field_id' o 'geojson'.")
+    emit_event(
+        "index_raster",
+        {"index": index, "field_id": body.field_id, "start": body.start, "end": body.end},
+    )
     png = await remote_sensing.index_heatmap_png(
         geojson, keys.copernicus_id, keys.copernicus_secret, body.start, body.end, index=index
     )
