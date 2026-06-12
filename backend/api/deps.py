@@ -78,9 +78,7 @@ def get_user_keys(
     return UserKeys(
         groq=x_user_groq_key or dev_groq or None,
         copernicus_id=x_user_copernicus_id or dev_cop_id or None,
-        copernicus_secret=(
-            x_user_copernicus_secret or dev_cop_secret or None
-        ),
+        copernicus_secret=(x_user_copernicus_secret or dev_cop_secret or None),
         supabase_url=x_user_supabase_url or os.getenv("SUPABASE_URL") or None,
         supabase_key=x_user_supabase_key or os.getenv("SUPABASE_ANON_KEY") or None,
     )

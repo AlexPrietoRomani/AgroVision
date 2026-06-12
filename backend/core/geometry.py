@@ -35,9 +35,7 @@ _EARTH_RADIUS_M: float = 6_378_137.0  # radio ecuatorial WGS84
 SQUARE_METERS_PER_HECTARE: int = 10_000
 
 
-def gsd_cm_per_px(
-    sensor_w_mm: float, flight_h_m: float, focal_mm: float, img_w_px: float
-) -> float:
+def gsd_cm_per_px(sensor_w_mm: float, flight_h_m: float, focal_mm: float, img_w_px: float) -> float:
     """
     Calcula la distancia de muestreo terrestre (GSD) en centímetros por píxel.
 

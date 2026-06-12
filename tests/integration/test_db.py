@@ -54,6 +54,7 @@ async def _engine_scope():
         get_engine.cache_clear()
         get_sessionmaker.cache_clear()
 
+
 _SQUARE = {
     "type": "Polygon",
     "coordinates": [

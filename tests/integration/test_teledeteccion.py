@@ -25,9 +25,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-_HAS_COP = bool(
-    os.getenv("DEV_COPERNICUS_CLIENT_ID") and os.getenv("DEV_COPERNICUS_CLIENT_SECRET")
-)
+_HAS_COP = bool(os.getenv("DEV_COPERNICUS_CLIENT_ID") and os.getenv("DEV_COPERNICUS_CLIENT_SECRET"))
 _HAS_DB = bool(os.getenv("DATABASE_URL"))
 
 from backend.db import repositories as repo  # noqa: E402

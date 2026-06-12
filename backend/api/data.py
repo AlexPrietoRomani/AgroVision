@@ -35,13 +35,15 @@ from backend.api.deps import get_db
 router = APIRouter(prefix="/api/data", tags=["explorador de datos"])
 
 # Tablas permitidas para consulta directa
-ALLOWED_TABLES: frozenset[str] = frozenset({
-    "fields",
-    "ndvi_timeseries",
-    "chat_messages",
-    "events",
-    "plant_counts",
-})
+ALLOWED_TABLES: frozenset[str] = frozenset(
+    {
+        "fields",
+        "ndvi_timeseries",
+        "chat_messages",
+        "events",
+        "plant_counts",
+    }
+)
 
 # Límite máximo de filas por consulta
 MAX_ROWS = 1000
@@ -69,8 +71,15 @@ def _validate_query(sql: str) -> str:
 
     # Bloquear palabras clave peligrosas
     dangerous = [
-        "INSERT", "UPDATE", "DELETE", "ALTER", "DROP",
-        "CREATE", "TRUNCATE", "GRANT", "REVOKE",
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "ALTER",
+        "DROP",
+        "CREATE",
+        "TRUNCATE",
+        "GRANT",
+        "REVOKE",
     ]
     for word in dangerous:
         if re.search(r"\b" + word + r"\b", upper):

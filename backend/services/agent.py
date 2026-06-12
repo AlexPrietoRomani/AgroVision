@@ -116,11 +116,7 @@ async def run_agent(
             except json.JSONDecodeError:
                 args = {}
             tool = TOOL_DISPATCH.get(name)
-            result = (
-                await tool(session, **args)
-                if tool
-                else f"Herramienta desconocida: {name}."
-            )
+            result = await tool(session, **args) if tool else f"Herramienta desconocida: {name}."
             tool_logs.append({"tool": name, "args": args})
             messages.append({"role": "tool", "tool_call_id": call["id"], "content": result})
 

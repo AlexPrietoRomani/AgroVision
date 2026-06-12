@@ -90,7 +90,8 @@ def aggregate_monthly(series: list[dict]) -> list[dict]:
         current = best_per_month.get(month_key)
         cloud_value = cloud if cloud is not None else float("inf")
         current_cloud = (
-            current.get("cloud_cover") if current and current.get("cloud_cover") is not None
+            current.get("cloud_cover")
+            if current and current.get("cloud_cover") is not None
             else float("inf")
         )
         if current is None or cloud_value < current_cloud:
