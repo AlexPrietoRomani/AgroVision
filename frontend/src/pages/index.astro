@@ -863,7 +863,7 @@ import "../styles/global.css";
       $("telemetry-modal").addEventListener("click", (e) => { if (e.target === $("telemetry-modal")) closeTelemetryModal(); });
 
       // ===== Explorador de Datos (Fase 11) =====
-      const TABLES = ["fields", "vegetation_indices", "ndvi_timeseries", "chat_messages", "events"];
+      const TABLES = ["fields", "vegetation_indices", "chat_messages", "events", "plant_counts"];
       async function loadDataExplorer() {
         loadSchema();
         const list = $("tables-list");
