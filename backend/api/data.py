@@ -38,6 +38,7 @@ router = APIRouter(prefix="/api/data", tags=["explorador de datos"])
 ALLOWED_TABLES: frozenset[str] = frozenset(
     {
         "fields",
+        "vegetation_indices",
         "ndvi_timeseries",
         "chat_messages",
         "events",
@@ -86,6 +87,32 @@ def _validate_query(sql: str) -> str:
             raise HTTPException(status_code=400, detail=f"Consulta bloqueada: contiene '{word}'.")
 
     return sql
+
+
+@router.get("/schema")
+async def get_schema(
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Devuelve el esquema de la BD (tablas, columnas, tipos) para generar un diagrama ER.
+
+    Consulta `information_schema.columns` sobre las tablas permitidas.
+    """
+    rows = await session.execute(
+        text(
+            "select table_name, column_name, data_type, is_nullable "
+            "from information_schema.columns "
+            "where table_schema = 'public' and table_name = any(:tables) "
+            "order by table_name, ordinal_position"
+        ),
+        {"tables": list(ALLOWED_TABLES)},
+    )
+    tables: dict[str, list[dict]] = {}
+    for r in rows:
+        tables.setdefault(r.table_name, []).append(
+            {"name": r.column_name, "type": r.data_type, "nullable": r.is_nullable == "YES"}
+        )
+    return {"tables": tables}
 
 
 @router.get("/{table}")

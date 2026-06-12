@@ -11,12 +11,13 @@ las parcelas se insertan con `ST_GeomFromGeoJSON` y su área se calcula con
 `ST_Area(geom::geography)`. El upsert de NDVI es idempotente por `UNIQUE(field_id, date)`.
 
 Acciones Principales:
-    - CRUD de parcelas, upsert/lectura de NDVI y memoria de chat.
+    - CRUD de parcelas, índices espectrales y memoria de chat.
 
 Estructura Interna:
     - Parcelas: `create_field`, `get_field`, `list_fields`, `delete_fields_for_user`.
-    - NDVI: `upsert_ndvi_points`, `get_ndvi_series`.
+    - Índices espectrales: `upsert_index_points`, `get_index_series`.
     - Chat: `save_chat_message`, `get_chat_history`, `delete_chat_for_session`.
+    - [DEPRECATED] `upsert_ndvi_points`, `get_ndvi_series` (solo tests).
 
 Entradas / Dependencias:
     - `sqlalchemy` (AsyncSession), PostGIS en la BD.
@@ -150,16 +151,10 @@ async def delete_field(session: AsyncSession, field_id: Any) -> bool:
 
 async def upsert_ndvi_points(session: AsyncSession, field_id: Any, points: list[dict]) -> int:
     """
-    Inserta/actualiza puntos NDVI de forma idempotente (`UNIQUE(field_id, date)`).
+    [DEPRECATED] Inserta puntos NDVI en ndvi_timeseries (tabla legacy).
 
-    Args:
-        session (AsyncSession): Sesión async.
-        field_id (Any): Parcela asociada.
-        points (list[dict]): Puntos con claves 'date', 'mean_ndvi' y opcionales
-            'min_ndvi', 'max_ndvi', 'cloud_cover', 'source'.
-
-    Returns:
-        int: Número de puntos procesados.
+    Usar `upsert_index_points(session, field_id, points, index="ndvi")` en su lugar.
+    Se mantiene solo para compatibilidad con tests existentes.
     """
     if not points:
         return 0
@@ -192,7 +187,12 @@ async def upsert_ndvi_points(session: AsyncSession, field_id: Any, points: list[
 
 
 async def get_ndvi_series(session: AsyncSession, field_id: Any) -> list[dict]:
-    """Devuelve la serie NDVI de una parcela (dicts), ordenada por fecha."""
+    """
+    [DEPRECATED] Devuelve la serie NDVI desde ndvi_timeseries (tabla legacy).
+
+    Usar `get_index_series(session, field_id, index="ndvi")` en su lugar.
+    Se mantiene solo para compatibilidad.
+    """
     result = await session.execute(
         text(
             "select date, mean_ndvi, min_ndvi, max_ndvi, cloud_cover "
@@ -214,7 +214,7 @@ async def upsert_index_points(
         field_id (Any): Parcela asociada.
         points (list[dict]): Puntos con claves 'date', 'mean_<index>' y opcionales
             'min_<index>', 'max_<index>', 'cloud_cover', 'source'.
-        index (str): Nombre del índice ('evi', 'savi', 'ndwi', 'ndre').
+        index (str): Nombre del índice ('ndvi', 'evi', 'savi', 'ndwi', 'ndre').
 
     Returns:
         int: Número de puntos procesados.
@@ -255,15 +255,19 @@ async def upsert_index_points(
 
 async def get_index_series(session: AsyncSession, field_id: Any, index: str) -> list[dict]:
     """Devuelve la serie de un índice espectral de una parcela, ordenada por fecha."""
-    result = await session.execute(
-        text(
-            "select date, mean_value, min_value, max_value, cloud_cover "
-            "from vegetation_indices "
-            "where field_id = :fid and index_type = :idx order by date"
-        ),
-        {"fid": str(field_id), "idx": index},
-    )
-    return [dict(r._mapping) for r in result.all()]
+    try:
+        result = await session.execute(
+            text(
+                "select date, mean_value, min_value, max_value, cloud_cover "
+                "from vegetation_indices "
+                "where field_id = :fid and index_type = :idx order by date"
+            ),
+            {"fid": str(field_id), "idx": index},
+        )
+        rows = [dict(r._mapping) for r in result.all()]
+    except Exception:
+        rows = []
+    return rows
 
 
 async def insert_event(

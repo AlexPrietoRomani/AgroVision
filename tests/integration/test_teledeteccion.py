@@ -92,8 +92,8 @@ def test_parcel_ndvi_persist() -> None:
                     os.environ["DEV_COPERNICUS_CLIENT_ID"],
                     os.environ["DEV_COPERNICUS_CLIENT_SECRET"],
                 )
-                await repo.upsert_ndvi_points(session, field.id, series)
-                persisted = await repo.get_ndvi_series(session, field.id)
+                await repo.upsert_index_points(session, field.id, series, index="ndvi")
+                persisted = await repo.get_index_series(session, field.id, "ndvi")
                 assert len(persisted) == len(series)
                 assert len(persisted) >= 1
             finally:

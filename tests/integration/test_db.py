@@ -70,7 +70,7 @@ def _migrate() -> None:
 
 
 def test_migraciones_crean_las_tablas() -> None:
-    """Tras migrar, las 4 tablas del diseño existen en el esquema public."""
+    """Tras migrar, las tablas del diseño existen en el esquema public."""
 
     async def _run() -> None:
         from sqlalchemy import text
@@ -81,10 +81,24 @@ def test_migraciones_crean_las_tablas() -> None:
                     "select table_name from information_schema.tables "
                     "where table_schema='public' and table_name = any(:names)"
                 ),
-                {"names": ["fields", "ndvi_timeseries", "plant_counts", "chat_messages"]},
+                {
+                    "names": [
+                        "fields",
+                        "vegetation_indices",
+                        "ndvi_timeseries",
+                        "plant_counts",
+                        "chat_messages",
+                    ]
+                },
             )
             present = {r[0] for r in rows}
-        assert present == {"fields", "ndvi_timeseries", "plant_counts", "chat_messages"}
+        assert present == {
+            "fields",
+            "vegetation_indices",
+            "ndvi_timeseries",
+            "plant_counts",
+            "chat_messages",
+        }
 
     asyncio.run(_run())
 
@@ -112,7 +126,7 @@ def test_field_crud_roundtrip() -> None:
 
 
 def test_ndvi_upsert_idempotente() -> None:
-    """Reinsertar los mismos puntos NDVI no duplica filas (UNIQUE field_id, date)."""
+    """Reinsertar los mismos puntos NDVI no duplica filas (UNIQUE field_id, index_type, date)."""
     user_id = str(uuid.uuid4())
     points = [
         {"date": "2026-03-01", "mean_ndvi": 0.66, "cloud_cover": 8},
@@ -125,11 +139,11 @@ def test_ndvi_upsert_idempotente() -> None:
                 field = await repo.create_field(
                     session, name="Lote NDVI", geojson=_SQUARE, user_id=user_id
                 )
-                await repo.upsert_ndvi_points(session, field.id, points)
-                await repo.upsert_ndvi_points(session, field.id, points)  # idempotente
-                series = await repo.get_ndvi_series(session, field.id)
+                await repo.upsert_index_points(session, field.id, points, index="ndvi")
+                await repo.upsert_index_points(session, field.id, points, index="ndvi")
+                series = await repo.get_index_series(session, field.id, "ndvi")
                 assert len(series) == 2
-                assert [p["date"].isoformat() for p in series] == ["2026-03-01", "2026-04-01"]
+                assert [str(p["date"])[:10] for p in series] == ["2026-03-01", "2026-04-01"]
             finally:
                 await repo.delete_fields_for_user(session, user_id)
 

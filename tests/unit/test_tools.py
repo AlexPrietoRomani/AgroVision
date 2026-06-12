@@ -31,8 +31,8 @@ def test_tools_schema_define_tres_herramientas() -> None:
 def test_describe_trend_descenso() -> None:
     """Una serie que baja se describe como 'descenso' con el delta correcto."""
     series = [
-        {"date": "2026-01-01", "mean_ndvi": 0.80},
-        {"date": "2026-03-01", "mean_ndvi": 0.70},
+        {"date": "2026-01-01", "mean_value": 0.80},
+        {"date": "2026-03-01", "mean_value": 0.70},
     ]
     out = _describe_trend("Lote A", series)
     assert "descenso" in out
@@ -43,15 +43,15 @@ def test_describe_trend_descenso() -> None:
 def test_describe_trend_estable() -> None:
     """Un cambio menor a 0.02 se considera 'estable'."""
     series = [
-        {"date": "2026-01-01", "mean_ndvi": 0.70},
-        {"date": "2026-03-01", "mean_ndvi": 0.71},
+        {"date": "2026-01-01", "mean_value": 0.70},
+        {"date": "2026-03-01", "mean_value": 0.71},
     ]
     assert "estable" in _describe_trend("Lote A", series)
 
 
 def test_describe_trend_insuficiente() -> None:
     """Con menos de 2 observaciones se reporta datos insuficientes."""
-    assert "insuficientes" in _describe_trend("Lote A", [{"date": "2026-01-01", "mean_ndvi": 0.7}])
+    assert "insuficientes" in _describe_trend("Lote A", [{"date": "2026-01-01", "mean_value": 0.7}])
 
 
 def test_in_range() -> None:

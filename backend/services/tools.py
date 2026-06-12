@@ -45,26 +45,30 @@ def _in_range(date_value: object, start: str | None, end: str | None) -> bool:
     return not (end and day > end[:10])
 
 
-def _describe_trend(field_name: str, series: list[dict]) -> str:
+def _describe_trend(field_name: str, series: list[dict], index_label: str = "NDVI") -> str:
     """
-    Redacta la tendencia NDVI de una serie (función pura).
+    Redacta la tendencia de un índice espectral (función pura).
 
     Args:
         field_name (str): Nombre de la parcela.
-        series (list[dict]): Puntos con 'date' y 'mean_ndvi' ordenados por fecha.
+        series (list[dict]): Puntos con 'date' y 'mean_value' ordenados por fecha.
+        index_label (str): Nombre legible del índice (ej. "NDVI", "EVI").
 
     Returns:
         str: Texto con la tendencia (descenso/incremento/estable) y los extremos.
     """
-    valid = [p for p in series if p.get("mean_ndvi") is not None]
+    valid = [p for p in series if p.get("mean_value") is not None]
     if len(valid) < 2:
-        return f"Datos insuficientes de NDVI para '{field_name}' (se necesitan ≥2 observaciones)."
+        return (
+            f"Datos insuficientes de {index_label} para '{field_name}' "
+            f"(se necesitan ≥2 observaciones)."
+        )
     first, last = valid[0], valid[-1]
-    delta = last["mean_ndvi"] - first["mean_ndvi"]
+    delta = last["mean_value"] - first["mean_value"]
     trend = "estable" if abs(delta) < 0.02 else ("descenso" if delta < 0 else "incremento")
     return (
-        f"NDVI de '{field_name}': {trend} de {delta:+.2f} entre {str(first['date'])[:10]} "
-        f"({first['mean_ndvi']:.2f}) y {str(last['date'])[:10]} ({last['mean_ndvi']:.2f}). "
+        f"{index_label} de '{field_name}': {trend} de {delta:+.2f} entre {str(first['date'])[:10]} "
+        f"({first['mean_value']:.2f}) y {str(last['date'])[:10]} ({last['mean_value']:.2f}). "
         f"Observaciones: {len(valid)}."
     )
 
@@ -75,11 +79,11 @@ async def get_vegetation_index_trend(
     start_date: str | None = None,
     end_date: str | None = None,
 ) -> str:
-    """Tendencia de NDVI de una parcela entre dos fechas (usa la serie persistida)."""
+    """Tendencia de NDVI de una parcela entre dos fechas (usa vegetation_indices)."""
     field = await repo.get_field_by_name(session, field_name)
     if field is None:
         return f"No encontré la parcela '{field_name}'."
-    series = await repo.get_ndvi_series(session, field.id)
+    series = await repo.get_index_series(session, field.id, "ndvi")
     in_range = [p for p in series if _in_range(p["date"], start_date, end_date)]
     return _describe_trend(field_name, in_range)
 

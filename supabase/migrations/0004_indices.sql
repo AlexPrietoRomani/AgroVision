@@ -5,7 +5,7 @@
 create table if not exists vegetation_indices (
   id serial primary key,
   field_id uuid references fields(id) on delete cascade,
-  index_type text not null check (index_type in ('evi', 'savi', 'ndwi', 'ndre')),
+  index_type text not null check (index_type in ('ndvi', 'evi', 'savi', 'ndwi', 'ndre')),
   date date not null,
   mean_value double precision not null,
   min_value double precision,

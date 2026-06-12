@@ -65,13 +65,14 @@ def test_agente_llama_herramienta_ndvi() -> None:
                 field = await repo.create_field(
                     session, name=field_name, geojson=_SQUARE, user_id=user_id
                 )
-                await repo.upsert_ndvi_points(
+                await repo.upsert_index_points(
                     session,
                     field.id,
                     [
                         {"date": "2026-01-01", "mean_ndvi": 0.80, "cloud_cover": 5},
                         {"date": "2026-03-01", "mean_ndvi": 0.68, "cloud_cover": 7},
                     ],
+                    index="ndvi",
                 )
                 out = await run_agent(
                     session,
