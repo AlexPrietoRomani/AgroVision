@@ -33,6 +33,7 @@ Ejemplo de Uso:
 from __future__ import annotations
 
 import logging
+import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -66,6 +67,17 @@ _SECURITY_HEADERS = {
 }
 
 
+def _setup_agrovision_logging() -> None:
+    """Configura logging de agrovision.* para que se emita a stdout (visible en uvicorn)."""
+    logger = logging.getLogger("agrovision")
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter("%(levelname)s:     %(name)s - %(message)s"))
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+    logger.propagate = False
+
+
 def _client_key(request: Request) -> str:
     """IP del cliente para el rate limiting (respeta el proxy del host: X-Forwarded-For)."""
     fwd = request.headers.get("x-forwarded-for")
@@ -88,6 +100,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     Yields:
         None: Cede el control mientras la app está en ejecución.
     """
+    _setup_agrovision_logging()
+
     settings = get_settings()
     app.state.adapter = None
 

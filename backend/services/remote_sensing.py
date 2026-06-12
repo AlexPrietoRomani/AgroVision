@@ -35,10 +35,15 @@ Ejemplo de Integración:
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import time
 
 import httpx
 from dateutil.relativedelta import relativedelta
+
+from backend.api.events import emit as emit_event
+
+_logger = logging.getLogger("agrovision.remote_sensing")
 
 _TOKEN_URL = (
     "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token"
@@ -302,6 +307,8 @@ async def index_series_monthly(
     cfg = _INDEX_CONFIG[index]
     if not start or not end:
         start, end = _default_range()
+    emit_event("copernicus_stats", {"index": index, "start": start[:10], "end": end[:10]})
+    _logger.info("Consultando Statistical API para %s (%s a %s)", index, start[:10], end[:10])
     token = await _get_token(client_id, client_secret)
     async with httpx.AsyncClient() as client:
         response = await client.post(
@@ -311,7 +318,9 @@ async def index_series_monthly(
             timeout=120,
         )
     response.raise_for_status()
-    return _parse_stats(response.json(), cfg["output_id"], index)
+    data = _parse_stats(response.json(), cfg["output_id"], index)
+    _logger.info("Statistical API para %s: %d puntos obtenidos", index, len(data))
+    return data
 
 
 async def ndvi_series_monthly(
@@ -351,6 +360,8 @@ async def index_heatmap_png(
     """
     if not start or not end:
         start, end = _default_range()
+    emit_event("copernicus_process", {"index": index, "start": start[:10], "end": end[:10]})
+    _logger.info("Consultando Process API para %s (heatmap)", index)
     token = await _get_token(client_id, client_secret)
     body = {
         "input": {

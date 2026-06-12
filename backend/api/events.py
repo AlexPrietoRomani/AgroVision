@@ -84,6 +84,13 @@ async def _persist_event(safe: dict[str, Any]) -> None:
         _logger.warning("No se pudo persistir el evento (best-effort): %s", error)
 
 
+def emit(action: str, meta: dict[str, Any] | None = None, session_id: str = "_backend") -> None:
+    """Emite un evento desde el backend directamente al buffer (sin HTTP)."""
+    safe = {"action": action, "session_id": session_id, "meta": _redact(meta or {})}
+    _BUFFER.append(safe)
+    _logger.info("[event] %s %s %s", session_id, action, safe["meta"])
+
+
 @router.post("")
 async def ingest(ev: Event, background: BackgroundTasks) -> dict:
     """Valida, redacta y registra un evento (stdout + buffer; persistencia opcional)."""
