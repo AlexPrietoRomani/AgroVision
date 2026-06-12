@@ -1,13 +1,13 @@
 # Guía de Ejecución y Despliegue: AgroVisión (Plataforma)
 
-> **Proyecto:** AgroVisión — UI **Astro + Tailwind** (6 módulos) servida por el backend **FastAPI** (monolito modular). *(Shiny se eliminó en la Fase 10.)*
-> **Fecha de Actualización:** 2026-06-04
+> **Proyecto:** AgroVisión — UI **Astro + Tailwind** (8 módulos) servida por el backend **FastAPI** (monolito modular).
+> **Fecha de Actualización:** 2026-06-09
 > **Objetivo:** Runbook para clonar, levantar el entorno local y desplegar la plataforma sin fricciones (el pipeline de despliegue ya está automatizado — ver §5).
 >
-> **Módulos de la UI (6):** Resumen de Campo · Creación de Parcelas · Teledetección · **Conteo por Dron (EN DESARROLLO)** · Asistente Agéntico · Credenciales.
+> **Módulos de la UI (8):** Resumen de Campo · Creación de Parcelas · Teledetección (5 índices espectrales) · **Conteo por Dron (EN DESARROLLO)** · Asistente Agéntico · Credenciales · Explorador de Datos · Telemetría.
 >
-> **La app abre SIN credenciales** (verás los 6 módulos). Para *usar* cada módulo necesitas las llaves BYOK (todas de capa gratuita), que pones en `.env` (local) o en la pestaña **Credenciales** (sesión):
-> - **Parcelas / Teledetección / Resumen** → Supabase (`DATABASE_URL`) y, para NDVI, **Copernicus** (`DEV_COPERNICUS_CLIENT_ID/SECRET`). El clima (Open-Meteo) no necesita llave.
+> **La app abre SIN credenciales** (verás los 8 módulos). Para *usar* cada módulo necesitas las llaves BYOK (todas de capa gratuita), que pones en `.env` (local) o en la pestaña **Credenciales** (sesión):
+> - **Parcelas / Teledetección / Resumen** → Supabase (`DATABASE_URL`) y, para índices espectrales, **Copernicus** (`DEV_COPERNICUS_CLIENT_ID/SECRET`). El clima (Open-Meteo) no necesita llave.
 > - **Asistente** → **Groq** (`DEV_GROQ_API_KEY`).
 > - **Conteo** → **EN DESARROLLO** (standby): la pestaña muestra *"Módulo en preparación"*. Se habilita cuando el **repo del modelo** (proyecto separado) publique el artefacto. Para demostrar el flujo con datos de prueba (mock) — ver §3.5.
 
@@ -85,9 +85,13 @@ cp .env.example .env
 ### 3.1 Opción A: UI compilada servida por el gateway (lo más simple)
 
 ```powershell
-# 1) Compilar la UI Astro -> backend/static (una vez, o tras cambios de UI)
+# 1) Habilitar ejecución de scripts
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force; Get-ExecutionPolicy -List
+Unblock-File -Path .\scripts\build.ps1
+Unblock-File -Path .\scripts\run_backend.ps1
+# 2) Compilar la UI Astro -> backend/static (una vez, o tras cambios de UI)
 .\scripts\build.ps1
-# 2) Levantar el gateway (sirve la UI en / y la API en /api)
+# 3) Levantar el gateway (sirve la UI en / y la API en /api)
 .\scripts\run_backend.ps1
 ```
 Abre **http://127.0.0.1:8000/** → la UI completa (6 módulos).
@@ -120,14 +124,14 @@ Abre **http://localhost:4321/**.
 
 ### 3.4 Checklist de Verificación Rápida (Sanity Check)
 
-1. [ ] Abrir `http://127.0.0.1:8000/` y ver la UI Astro con sus **6 pestañas** (Resumen, Creación de Parcelas, Teledetección, Conteo, Asistente, Credenciales).
+1. [ ] Abrir `http://127.0.0.1:8000/` y ver la UI Astro con sus **8 pestañas** (Resumen, Creación de Parcelas, Teledetección, Conteo, Asistente, Credenciales, Explorador de Datos, Telemetría).
 2. [ ] `curl http://127.0.0.1:8000/api/status` responde `200` con `"counting_enabled": false`.
 3. [ ] La pestaña **Conteo** muestra *"Módulo en desarrollo (standby)"*.
 4. [ ] La pestaña **Credenciales** muestra el aviso de efimeralidad; al recargar (F5) los campos quedan vacíos.
 5. [ ] (Con `DATABASE_URL` + Copernicus configurados) **Creación de Parcelas**: dibujar un polígono, nombrarlo y *Guardar* → aparece en la lista; tras unos segundos, en **Teledetección** se ve la serie NDVI de 5 años.
 6. [ ] (Con Groq) **Asistente**: preguntar *"¿cómo evolucionó el NDVI de \<parcela\>?"* → responde citando la herramienta usada.
 
-> **Pruebas en vivo del backend** (sin la UI): `http://127.0.0.1:8000/docs` (Swagger) lista `/api/fields`, `/api/ndvi`, `/api/ndvi/raster`, `/api/weather`, `/api/chat` y `/api/events` (telemetría: `POST /api/events`, `GET /api/events/recent?session_id=`). Recuerda aplicar migraciones (`uv run python -m backend.db.migrate`) antes de usar parcelas.
+> **Pruebas en vivo del backend** (sin la UI): `http://127.0.0.1:8000/docs` (Swagger) lista `/api/fields`, `/api/vegetation/*`, `/api/weather`, `/api/chat`, `/api/data` y `/api/events` (telemetría: `POST /api/events`, `GET /api/events/recent?session_id=`). Recuerda aplicar migraciones (`uv run python -m backend.db.migrate`) antes de usar parcelas.
 >
 > **Telemetría (Fase 9):** cada acción de la UI emite un evento (sin secretos) que se loguea en stdout y se guarda en un buffer en memoria, consultable en `GET /api/events/recent`. Para depurar una sesión: `GET /api/events/recent?session_id=<id>`. La persistencia en la tabla `events` es **opcional** (`EVENTS_PERSIST=true`).
 
