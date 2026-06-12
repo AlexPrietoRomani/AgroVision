@@ -281,13 +281,16 @@ import "../styles/global.css";
               Consulta las tablas de tu base de datos Supabase directamente. Selecciona una tabla para ver sus registros o ejecuta consultas SQL personalizadas.
             </p>
           </div>
+          <!-- Diagrama ER (full width) -->
+          <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm">
+            <h3 class="font-bold text-sm text-stone-800 mb-3">Diagrama Entidad-Relación</h3>
+            <div id="er-diagram" class="w-full overflow-auto rounded-lg bg-stone-50 border border-stone-200">
+              <p class="text-xs text-stone-500 p-3">Cargando esquema...</p>
+            </div>
+          </div>
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <!-- Selector de tabla -->
             <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm lg:col-span-4">
-              <h3 class="font-bold text-sm text-stone-800 mb-3">Diagrama ER</h3>
-              <div id="er-diagram" class="w-full overflow-auto rounded-lg bg-stone-50 border border-stone-200 mb-4">
-                <p class="text-xs text-stone-500 p-3">Cargando esquema...</p>
-              </div>
               <h3 class="font-bold text-sm text-stone-800 mb-3">Tablas disponibles</h3>
               <div class="space-y-2" id="tables-list">
                 <p class="text-xs text-stone-500">Cargando tablas...</p>
@@ -878,28 +881,26 @@ import "../styles/global.css";
           if (!r.ok) { el.innerHTML = '<p class="text-xs text-stone-500">Error al cargar esquema.</p>'; return; }
           const d = await r.json();
           const tables = d.tables || {};
-          // Construir sentencia Mermaid ER
           let mmd = "erDiagram\n";
           for (const [name, cols] of Object.entries(tables)) {
-            const pks = cols.filter((c) => c.name === "id").map(() => "PK");
-            mmd += `  "${name}" {\n`;
+            mmd += `  ${name} {\n`;
             for (const c of cols) {
-              const ann = c.name === "id" ? " PK" : c.name.includes("_id") ? " FK" : "";
-              mmd += `    ${c.type} "${c.name}"${ann}\n`;
+              const ann = c.name === "id" ? " PK" : c.name.endsWith("_id") ? " FK" : "";
+              const t = c.type.replace("timestamp without time zone", "timestamptz").replace("character varying", "text");
+              mmd += `    ${t} ${c.name}${ann}\n`;
             }
             mmd += "  }\n";
           }
-          // Relaciones manuales
-          mmd += '  "fields" ||--o{ "vegetation_indices" : "tiene"\n';
-          mmd += '  "fields" ||--o{ "ndvi_timeseries" : "tiene_legacy"\n';
-          mmd += '  "fields" ||--o{ "plant_counts" : "tiene"\n';
-          mmd += '  "fields" ||--o{ "events" : "genera"\n';
-          el.innerHTML = `<pre class="hidden">${mmd.replace(/</g, "&lt;")}</pre><div class="mermaid">${mmd}</div>`;
-          mermaid.run({ nodes: [el.querySelector(".mermaid")] }).catch(() => {
-            el.innerHTML = '<p class="text-xs text-stone-500">Error al renderizar diagrama ER.</p>';
-          });
+          mmd += '  fields ||--o{ vegetation_indices : "tiene"\n';
+          mmd += '  fields ||--o{ ndvi_timeseries : "legacy"\n';
+          mmd += '  fields ||--o{ plant_counts : "tiene"\n';
+          mmd += '  fields ||--o{ events : "genera"\n';
+          mmd += '  fields ||--o{ chat_messages : "genera"\n';
+          el.innerHTML = '<div class="mermaid">' + mmd + '</div>';
+          await mermaid.initialize({ startOnLoad: false, theme: "neutral", securityLevel: "loose" });
+          await mermaid.run({ nodes: el.querySelectorAll(".mermaid") });
         } catch (e) {
-          el.innerHTML = '<p class="text-xs text-red-500">Error al cargar esquema: ' + e + '</p>';
+          el.innerHTML = '<p class="text-xs text-red-500">Error al renderizar diagrama ER: ' + e + '</p>';
         }
       }
       async function loadTableData(table) {
