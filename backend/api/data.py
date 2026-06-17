@@ -43,6 +43,7 @@ ALLOWED_TABLES: frozenset[str] = frozenset(
         "chat_messages",
         "events",
         "plant_counts",
+        "user_profiles",
     }
 )
 

@@ -26,9 +26,9 @@ from typing import Any
 
 import httpx
 from dateutil.relativedelta import relativedelta
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.db import repositories
-from sqlalchemy.ext.asyncio import AsyncSession
 
 _ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 _HOURLY_VARS = (
@@ -135,10 +135,14 @@ async def fetch_and_persist_weather(
 
     records = []
     for i, t in enumerate(times):
-        # Open-Meteo API usually returns identical length arrays
-        # Use simple indexing with out-of-bounds protection fallback to None
+        # La API de Open-Meteo suele devolver arreglos de idéntica longitud.
+        # Añade segundos e indicador de zona horaria si tiene formato 'YYYY-MM-DDTHH:MM'
+        ts_str = t + ":00Z" if len(t) == 16 else t
+        # Convierte el string ISO a objeto datetime.datetime para la inserción correcta en DB
+        ts_val = dt.datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+        
         records.append({
-            "timestamp": t + ":00Z" if len(t) == 16 else t,  # Add seconds+Z if 'YYYY-MM-DDTHH:MM'
+            "timestamp": ts_val,
             "temperature_2m": t2m[i] if i < len(t2m) else None,
             "relative_humidity_2m": rh2m[i] if i < len(rh2m) else None,
             "dewpoint_2m": dp2m[i] if i < len(dp2m) else None,

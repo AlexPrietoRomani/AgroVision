@@ -50,6 +50,7 @@ from backend.api.data import router as data_router
 from backend.api.events import router as events_router
 from backend.api.fields import router as fields_router
 from backend.api.ndvi import router as ndvi_router
+from backend.api.profiles import router as profiles_router
 from backend.api.vegetation import router as vegetation_router
 from backend.api.weather import router as weather_router
 from backend.config import get_settings
@@ -163,6 +164,7 @@ def create_app() -> FastAPI:
     app.include_router(vegetation_router)  # Índices espectrales (Fase 13)
     app.include_router(weather_router)  # Clima
     app.include_router(chat_router)  # Asistente Agéntico (RAG)
+    app.include_router(profiles_router)  # Perfiles de usuario (Fase 15)
     app.include_router(credentials_router)  # Presencia de .env (dev)
     app.include_router(events_router)  # Telemetría de UI (Fase 9)
     app.include_router(data_router)  # Explorador de Datos (Fase 11)

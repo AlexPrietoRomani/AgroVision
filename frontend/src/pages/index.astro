@@ -42,6 +42,9 @@ import "../styles/global.css";
       <p class="text-xs text-stone-300 mt-0.5" id="notif-body"></p>
     </div>
 
+    <!-- Contenedor para aviso de credenciales faltantes (Fase 15) -->
+    <div id="creds-toast-warning" class="fixed top-20 right-4 z-50 max-w-sm hidden"></div>
+
     <!-- Botón hamburguesa (móvil): abre el sidebar -->
     <button
       id="btn-hamburger"
@@ -101,27 +104,43 @@ import "../styles/global.css";
         <button data-tab="tab-chat" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-stone-400 hover:bg-stone-800 hover:text-white transition-all">
           <i class="fa-solid fa-robot w-5"></i> Asistente Agéntico
         </button>
-        <button data-tab="tab-data" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-stone-400 hover:bg-stone-800 hover:text-white transition-all">
-          <i class="fa-solid fa-database w-5"></i> Explorador de Datos
-        </button>
-        <button data-tab="tab-config" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-stone-400 hover:bg-stone-800 hover:text-white transition-all">
-          <i class="fa-solid fa-sliders w-5"></i> Credenciales & APIs
-        </button>
       </nav>
 
       <!-- Footer plegable -->
-      <div class="border-t border-stone-800 bg-stone-950/50">
+      <div class="border-t border-stone-800 bg-stone-950/50 relative">
         <button id="btn-footer" class="w-full flex items-center justify-between px-4 py-2 text-[10px] text-stone-500 uppercase tracking-widest">
           <span>Estado de sesión</span><i id="footer-chevron" class="fa-solid fa-chevron-up"></i>
         </button>
         <div id="footer-body" class="p-4 pt-0">
-          <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-full bg-emerald-700 flex items-center justify-center text-xs font-bold text-white">AG</div>
-            <div>
-              <h5 class="text-xs font-semibold text-stone-200">Agrónomo</h5>
-              <p class="text-[9px] text-stone-500">Sesión efímera (BYOK)</p>
+          <div id="btn-profile-menu" class="flex items-center gap-3 cursor-pointer hover:bg-stone-800/50 p-1.5 rounded-lg transition-all">
+            <div class="w-8 h-8 rounded-full bg-emerald-700 flex items-center justify-center text-xs font-bold text-white shrink-0" id="avatar-circle">AG</div>
+            <div class="truncate">
+              <h5 class="text-xs font-semibold text-stone-200" id="user-display-name">Agrónomo</h5>
+              <p class="text-[9px] text-stone-500" id="user-session-mode">Sesión efímera (BYOK)</p>
             </div>
+            <i class="fa-solid fa-ellipsis-vertical text-stone-500 ml-auto"></i>
           </div>
+
+          <!-- Menu Dropdown de Perfil -->
+          <div id="profile-dropdown" class="hidden absolute bottom-full left-4 right-4 mb-2 bg-stone-900 border border-stone-800 rounded-xl shadow-xl z-50 p-2 space-y-1">
+            <button data-action="tab-settings" class="dropdown-btn w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-stone-300 hover:bg-stone-800 hover:text-white transition-all">
+              <i class="fa-solid fa-user-gear text-stone-500 w-4"></i> Ajustes de Perfil
+            </button>
+            <button data-action="tab-config" class="dropdown-btn w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-stone-300 hover:bg-stone-800 hover:text-white transition-all">
+              <i class="fa-solid fa-sliders text-stone-500 w-4"></i> Credenciales & APIs
+            </button>
+            <button data-action="tab-data" class="dropdown-btn w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-stone-300 hover:bg-stone-800 hover:text-white transition-all">
+              <i class="fa-solid fa-database text-stone-500 w-4"></i> Explorador de Datos
+            </button>
+            <button id="dropdown-telemetry" class="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-stone-300 hover:bg-stone-800 hover:text-white transition-all">
+              <i class="fa-solid fa-chart-line text-stone-500 w-4"></i> Telemetría de UI
+            </button>
+            <hr class="border-stone-800 my-1" />
+            <button id="dropdown-logout" class="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-red-400 hover:bg-red-950/20 hover:text-red-300 transition-all">
+              <i class="fa-solid fa-right-from-bracket w-4"></i> Cerrar Sesión
+            </button>
+          </div>
+
           <div class="mt-3 flex items-center gap-2 text-[10px]" id="db-status">
             <span class="relative flex h-2 w-2">
               <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-stone-500 opacity-75"></span>
@@ -259,9 +278,17 @@ import "../styles/global.css";
         <!-- ASISTENTE -->
         <section id="tab-chat" class="tab-content space-y-4">
           <div class="bg-white rounded-xl border border-stone-200 shadow-sm flex flex-col h-[60vh]">
-            <div class="bg-stone-900 text-white px-5 py-3 flex items-center gap-3 rounded-t-xl">
-              <span class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span>
-              <h4 class="font-bold text-xs font-mono">agrovision_agent · Llama-3-70B (Groq)</h4>
+            <div class="bg-stone-900 text-white px-5 py-3 flex items-center justify-between gap-3 rounded-t-xl">
+              <div class="flex items-center gap-3">
+                <span class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                <h4 class="font-bold text-xs font-mono">agrovision_agent · Llama-3-70B (Groq)</h4>
+              </div>
+              <div class="flex items-center gap-2">
+                <label class="text-[10px] font-bold text-stone-400" for="chat-select-parcela">Contexto:</label>
+                <select id="chat-select-parcela" class="text-[10px] bg-stone-800 border border-stone-700 rounded px-2 py-1 text-white font-semibold focus:outline-none focus:border-emerald-500">
+                  <option value="">Pregunta general (Sin parcela)</option>
+                </select>
+              </div>
             </div>
             <div id="chat-history" class="flex-1 p-5 overflow-y-auto space-y-3 bg-stone-50 text-xs">
               <p class="text-stone-500">Pregúntame sobre el NDVI, el clima o la densidad de tus parcelas.</p>
@@ -320,6 +347,45 @@ import "../styles/global.css";
               </button>
             </div>
             <div id="query-result" class="mt-4 overflow-x-auto max-h-[300px] overflow-y-auto"></div>
+          </div>
+        </section>
+
+        <!-- AJUSTES DE PERFIL (Fase 15) -->
+        <section id="tab-settings" class="tab-content space-y-6">
+          <div class="bg-white p-6 rounded-xl border border-stone-200 shadow-sm">
+            <h3 class="text-base font-bold text-stone-800 mb-2">Ajustes de Perfil</h3>
+            <p class="text-sm text-stone-600 leading-relaxed mb-4">
+              Configura tu perfil de agrónomo, selecciona el modo de sesión y gestiona la persistencia de tus preferencias.
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+              <div>
+                <label class="block text-xs font-bold text-stone-600 mb-1" for="settings-display-name">Nombre de Agrónomo</label>
+                <input id="settings-display-name" type="text" placeholder="Agrónomo" class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-stone-600 mb-1" for="settings-session-mode">Modo de Sesión</label>
+                <select id="settings-session-mode" class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                  <option value="ephemeral">Efímera (BYOK — Nada se guarda al salir)</option>
+                  <option value="saved">Guardada Temporal (Persistencia de perfil sin llaves)</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="bg-stone-50 border border-stone-200 rounded-lg p-4 mb-5">
+              <h4 class="font-bold text-xs text-stone-800 mb-1"><i class="fa-solid fa-circle-info mr-1 text-emerald-600"></i>Sobre la persistencia de sesión:</h4>
+              <p class="text-xs text-stone-600 leading-relaxed">
+                El modo <strong>Guardada Temporal</strong> utiliza un fingerprint SHA-256 basado en tu URL de Supabase para almacenar de forma segura tu nombre y la parcela activa. Las API keys <strong>nunca se guardan en la base de datos ni en localStorage</strong> por motivos de seguridad.
+              </p>
+            </div>
+            
+            <div class="flex items-center justify-between pt-4 border-t border-stone-100 gap-3">
+              <button id="btn-delete-profile" class="bg-red-50 hover:bg-red-100 text-red-700 hover:text-red-800 border border-red-200 font-bold text-xs px-5 py-3 rounded-lg transition-all">
+                <i class="fa-solid fa-trash-can mr-1"></i> Eliminar Perfil
+              </button>
+              <button id="btn-save-settings" class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-5 py-3 rounded-lg transition-all">
+                Guardar Ajustes
+              </button>
+            </div>
           </div>
         </section>
 
@@ -425,6 +491,19 @@ import "../styles/global.css";
       let backendOk = false;
       let appEnv = "development";
 
+      // Perfiles y Modos de Sesión (Fase 15)
+      let profileId = null;
+      let currentProfile = null;
+      let fingerprint = null;
+      let isSharedMode = false;
+
+      async function sha256(message) {
+        const msgBuffer = new TextEncoder().encode(message);
+        const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+      }
+
       const $ = (id) => document.getElementById(id);
       function authHeaders() {
         const h = {};
@@ -520,6 +599,7 @@ import "../styles/global.css";
         "tab-chat": ["Asistente Agéntico", "Agente RAG sobre tus parcelas."],
         "tab-data": ["Explorador de Datos", "Consulta tus datos directamente (Fase 11)."],
         "tab-config": ["Credenciales & APIs", "Llaves efímeras (solo en esta sesión)."],
+        "tab-settings": ["Ajustes de Perfil", "Gestión del modo de sesión y preferencias de usuario."],
       };
       function switchTab(id) {
         document.querySelectorAll(".tab-content").forEach((s) => s.classList.remove("active"));
@@ -535,6 +615,7 @@ import "../styles/global.css";
         if (id === "tab-satelite") setTimeout(() => { loadTeledeteccion(); }, 50);
         if (id === "tab-resumen") loadResumen();
         if (id === "tab-data") loadDataExplorer();
+        if (id === "tab-chat") loadChatHistory();
         if (window.innerWidth < 768) closeSidebar();
       }
       document.querySelectorAll(".nav-btn").forEach((b) =>
@@ -586,6 +667,18 @@ import "../styles/global.css";
         sel.innerHTML = parcels.length
           ? parcels.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")
           : '<option value="">(sin parcelas)</option>';
+        
+        const chatSel = $("chat-select-parcela");
+        if (chatSel) {
+          const activeVal = chatSel.value;
+          chatSel.innerHTML = '<option value="">Pregunta general (Sin parcela)</option>' + (parcels.length
+            ? parcels.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")
+            : '');
+          if (activeVal && parcels.some((p) => p.id === activeVal)) {
+            chatSel.value = activeVal;
+          }
+        }
+
         $("parcelas-list").innerHTML = parcels.length
           ? parcels.map((p) => `<li data-pid="${p.id}" title="Ir a la parcela" class="flex items-center justify-between bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 cursor-pointer hover:bg-stone-100"><span class="font-semibold text-stone-700"><i class="fa-solid fa-location-dot text-emerald-600 mr-1"></i>${p.name}</span><i class="fa-solid fa-crosshairs text-stone-400"></i></li>`).join("")
           : '<li class="text-stone-500">Sin parcelas aún.</li>';
@@ -783,18 +876,45 @@ import "../styles/global.css";
         div.innerHTML = `<p class="font-bold text-[10px] uppercase mb-1 ${mine ? "text-stone-500" : "text-emerald-400"}">${mine ? "🧑 Tú" : "🤖 AgroVisión AI"}${tools && tools.length ? " · " + tools.join(", ") : ""}</p><p class="leading-relaxed">${text}</p>`;
         $("chat-history").appendChild(div); $("chat-history").scrollTop = 1e9;
       }
+      async function loadChatHistory() {
+        const historyEl = $("chat-history");
+        historyEl.innerHTML = '<span class="text-xs text-stone-500">Cargando historial...</span>';
+        const fid = $("chat-select-parcela")?.value || "";
+        try {
+          let url = "/chat/history/" + sessionId;
+          if (fid) url += "?field_id=" + fid;
+          const r = await api(url);
+          if (r.ok) {
+            const data = await r.json();
+            historyEl.innerHTML = "";
+            if (data.length === 0) {
+              historyEl.innerHTML = `<p class="text-stone-500">Pregúntame sobre el NDVI, el clima o la densidad de tus parcelas.</p>`;
+            } else {
+              data.forEach((msg) => {
+                appendChat(msg.role, msg.content);
+              });
+            }
+          } else {
+            historyEl.innerHTML = '<p class="text-stone-500">Error al cargar historial.</p>';
+          }
+        } catch (e) {
+          historyEl.innerHTML = `<p class="text-stone-500">Error de red al cargar historial: ${e}</p>`;
+        }
+      }
       async function sendChat() {
         const msg = $("chat-input").value.trim(); if (!msg) return;
-        track("chat_send", { len: msg.length });
+        const fid = $("chat-select-parcela")?.value || null;
+        track("chat_send", { len: msg.length, field_id: fid });
         appendChat("user", msg); $("chat-input").value = "";
         try {
-          const r = await api("/chat", { method: "POST", body: JSON.stringify({ session_id: sessionId, message: msg }) });
+          const r = await api("/chat", { method: "POST", body: JSON.stringify({ session_id: sessionId, message: msg, field_id: fid }) });
           if (r.ok) { const d = await r.json(); appendChat("assistant", d.reply, (d.tool_logs || []).map((t) => t.tool)); }
           else { const e = await r.json().catch(() => ({})); appendChat("assistant", "Error: " + (e.detail || r.status)); }
         } catch (e) { appendChat("assistant", "Error de red: " + e); }
       }
       $("btn-chat").addEventListener("click", sendChat);
       $("chat-input").addEventListener("keydown", (e) => { if (e.key === "Enter") sendChat(); });
+      $("chat-select-parcela").addEventListener("change", loadChatHistory);
 
       // ===== Telemetría Modal (Fase 12) =====
       function openTelemetryModal() {
@@ -937,7 +1057,7 @@ import "../styles/global.css";
           if (!r.ok) { const e = await r.json().catch(() => ({})); $("query-result").innerHTML = `<p class="text-xs text-red-500">Error: ${e.detail || r.status}</p>`; return; }
           const d = await r.json();
           const rows = d.rows || [];
-          if (!rows.length) { $("query-result").innerHTML = '<p class="text-xs text-stone-500">Sin resultados.</p>'; return; }
+          if (!rows.length) { $("query-result").innerHTML = '<p class="text-xs text-stone-500">Sin registros.</p>'; return; }
           const cols = Object.keys(rows[0]);
           const html = `<table class="w-full text-[10px] border-collapse"><thead><tr>${cols.map((c) => `<th class="border border-stone-200 px-2 py-1 bg-stone-100 font-bold text-stone-700">${c}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${cols.map((c) => `<td class="border border-stone-200 px-2 py-1">${formatCell(row[c])}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
           $("query-result").innerHTML = html;
@@ -946,13 +1066,15 @@ import "../styles/global.css";
       $("btn-clear-query").addEventListener("click", () => { $("sql-query").value = ""; $("query-result").innerHTML = ""; });
 
       // ===== Credenciales (efímeras) =====
-      $("btn-save-creds").addEventListener("click", () => {
+      $("btn-save-creds").addEventListener("click", async () => {
         creds = { groq: $("in-groq").value, copId: $("in-copid").value, copSecret: $("in-copsecret").value, sbUrl: $("in-sburl").value, sbKey: $("in-sbkey").value };
         const n = Object.values(creds).filter(Boolean).length;
         track("creds_set", { count: n });  // ¡solo el número de llaves, nunca los valores!
         $("creds-state").innerText = `${n} llave(s) activas (se borran al refrescar)`;
         notify("Credenciales en sesión", `${n} llave(s) activas solo en esta sesión.`);
         updateStatus();
+        checkMissingCredentials();
+        await connectUserProfile();
         refreshParcels();
       });
       $("btn-check-env").addEventListener("click", async () => {
@@ -973,22 +1095,312 @@ import "../styles/global.css";
         } catch { notify("Error", "No se pudo consultar el .env del servidor."); }
       });
 
+      // ===== Perfiles y Modos de Sesión (Fase 15) =====
+      
+      // Control de visibilidad del dropdown de perfil
+      $("btn-profile-menu").addEventListener("click", (e) => {
+        e.stopPropagation();
+        $("profile-dropdown").classList.toggle("hidden");
+      });
+      document.addEventListener("click", () => {
+        $("profile-dropdown").classList.add("hidden");
+      });
+      $("profile-dropdown").addEventListener("click", (e) => {
+        e.stopPropagation();
+      });
+
+      // Manejadores de botones del dropdown
+      document.querySelectorAll(".dropdown-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          $("profile-dropdown").classList.add("hidden");
+          switchTab(btn.dataset.action);
+        });
+      });
+      $("dropdown-telemetry").addEventListener("click", () => {
+        $("profile-dropdown").classList.add("hidden");
+        openTelemetryModal();
+      });
+      $("dropdown-logout").addEventListener("click", () => {
+        $("profile-dropdown").classList.add("hidden");
+        logout();
+      });
+
+      // Guardar Ajustes de Perfil
+      $("btn-save-settings").addEventListener("click", async () => {
+        if (isSharedMode) return notify("Modo compartido", "No puedes editar ajustes en modo de solo lectura.");
+        const displayName = $("settings-display-name").value.trim();
+        const sessionMode = $("settings-session-mode").value;
+        if (!displayName) return notify("Falta el nombre", "Escribe un nombre para el perfil.");
+        if (!profileId) return notify("Error", "No hay un perfil conectado.");
+
+        try {
+          track("profile_update_attempt", { displayName, sessionMode });
+          const r = await api(`/profiles/${profileId}`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              display_name: displayName,
+              session_mode: sessionMode
+            })
+          });
+          if (r.ok) {
+            currentProfile = await r.json();
+            notify("Ajustes guardados", "El perfil se ha actualizado correctamente.");
+            updateProfileUI();
+            if (sessionMode === "saved") {
+              localStorage.setItem("agrovision_profile_id", profileId);
+            } else {
+              localStorage.removeItem("agrovision_profile_id");
+            }
+            track("profile_update_success", { displayName, sessionMode });
+          } else {
+            const e = await r.json().catch(() => ({}));
+            notify("Error " + r.status, e.detail || "No se pudo actualizar el perfil.");
+          }
+        } catch (e) {
+          notify("Error de red", String(e));
+        }
+      });
+
+      // Eliminar Perfil
+      $("btn-delete-profile").addEventListener("click", async () => {
+        if (isSharedMode) return notify("Modo compartido", "No puedes eliminar perfiles en modo de solo lectura.");
+        if (!profileId) return;
+        if (!confirm("¿Estás seguro de que deseas eliminar permanentemente tu perfil? Se perderán todas tus preferencias.")) return;
+
+        try {
+          track("profile_delete_attempt", { profileId });
+          const r = await api(`/profiles/${profileId}`, { method: "DELETE" });
+          if (r.ok) {
+            track("profile_delete_success", { profileId });
+            notify("Perfil eliminado", "Tu perfil ha sido eliminado. Volviendo a sesión efímera.");
+            logout();
+          } else {
+            const e = await r.json().catch(() => ({}));
+            notify("Error " + r.status, e.detail || "No se pudo eliminar el perfil.");
+          }
+        } catch (e) {
+          notify("Error de red", String(e));
+        }
+      });
+
+      // Lógica de logout
+      function logout() {
+        track("session_logout", { profileId });
+        localStorage.removeItem("agrovision_profile_id");
+        profileId = null;
+        currentProfile = null;
+        creds = {};
+        $("in-groq").value = "";
+        $("in-copid").value = "";
+        $("in-copsecret").value = "";
+        $("in-sburl").value = "";
+        $("in-sbkey").value = "";
+        $("creds-state").innerText = "0 llaves activas (se borran al refrescar)";
+        $("settings-display-name").value = "Agrónomo";
+        $("settings-session-mode").value = "ephemeral";
+        updateProfileUI();
+        updateStatus();
+        checkMissingCredentials();
+        refreshParcels();
+        switchTab("tab-resumen");
+        notify("Sesión cerrada", "Se han limpiado todas las llaves y preferencias.");
+      }
+
+      // Conectar perfil basado en credenciales de Supabase
+      async function connectUserProfile() {
+        if (isSharedMode) return;
+        
+        // Determinar URL de Supabase a usar
+        let sbUrl = creds.sbUrl;
+        if (!sbUrl) {
+          // Intentar obtener de /api/credentials/status
+          try {
+            const r = await fetch("./api/credentials/status");
+            if (r.ok) {
+              const s = await r.json();
+              if (s.supabase_url) sbUrl = s.supabase_url;
+            }
+          } catch {}
+        }
+
+        if (!sbUrl) {
+          // Si no hay Supabase URL, no podemos conectar perfil (permanecer efímero)
+          profileId = null;
+          currentProfile = null;
+          updateProfileUI();
+          return;
+        }
+
+        try {
+          fingerprint = await sha256(sbUrl);
+          track("profile_connect_attempt", { hash: fingerprint });
+          const r = await fetch("./api/profiles/connect", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ supabase_url_hash: fingerprint, display_name: $("settings-display-name").value || "Agrónomo" })
+          });
+          if (r.ok) {
+            currentProfile = await r.json();
+            profileId = currentProfile.id;
+            updateProfileUI();
+            
+            // Si el perfil tiene active_field_id y coincide con alguna de nuestras parcelas, seleccionarlo
+            if (currentProfile.active_field_id) {
+              localStorage.setItem("agrovision_last_field_id", currentProfile.active_field_id);
+            }
+            
+            // Guardar ID en localStorage si está en modo guardado
+            if (currentProfile.session_mode === "saved") {
+              localStorage.setItem("agrovision_profile_id", profileId);
+            } else {
+              localStorage.removeItem("agrovision_profile_id");
+            }
+            track("profile_connect_success", { profileId, mode: currentProfile.session_mode });
+          }
+        } catch (e) {
+          track("profile_connect_error", { error: String(e) });
+        }
+      }
+
+      // Cargar Perfil Compartido (Read-Only)
+      async function loadSharedProfile(id) {
+        isSharedMode = true;
+        profileId = id;
+        track("shared_mode_start", { profileId });
+
+        // Modificar UI para modo lectura
+        document.body.classList.add("shared-read-only");
+        $("btn-save-parcela").disabled = true;
+        $("btn-save-parcela").classList.add("opacity-50", "cursor-not-allowed");
+        $("btn-demo").style.display = "none";
+        $("btn-save-creds").style.display = "none";
+        $("btn-save-settings").style.display = "none";
+        $("btn-delete-profile").style.display = "none";
+        
+        // Ocultar Detección Dron, Asistente y botones de telemetría/ajustes
+        const droneBtn = document.querySelector('[data-tab="tab-vision"]');
+        if (droneBtn) droneBtn.style.display = "none";
+        const chatBtn = document.querySelector('[data-tab="tab-chat"]');
+        if (chatBtn) chatBtn.style.display = "none";
+        const settingsBtn = document.querySelector('[data-action="tab-settings"]');
+        if (settingsBtn) settingsBtn.style.display = "none";
+        const logoutBtn = $("dropdown-logout");
+        if (logoutBtn) logoutBtn.style.display = "none";
+        $("btn-telemetry").style.display = "none";
+
+        try {
+          const r = await fetch(`./api/profiles/${id}`);
+          if (r.ok) {
+            currentProfile = await r.json();
+            updateProfileUI();
+            notify("Modo compartido", `Visualizando perfil de: ${currentProfile.display_name}`);
+          } else {
+            notify("Error", "No se pudo cargar el perfil compartido.");
+          }
+        } catch (e) {
+          notify("Error de red", String(e));
+        }
+      }
+
+      // Actualizar UI del perfil
+      function updateProfileUI() {
+        if (currentProfile) {
+          $("user-display-name").innerText = currentProfile.display_name;
+          $("avatar-circle").innerText = currentProfile.display_name.slice(0, 2).toUpperCase();
+          $("settings-display-name").value = currentProfile.display_name;
+          $("settings-session-mode").value = currentProfile.session_mode;
+          
+          let modeText = "Sesión efímera (BYOK)";
+          if (isSharedMode) {
+            modeText = "Modo compartido (Lectura)";
+          } else if (currentProfile.session_mode === "saved") {
+            modeText = "Modo guardado temporal";
+          }
+          $("user-session-mode").innerText = modeText;
+        } else {
+          $("user-display-name").innerText = "Agrónomo";
+          $("avatar-circle").innerText = "AG";
+          $("settings-display-name").value = "Agrónomo";
+          $("settings-session-mode").value = "ephemeral";
+          $("user-session-mode").innerText = "Sesión efímera (BYOK)";
+        }
+      }
+
+      // Verificar si faltan credenciales críticas (solo si es producción)
+      async function checkMissingCredentials() {
+        try {
+          const r = await fetch("./api/credentials/status");
+          if (!r.ok) return;
+          const s = await r.json();
+          appEnv = s.env || "development";
+          
+          // Toast solo si es producción y faltan llaves
+          if (appEnv === "production") {
+            const missing = [];
+            // Verificar credenciales locales en memoria primero, sino usar las del status
+            const hasGroq = creds.groq || s.groq;
+            const hasCop = (creds.copId && creds.copSecret) || s.copernicus;
+            const hasSb = (creds.sbUrl && creds.sbKey) || s.supabase;
+            
+            if (!hasGroq) missing.push("Groq API Key");
+            if (!hasCop) missing.push("Copernicus Credentials");
+            if (!hasSb) missing.push("Supabase Connection");
+
+            const toast = $("creds-toast-warning");
+            if (missing.length > 0) {
+              toast.innerHTML = `<div class="bg-amber-500 text-stone-950 p-4 rounded-xl shadow-2xl border border-amber-400 flex flex-col gap-2">
+                <div class="flex items-center gap-2">
+                  <i class="fa-solid fa-triangle-exclamation text-lg"></i>
+                  <span class="font-bold text-xs">Faltan credenciales críticas:</span>
+                </div>
+                <p class="text-[10px] text-stone-900 leading-tight">Para la funcionalidad completa necesitas configurar: ${missing.join(", ")}.</p>
+                <button onclick="switchTab('tab-config')" class="mt-1 bg-stone-900 text-amber-400 font-bold text-[10px] px-3 py-1.5 rounded-lg border border-stone-800 hover:bg-stone-800 transition-all">
+                  Configurar Credenciales
+                </button>
+              </div>`;
+              toast.classList.remove("hidden");
+            } else {
+              toast.classList.add("hidden");
+            }
+          }
+        } catch {}
+      }
+
       // ===== Init =====
-      $("select-parcela").addEventListener("change", () => {
+      $("select-parcela").addEventListener("change", async () => {
+        const fid = $("select-parcela").value;
+        if (fid) {
+          localStorage.setItem("agrovision_last_field_id", fid);
+          // Si hay perfil activo, guardar la parcela activa
+          if (profileId && !isSharedMode) {
+            try {
+              await api(`/profiles/${profileId}`, {
+                method: "PATCH",
+                body: JSON.stringify({ active_field_id: fid })
+              });
+            } catch {}
+          }
+        }
         const active = document.querySelector(".tab-content.active")?.id;
         if (active === "tab-satelite") loadTeledeteccion();
         else loadResumen();
       });
+      
       (async function init() {
         track("session_start", { w: window.innerWidth, h: window.innerHeight });
+        
+        // Detectar si estamos en modo compartido vía URL hash parameter (#profile=UUID)
+        const hashParams = new URLSearchParams(location.hash.slice(1));
+        const sharedProfileId = hashParams.get("profile");
+        
         try {
           const r = await fetch("./api/status");
           backendOk = r.ok;
           $("db-status-text").innerText = backendOk ? "Backend conectado" : "Backend no disponible";
           if (backendOk) { $("db-status-text").classList.replace("text-stone-400", "text-emerald-400"); }
         } catch { $("db-status-text").innerText = "Backend no disponible"; }
-        updateStatus();
-        // Detectar entorno y mostrar aviso si es producción
+        
+        // Cargar credenciales si es producción y nos avisa
         try {
           const r = await fetch("./api/credentials/status");
           if (r.ok) {
@@ -1000,8 +1412,47 @@ import "../styles/global.css";
             }
           }
         } catch {}
+
+        if (sharedProfileId) {
+          await loadSharedProfile(sharedProfileId);
+        } else {
+          // Intentar reconectar perfil si ya existe en localStorage
+          const savedProfileId = localStorage.getItem("agrovision_profile_id");
+          if (savedProfileId) {
+            try {
+              const r = await fetch(`./api/profiles/${savedProfileId}`);
+              if (r.ok) {
+                currentProfile = await r.json();
+                profileId = currentProfile.id;
+                updateProfileUI();
+                track("profile_reconnect_success", { profileId });
+              } else {
+                localStorage.removeItem("agrovision_profile_id");
+              }
+            } catch (e) {
+              track("profile_reconnect_error", { error: String(e) });
+            }
+          } else {
+            // Intentar conectar con credenciales por defecto/existentes del servidor
+            await connectUserProfile();
+          }
+        }
+
+        updateStatus();
+        checkMissingCredentials();
         await refreshParcels();
-        const initial = (location.hash || "#tab-resumen").slice(1);
+        
+        // Seleccionar parcela última usada o por defecto del perfil
+        const lastFieldId = localStorage.getItem("agrovision_last_field_id") || (currentProfile ? currentProfile.active_field_id : null);
+        if (lastFieldId && $("select-parcela").querySelector(`option[value="${lastFieldId}"]`)) {
+          $("select-parcela").value = lastFieldId;
+        }
+
+        // Navegar a la pestaña correcta
+        let initial = "tab-resumen";
+        if (location.hash && location.hash.startsWith("#tab-")) {
+          initial = location.hash.slice(1);
+        }
         switchTab(document.getElementById(initial) ? initial : "tab-resumen");
         loadResumen();
       })();

@@ -45,16 +45,31 @@ _MODEL = "llama-3.3-70b-versatile"
 _MAX_TOOL_ROUNDS = 4
 
 
-def _system_prompt(field_names: list[str]) -> str:
-    """Construye el prompt de sistema con las parcelas disponibles."""
+def _system_prompt(field_names: list[str], current_field: str | None = None) -> str:
+    """Construye el prompt de sistema con las parcelas disponibles y el contexto activo.
+
+    Args:
+        field_names (list[str]): Nombres de todas las parcelas del usuario.
+        current_field (str, opcional): Nombre de la parcela en la que se acota el chat.
+
+    Returns:
+        str: Prompt de sistema resultante.
+    """
     parcelas = ", ".join(field_names) if field_names else "(ninguna registrada todavía)"
-    return (
+    prompt = (
         "Eres el asistente agronómico de AgroVisión. Respondes en español, de forma "
         "concisa y técnica. Dispones de herramientas para consultar el NDVI, el clima y "
         "la densidad de las parcelas del usuario; úsalas en vez de inventar datos. Si una "
         "herramienta indica que algo está 'en desarrollo', acláralo. "
         f"Parcelas disponibles: {parcelas}."
     )
+    if current_field:
+        prompt += (
+            f" IMPORTANTE: El usuario está consultando específicamente sobre: '{current_field}'. "
+            "Enfoca tus respuestas e invocación de herramientas en esta parcela a menos "
+            "que te pidan explícitamente analizar otra."
+        )
+    return prompt
 
 
 async def _groq_chat(api_key: str, messages: list[dict], use_tools: bool) -> dict:
@@ -77,9 +92,12 @@ async def run_agent(
     session_id: str,
     api_key: str,
     field_names: list[str],
+    field_id: str | None = None,
+    field_name: str | None = None,
 ) -> dict:
-    """
-    Ejecuta el agente: memoria + tool-calling + respuesta, y persiste los turnos.
+    """Ejecuta el agente: memoria, tool-calling y respuesta.
+
+    Persiste los turnos asociados opcionalmente a una parcela.
 
     Args:
         session (AsyncSession): Sesión de BD.
@@ -87,13 +105,17 @@ async def run_agent(
         session_id (str): Hilo conversacional.
         api_key (str): Llave de Groq (efímera).
         field_names (list[str]): Parcelas disponibles (para el prompt de sistema).
+        field_id (str, opcional): ID de la parcela para asociar los mensajes. Por defecto None.
+        field_name (str, opcional): Nombre de la parcela para acotar el prompt. Por defecto None.
 
     Returns:
         dict: {reply, tool_logs, session_id}.
     """
-    await repo.save_chat_message(session, session_id=session_id, role="user", content=message)
-    history = await repo.get_chat_history(session, session_id)
-    messages: list[dict] = [{"role": "system", "content": _system_prompt(field_names)}]
+    await repo.save_chat_message(
+        session, session_id=session_id, role="user", content=message, field_id=field_id
+    )
+    history = await repo.get_chat_history(session, session_id, field_id=field_id)
+    messages: list[dict] = [{"role": "system", "content": _system_prompt(field_names, field_name)}]
     messages += [{"role": row.role, "content": row.content} for row in history]
 
     tool_logs: list[dict] = []
@@ -104,7 +126,7 @@ async def run_agent(
         if not tool_calls:
             reply = choice.get("content") or ""
             await repo.save_chat_message(
-                session, session_id=session_id, role="assistant", content=reply
+                session, session_id=session_id, role="assistant", content=reply, field_id=field_id
             )
             return {"reply": reply, "tool_logs": tool_logs, "session_id": session_id}
 
@@ -123,5 +145,7 @@ async def run_agent(
     # Si se agotaron las rondas de herramientas, pide una respuesta final sin tools.
     data = await _groq_chat(api_key, messages, use_tools=False)
     reply = data["choices"][0]["message"].get("content") or "(sin respuesta)"
-    await repo.save_chat_message(session, session_id=session_id, role="assistant", content=reply)
+    await repo.save_chat_message(
+        session, session_id=session_id, role="assistant", content=reply, field_id=field_id
+    )
     return {"reply": reply, "tool_logs": tool_logs, "session_id": session_id}

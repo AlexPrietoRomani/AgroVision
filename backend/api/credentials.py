@@ -53,4 +53,5 @@ def credentials_status() -> dict:
         "groq": dev_groq,
         "copernicus": dev_cop,
         "supabase": bool(os.getenv("DATABASE_URL")),
+        "supabase_url": os.getenv("SUPABASE_URL") if is_dev else None,
     }
