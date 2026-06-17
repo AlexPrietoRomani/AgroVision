@@ -273,3 +273,92 @@ async def delete_chat_for_session(session: AsyncSession, session_id: str) -> Non
         text("delete from chat_messages where session_id = :sid"), {"sid": session_id}
     )
     await session.commit()
+
+
+async def upsert_weather_data(
+    session: AsyncSession, field_id: Any, data: list[dict]
+) -> int:
+    """
+    Inserta o actualiza datos horarios de clima en la tabla `weather_data`.
+    
+    Args:
+        session (AsyncSession): Sesión async.
+        field_id (Any): Parcela asociada.
+        data (list[dict]): Lista de diccionarios con las variables horarias y 'timestamp'.
+        
+    Returns:
+        int: Número de filas procesadas.
+    """
+    if not data:
+        return 0
+        
+    params = []
+    for row in data:
+        p = dict(row)
+        p["field_id"] = str(field_id)
+        params.append(p)
+        
+    await session.execute(
+        text(
+            "insert into weather_data ("
+            "field_id, timestamp, temperature_2m, relative_humidity_2m, dewpoint_2m, "
+            "cloud_cover, pressure_msl, wind_speed_10m, wind_direction_10m, "
+            "precipitation, shortwave_radiation, et0_fao_evapotranspiration, "
+            "vapour_pressure_deficit, soil_temperature_0_to_7cm, soil_moisture_0_to_7cm) "
+            "values ("
+            ":field_id, :timestamp, :temperature_2m, :relative_humidity_2m, :dewpoint_2m, "
+            ":cloud_cover, :pressure_msl, :wind_speed_10m, :wind_direction_10m, "
+            ":precipitation, :shortwave_radiation, :et0_fao_evapotranspiration, "
+            ":vapour_pressure_deficit, :soil_temperature_0_to_7cm, :soil_moisture_0_to_7cm) "
+            "on conflict (field_id, timestamp) do update set "
+            "temperature_2m = excluded.temperature_2m, "
+            "relative_humidity_2m = excluded.relative_humidity_2m, "
+            "dewpoint_2m = excluded.dewpoint_2m, "
+            "cloud_cover = excluded.cloud_cover, "
+            "pressure_msl = excluded.pressure_msl, "
+            "wind_speed_10m = excluded.wind_speed_10m, "
+            "wind_direction_10m = excluded.wind_direction_10m, "
+            "precipitation = excluded.precipitation, "
+            "shortwave_radiation = excluded.shortwave_radiation, "
+            "et0_fao_evapotranspiration = excluded.et0_fao_evapotranspiration, "
+            "vapour_pressure_deficit = excluded.vapour_pressure_deficit, "
+            "soil_temperature_0_to_7cm = excluded.soil_temperature_0_to_7cm, "
+            "soil_moisture_0_to_7cm = excluded.soil_moisture_0_to_7cm"
+        ),
+        params,
+    )
+    await session.commit()
+    return len(params)
+
+
+async def get_weather_series(
+    session: AsyncSession, field_id: Any, start: str | None = None, end: str | None = None
+) -> list[dict]:
+    """Devuelve la serie horaria climática de una parcela, ordenada por fecha."""
+    try:
+        query = "select * from weather_data where field_id = :fid"
+        params: dict[str, Any] = {"fid": str(field_id)}
+        
+        if start:
+            query += " and timestamp >= :start"
+            params["start"] = start
+        if end:
+            query += " and timestamp <= :end"
+            params["end"] = end
+            
+        query += " order by timestamp"
+        
+        result = await session.execute(text(query), params)
+        # Convert tuples to dicts, resolving UUID and datetime objects to strings
+        rows = []
+        for r in result.all():
+            d = dict(r._mapping)
+            d["id"] = str(d["id"])
+            d["field_id"] = str(d["field_id"])
+            d["timestamp"] = d["timestamp"].isoformat() if d.get("timestamp") else None
+            d["created_at"] = d["created_at"].isoformat() if d.get("created_at") else None
+            rows.append(d)
+    except Exception as e:
+        print(f"Error reading weather_data: {e}")
+        rows = []
+    return rows

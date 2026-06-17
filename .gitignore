@@ -50,7 +50,6 @@ var/*.sqlite
 *.db
 *.sqlite
 *.sql
-!supabase/migrations/*.sql
 *.csv
 *.xlsx
 *.parquet

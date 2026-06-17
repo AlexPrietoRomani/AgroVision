@@ -692,7 +692,7 @@ import "../styles/global.css";
         const series = rI.ok ? (await rI.json()).series : [];
         let weather = [];
         if (parcel?.lat != null) {
-          const rW = await api("/weather", { method: "POST", body: JSON.stringify({ lat: parcel.lat, lon: parcel.lon }) });
+          const rW = await api("/weather", { method: "POST", body: JSON.stringify({ field_id: parcel.id }) });
           weather = rW.ok ? (await rW.json()).series : [];
         }
         if (!series.length && !weather.length) { $("satelite-empty").classList.remove("hidden"); return; }

@@ -1,18 +1,19 @@
 """
 Archivo: weather.py
-Fecha de modificación: 03/06/2026
+Fecha de modificación: 16/06/2026
 Autor: Equipo AgroVisión
 
 Descripción:
 Router de clima (`/api/weather`). Devuelve la serie agroclimática mensual (precipitación,
-temperatura media, radiación) por coordenadas usando Open-Meteo (sin llave). Por defecto
-cubre los últimos 5 años, para cruzarse con la serie NDVI en Teledetección.
+temperatura media, radiación) por parcela (`field_id`) usando Open-Meteo. Los datos se
+persisten a nivel horario pero se devuelven agregados mensualmente por compatibilidad UI.
 
 Estructura Interna:
     - `POST /api/weather`.
 
 Entradas / Dependencias:
     - `backend.services.weather`.
+    - `backend.api.deps` (para la sesión DB).
 
 Ejemplo de Integración:
     from backend.api.weather import router
@@ -20,25 +21,30 @@ Ejemplo de Integración:
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.api.deps import get_db
 from backend.services import weather
 
 router = APIRouter(prefix="/api/weather", tags=["clima"])
 
 
 class WeatherRequest(BaseModel):
-    """Petición de clima por coordenadas y rango opcional (default últimos 5 años)."""
+    """Petición de clima por parcela y rango opcional (default últimos 5 años)."""
 
-    lat: float = Field(ge=-90, le=90)
-    lon: float = Field(ge=-180, le=180)
+    field_id: str = Field(description="UUID de la parcela asociada.")
     start: str | None = None
     end: str | None = None
 
 
 @router.post("")
-async def weather_series(body: WeatherRequest) -> dict:
-    """Devuelve la serie climática mensual de las coordenadas indicadas."""
-    series = await weather.weather_series(body.lat, body.lon, body.start, body.end)
+async def weather_series(
+    body: WeatherRequest, session: AsyncSession = Depends(get_db)
+) -> dict:
+    """Devuelve la serie climática mensual de la parcela indicada."""
+    series = await weather.weather_series(
+        session, body.field_id, body.start, body.end
+    )
     return {"series": series}
