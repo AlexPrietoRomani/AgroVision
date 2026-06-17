@@ -9,17 +9,18 @@ Plataforma de precisión para gestión de parcelas, NDVI satelital, agente RAG y
 [![styling](https://img.shields.io/badge/styling-Tailwind%204-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![database](https://img.shields.io/badge/database-Supabase%20PostGIS-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com/)
 
-Plataforma de [AgroVisión](docs/reference/description_proyecto_agrovision.md) para monitoreo agronómico de precisión: **gestión de parcelas**, **teledetección multiespectral** (Sentinel-2, 5 índices: NDVI/EVI/SAVI/NDWI/NDRE), **clima** (Open-Meteo), **agente conversacional (RAG)**, **explorador de datos SQL** y **conteo de plantas por dron** (este último **en desarrollo**). UI en **Astro + Tailwind** (estática) servida por el backend **FastAPI** (monolito modular), persistencia **Supabase (PostGIS) BYOK**. Despliegue en **Hugging Face Spaces** (Docker).
+Plataforma de [AgroVisión](docs/reference/description_proyecto_agrovision.md) para monitoreo agronómico de precisión: **gestión de parcelas**, **teledetección multiespectral** (Sentinel-2, 5 índices: NDVI/EVI/SAVI/NDWI/NDRE), **persistencia climática horaria** (Open-Meteo), **perfiles de usuario y gestión de sesión** (modos efímero, temporal y compartido), **asistente conversacional acotado (RAG)** por parcela, **explorador de datos SQL** y **conteo de plantas por dron** (este último **en desarrollo**). UI en **Astro + Tailwind** (estática) servida por el backend **FastAPI** (monolito modular), persistencia **Supabase (PostGIS) BYOK**. Despliegue en **Hugging Face Spaces** (Docker).
 
 ## Estado actual
 
 ### ✅ Implementado
 - **Gestión de parcelas:** creación, edición y persistencia en Supabase (PostGIS)
 - **Teledetección multiespectral:** Sentinel-2, 5 índices (NDVI/EVI/SAVI/NDWI/NDRE), serie mensual 5 años
-- **Clima:** temperatura, precipitación, humedad, viento (Open-Meteo)
-- **Agente RAG:** chat conversacional con Groq/Llama 3
+- **Persistencia climática horaria:** historial de 13 variables del clima guardadas en base de datos (Open-Meteo)
+- **Perfiles y sesión:** gestión de preferencias y modos de sesión (efímera, guardada temporal y compartida read-only)
+- **Asistente RAG acotado:** chat conversacional con Groq/Llama 3 contextualizado por la parcela activa
 - **Explorador de Datos:** consultas SQL directas a tablas de Supabase + diagrama ER interactivo
-- **Reproceso:** recálculo de índices espectrales por parcela
+- **Reproceso:** recálculo de índices espectrales y clima por parcela
 - **Telemetría:** visor de eventos de sesión (memoria o BD)
 - **BYOK:** credenciales efímeras, nunca persistidas
 
@@ -57,8 +58,9 @@ Plataforma de [AgroVisión](docs/reference/description_proyecto_agrovision.md) p
 ```
 Astro + Tailwind (UI estática)  ──fetch /api──►  FastAPI (monolito modular)  ─►  Supabase (PostGIS) [BYOK]
    servida por el gateway en /                    ├─ /api/fields    (parcelas)        ├─ Sentinel Hub / Copernicus (5 índices)
-   (1 contenedor en HF Spaces)                    ├─ /api/vegetation, /api/ndvi       ├─ Open-Meteo (clima, sin llave)
-                                                  ├─ /api/chat      (agente RAG)        └─ Groq / Llama 3 (LLM)
+   (1 contenedor en HF Spaces)                    ├─ /api/vegetation, /api/ndvi       ├─ Open-Meteo (clima horario en DB)
+                                                  ├─ /api/chat      (RAG acotado)     ├─ user_profiles  (perfiles agrónomo)
+                                                  ├─ /api/profiles  (CRUD perfiles)   └─ Groq / Llama 3 (LLM)
                                                   ├─ /api/events    (telemetría)
                                                   ├─ /api/data      (explorador SQL)
                                                   └─ /api/count     (conteo, en desarrollo)

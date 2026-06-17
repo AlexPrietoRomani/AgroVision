@@ -150,9 +150,10 @@ AgroVisión tiene 5 procesos core (el de visión diferido):
 | Backfill NDVI al crear parcela | Parcelas | `POST /api/fields` | `vegetation_indices` |
 | Serie mensual de índice espectral | Teledetección | `POST /api/vegetation/{index}` | `vegetation_indices` (cache) |
 | Heatmap de índice | Teledetección | `POST /api/vegetation/{index}/raster` | No persiste (PNG en memoria) |
-| Serie climática mensual | Clima | `POST /api/weather` | No persiste (on-demand) |
-| Reprocesar índices + clima | Teledetección | `POST /api/vegetation/reprocess` | `vegetation_indices` (sobrescribe) |
-| Agente conversacional | Chat | `POST /api/chat` | `chat_messages` (memoria) |
+| Serie climática horaria y mensual | Clima | Selección de parcela / `POST /api/weather` | `weather_data` (clima horario) |
+| Reprocesar índices + clima | Teledetección | `POST /api/vegetation/reprocess` | `vegetation_indices` y `weather_data` (sobrescribe) |
+| Agente conversacional acotado | Chat | `POST /api/chat` | `chat_messages` (memoria por parcela) |
+| Conectar / guardar perfil | Ajustes | `POST /api/profiles/connect` | `user_profiles` (preferencias/sesión) |
 | Conteo por dron (standby) | Conteo | Subir ortomosaico | `plant_counts` + Storage |
 
 ### 3.2 Pipeline de Teledetección (Índices Espectrales)
@@ -176,19 +177,23 @@ flowchart TB
 - **API externa:** Copernicus CDSE (Sentinel Hub, Statistical API para series, Process API para heatmaps)
 - **Reproceso:** `POST /api/vegetation/reprocess` recalcula los 5 índices y sobrescribe en `vegetation_indices`
 
-### 3.3 Pipeline de Clima (Open-Meteo)
+### 3.3 Pipeline de Clima (Open-Meteo Horario y Persistencia)
 
 ```mermaid
 flowchart LR
-    C(["Coordenadas (lat,lon) + rango"])
-    OM["Open-Meteo Archive API<br/>──────────<br/>· precip diaria (suma mensual)<br/>· temp media (promedio mensual)<br/>· radiación (suma mensual)<br/>· humedad relativa horaria (promedio)<br/>· viento máx (máximo mensual)"]
-    A["Agregación mensual<br/>(5 variables)"]
-    R["Serie mensual → Chart.js<br/>(on-demand, no persiste)"]
+    C(["field_id + Coordenadas de BD"])
+    OM["Open-Meteo Archive API<br/>──────────<br/>13 variables horarias"]
+    DB[("weather_data<br/>(persistido, UNIQUE field+time)")]
+    A["Agregación mensual en memoria<br/>(5 variables para UI)"]
+    R["Serie mensual → Chart.js"]
 
-    C --> OM --> A --> R
+    C --> OM --> DB --> A --> R
 ```
 
-**Variables climáticas:** `precip_mm`, `temp_mean_c`, `radiation`, `humidity_mean`, `wind_max`
+**Variables persistidas (13):** temperatura a 2m, humedad relativa, punto de rocío, cobertura de nubes, presión MSL, velocidad y dirección del viento, precipitaciones, radiación de onda corta, evapotranspiración FAO, déficit de presión de vapor, temperatura y humedad del suelo.
+**Detalles clave:**
+- La UI envía `field_id` al endpoint `/api/weather`.
+- El servicio obtiene las coordenadas de la parcela desde la base de datos, consulta Open-Meteo para las variables horarias, formatea e inserta de forma idempotente en `weather_data` y devuelve a la UI la agregación mensual del histórico para Chart.js.
 
 ### 3.4 Backfill al Crear Parcela
 
@@ -206,15 +211,15 @@ POST /api/fields → create_parcel() → run_ndvi_backfill (BackgroundTask)
 - Idempotente: `UNIQUE(field_id, index_type, date)` evita duplicados
 - Si faltan credenciales Copernicus, se omite silenciosamente
 
-### 3.5 Agente RAG (Function Calling)
+### 3.5 Agente RAG Acotado a Parcela (Function Calling)
 
 ```
-POST /api/chat → history + message + TOOLS_SCHEMA → Groq (Llama 3)
-                                                       ↓
-                                              ¿tool_calls? ─sí→ ejecutar herramienta → resultado → Groq
-                                                       | no
-                                                       ↓
-                                              reply + tool_logs → chat_messages
+POST /api/chat → history + message + field_id/field_name + TOOLS_SCHEMA → Groq (Llama 3)
+                                                                            ↓
+                                                                   ¿tool_calls? ─sí→ ejecutar herramienta → resultado → Groq
+                                                                            | no
+                                                                            ↓
+                                                                   reply + tool_logs → chat_messages
 ```
 
 **Herramientas:**
@@ -222,7 +227,18 @@ POST /api/chat → history + message + TOOLS_SCHEMA → Groq (Llama 3)
 2. `get_weather_context(lat, lon, start, end)` — resumen climático mensual
 3. `get_field_planting_density(field_name)` — densidad plantas/ha (en desarrollo, depende del Conteo)
 
-### 3.6 Reprocesamiento de Datos (SF13.5)
+**Detalles de acotamiento:**
+- Al interactuar con el chat, la UI incluye el `field_id` y `field_name` de la parcela seleccionada.
+- El backend adapta el prompt del sistema del agente para advertir que el usuario está enfocado específicamente en la parcela activa, reduciendo alucinaciones y acotando los resultados de búsqueda. El historial del chat guardado se filtra también bajo el `field_id` (o `IS NULL` para el contexto general).
+
+### 3.6 Perfiles de Usuario y Modos de Sesión
+
+El servicio de perfiles `/api/profiles` gestiona y asocia los datos de usuario a través del hash SHA-256 del host Supabase.
+*   **Modo Efímero:** Sin persistencia del perfil.
+*   **Modo Guardado Temporal:** Al reconectar mediante fingerprint del host Supabase en `localStorage`, se recuperan de `user_profiles` el nombre de usuario, la parcela activa y las preferencias de personalización. Las llaves API no se guardan jamás.
+*   **Modo Compartido (Read-Only):** Carga un perfil visor con `#profile=ID` bloqueando controles de edición, telemetría y chat.
+
+### 3.7 Reprocesamiento de Datos (SF13.5)
 
 ```
 POST /api/vegetation/reprocess {field_id, mode}
@@ -418,6 +434,37 @@ erDiagram
         text source "default: sentinel2"
     }
 
+    USER_PROFILES {
+        uuid id PK
+        text display_name "nombre legible"
+        text supabase_url_hash "SHA-256 hash"
+        uuid active_field_id FK "active field, nullable"
+        jsonb preferences "JSON configurations"
+        text session_mode "temporary|saved"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    WEATHER_DATA {
+        uuid id PK
+        uuid field_id FK
+        timestamptz timestamp "UNIQUE(field_id, timestamp)"
+        real temperature_2m
+        real relative_humidity_2m
+        real dewpoint_2m
+        real cloud_cover
+        real pressure_msl
+        real wind_speed_10m
+        real wind_direction_10m
+        real precipitation
+        real shortwave_radiation
+        real et0_fao_evapotranspiration
+        real vapour_pressure_deficit
+        real soil_temperature_0_to_7cm
+        real soil_moisture_0_to_7cm
+        timestamptz created_at
+    }
+
     PLANT_COUNTS {
         serial id PK
         uuid user_id
@@ -435,6 +482,7 @@ erDiagram
         text role "user|assistant"
         text content
         timestamptz created_at
+        uuid field_id FK "nullable"
     }
 
     EVENTS {
@@ -447,6 +495,9 @@ erDiagram
 
     FIELDS ||--o{ VEGETATION_INDICES : "tiene"
     FIELDS ||--o{ PLANT_COUNTS : "tiene (standby)"
+    FIELDS ||--o{ WEATHER_DATA : "clima"
+    FIELDS ||--o{ USER_PROFILES : "activo"
+    FIELDS ||--o{ CHAT_MESSAGES : "contexto"
 ```
 
 ### 5.2 Descripción de Tablas
@@ -455,6 +506,8 @@ erDiagram
 |-------|-----------|-----------|-------------------|
 | `fields` | Parcelas agrícolas con geometría (Polygon 4326) | `0001_init.sql` | 1–50 por espacio |
 | `vegetation_indices` | Serie mensual de los 5 índices espectrales (NDVI/EVI/SAVI/NDWI/NDRE) | `0004_indices.sql` (Fase 13) | ~33 pts/mes × 5 índices = ~165 por parcela |
+| `weather_data` | Registro histórico horario de 13 variables de clima de Open-Meteo | `0008_weather_data.sql` (Fase 14) | 24 pts/día × variables por parcela |
+| `user_profiles` | Perfiles de usuario y preferencias de sesión asociadas de forma segura | `0009_user_profiles.sql` (Fase 15) | 1 por host Supabase |
 | `plant_counts` | Resultados de conteo por dron (standby, sin escrituras) | `0001_init.sql` | 0 (inactiva) |
 | `chat_messages` | Memoria conversacional del agente RAG | `0001_init.sql` | Variable por sesión |
 | `events` | Telemetría de UI/backend (opcional, si `EVENTS_PERSIST=true`) | `0003_events.sql` (Fase 9) | ~500 últimos en buffer |
