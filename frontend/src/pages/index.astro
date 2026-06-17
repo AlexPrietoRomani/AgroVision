@@ -863,7 +863,7 @@ import "../styles/global.css";
       $("telemetry-modal").addEventListener("click", (e) => { if (e.target === $("telemetry-modal")) closeTelemetryModal(); });
 
       // ===== Explorador de Datos (Fase 11) =====
-      const TABLES = ["fields", "vegetation_indices", "chat_messages", "events", "plant_counts"];
+      const TABLES = ["fields", "vegetation_indices", "weather_data", "chat_messages", "events", "plant_counts"];
       async function loadDataExplorer() {
         loadSchema();
         const list = $("tables-list");
@@ -897,6 +897,7 @@ import "../styles/global.css";
             mmd += "  }\n";
           }
           mmd += '  fields ||--o{ vegetation_indices : "tiene"\n';
+          mmd += '  fields ||--o{ weather_data : "registra clima"\n';
           mmd += '  fields ||--o{ plant_counts : "tiene"\n';
           mmd += '  fields ||--o{ events : "genera"\n';
           mmd += '  fields ||--o{ chat_messages : "genera"\n';

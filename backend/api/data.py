@@ -39,6 +39,7 @@ ALLOWED_TABLES: frozenset[str] = frozenset(
     {
         "fields",
         "vegetation_indices",
+        "weather_data",
         "chat_messages",
         "events",
         "plant_counts",
