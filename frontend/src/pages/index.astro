@@ -278,6 +278,84 @@ import "../styles/global.css";
             <button id="btn-chat" class="bg-stone-900 hover:bg-stone-800 text-white font-bold px-3 py-2 rounded text-xs">Enviar</button>
           </div>
         </div>
+
+        <!-- Vista 3: Asistente de Creación de Parcela / Lote (Oculto por defecto) -->
+        <div id="section2-creator" class="hidden flex-grow flex flex-col h-full overflow-hidden">
+          
+          <!-- Paso A: Dibujando (Instrucciones) -->
+          <div id="creator-step-drawing" class="flex-grow p-4 flex flex-col justify-center items-center text-center space-y-4">
+            <div class="w-16 h-16 rounded-full bg-emerald-100/50 flex items-center justify-center text-emerald-600 text-3xl">
+              <i class="fa-solid fa-pen-ruler"></i>
+            </div>
+            <h3 class="font-bold text-sm text-stone-850">Dibuja el límite de tu lote</h3>
+            <p class="text-xs text-stone-500 leading-relaxed max-w-xs">
+              Haz clic en el mapa para marcar tu primer punto y luego completa tu lote marcando los demás puntos del límite.
+            </p>
+            <button id="btn-cancel-draw" class="mt-4 text-xs font-semibold px-4 py-2 border border-stone-200 hover:bg-stone-50 rounded-lg text-stone-600 transition-colors">
+              Cancelar
+            </button>
+          </div>
+
+          <!-- Paso B: Detalles del Lote (Formulario) -->
+          <div id="creator-step-details" class="hidden flex-grow p-4 flex flex-col space-y-4 overflow-y-auto">
+            <h3 class="font-bold text-sm text-stone-800 flex items-center gap-2">
+              <i class="fa-solid fa-square-plus text-emerald-600"></i> Detallar Nuevo Lote
+            </h3>
+            
+            <div class="bg-stone-50 border border-stone-200 rounded-xl p-4 flex flex-col items-center gap-2.5 shadow-sm">
+              <div class="w-12 h-12 rounded-lg bg-emerald-700/10 border border-emerald-700/20 flex items-center justify-center text-emerald-700 text-xl">
+                <i class="fa-solid fa-draw-polygon"></i>
+              </div>
+              <div class="text-center">
+                <span class="text-[9px] text-stone-500 font-bold block uppercase leading-none">Área Georreferenciada</span>
+                <span id="creator-area-ha" class="text-sm font-extrabold text-stone-800">— ha</span>
+              </div>
+            </div>
+
+            <div class="space-y-3 text-xs">
+              <div>
+                <label class="block text-[10px] font-bold text-stone-600 uppercase mb-0.5" for="creator-name-input">Nombre del Lote</label>
+                <input type="text" id="creator-name-input" class="w-full p-2 border border-stone-300 rounded bg-stone-50 focus:ring-1 focus:ring-emerald-500" placeholder="Ej: Lote_1" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-stone-600 uppercase mb-0.5" for="creator-crop-select">Cultivo (Variedad)</label>
+                <select id="creator-crop-select" class="w-full p-2 border border-stone-300 rounded bg-white focus:ring-1 focus:ring-emerald-500">
+                  <option value="">Selecciona el Cultivo</option>
+                  <option value="Arándanos">Arándanos</option>
+                  <option value="Uva">Uvas</option>
+                  <option value="Paltos">Paltos</option>
+                  <option value="Cítricos">Cítricos</option>
+                  <option value="Espárragos">Espárragos</option>
+                  <option value="Otros">Otros</option>
+                </select>
+              </div>
+              
+              <div class="pt-4 border-t border-stone-100 text-[10px] text-stone-500 leading-relaxed">
+                <p class="font-semibold text-stone-600 mb-1 flex items-center gap-1"><i class="fa-solid fa-circle-info text-[9px] text-emerald-600"></i> Crea lotes más rápido</p>
+                Puedes dibujar varios lotes en el mapa y crearlos de una sola vez.
+              </div>
+            </div>
+
+            <div class="mt-auto pt-4 flex gap-2">
+              <button id="btn-creator-cancel" class="flex-1 text-center py-2.5 border border-stone-300 hover:bg-stone-50 rounded-lg text-xs font-bold text-stone-600 transition-all">
+                Cancelar
+              </button>
+              <button id="btn-creator-save" class="flex-1 text-center py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-all">
+                Guardar
+              </button>
+            </div>
+          </div>
+
+          <!-- Paso C: Cargando / Procesando -->
+          <div id="creator-step-loading" class="hidden flex-grow p-4 flex flex-col justify-center items-center text-center space-y-4">
+            <div class="w-12 h-12 border-4 border-emerald-700 border-t-transparent rounded-full animate-spin"></div>
+            <h3 class="font-bold text-sm text-stone-850 font-semibold animate-pulse">Guardando y procesando lote...</h3>
+            <p class="text-xs text-stone-500 leading-relaxed max-w-xs">
+              Estamos georreferenciando tu parcela y consultando el historial satelital (Copernicus CDSE) y climático (Open-Meteo). Por favor, no cierres esta pestaña.
+            </p>
+          </div>
+
+        </div>
       </div>
 
       <!-- SECCIÓN 3: PANEL DERECHO DINÁMICO (TAB CONTENTS) -->
@@ -287,6 +365,14 @@ import "../styles/global.css";
         <section id="tab-resumen" class="tab-content active h-full w-full relative flex flex-col">
           <div class="relative flex-1 w-full h-full min-h-[550px]">
             <div id="map" class="w-full h-full rounded-2xl border border-stone-200 shadow-sm" style="height: calc(100vh - 7rem);"></div>
+
+            <!-- Banner flotante de dibujo de Leaflet (Oculto por defecto) -->
+            <div id="map-draw-banner" class="hidden absolute top-4 left-1/2 -translate-x-1/2 z-[1000] w-[90%] md:w-auto px-4 py-2 bg-stone-950/95 backdrop-blur text-stone-200 border border-stone-800 rounded-xl text-xs flex justify-between items-center gap-4 shadow-2xl">
+              <span id="map-draw-banner-text" class="font-medium text-[11px] text-stone-300">Haz clic en el mapa para marcar tu primer punto.</span>
+              <button id="btn-draw-undo" class="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold border border-emerald-500/20 px-2 py-0.5 rounded hover:bg-emerald-500/10 transition-colors">
+                <i class="fa-solid fa-rotate-left mr-1"></i> Deshacer
+              </button>
+            </div>
 
             <!-- Botón del Selector de Parcelas (Widget Flotante) -->
             <div class="absolute top-4 left-4 z-[1000] flex flex-col items-start gap-2">
