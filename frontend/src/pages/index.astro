@@ -283,60 +283,70 @@ import "../styles/global.css";
       <!-- SECCIÓN 3: PANEL DERECHO DINÁMICO (TAB CONTENTS) -->
       <div id="panel-right" class="flex-grow overflow-y-auto bg-stone-50 h-full p-5 md:p-8">
         
-        <!-- RESUMEN (MAPA PRINCIPAL + KPIS + EVOLUCIÓN NDVI) -->
-        <section id="tab-resumen" class="tab-content active space-y-6">
-          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div class="bg-white p-4 rounded-xl border border-stone-200 shadow-sm lg:col-span-8">
-              <h3 class="font-bold text-sm text-stone-800 mb-3 flex items-center gap-2">
-                <i class="fa-solid fa-map text-emerald-600"></i> Mapa General de Parcelas
-              </h3>
-              <div id="map" style="height: 380px;" class="rounded-lg border"></div>
-            </div>
-            <div class="bg-white p-4 rounded-xl border border-stone-200 shadow-sm lg:col-span-4 flex flex-col justify-between">
-              <div>
-                <h3 class="font-bold text-sm text-stone-800 mb-2">Crear Nueva Parcela</h3>
-                <p class="text-[11px] text-stone-500 mb-3">Dibuja el polígono sobre el mapa satelital, ponle un nombre y guárdalo.</p>
-                <label class="block text-[10px] font-bold text-stone-600 uppercase mb-1" for="parcela-name">Nombre de Parcela</label>
-                <input id="parcela-name" type="text" placeholder="Lote Norte (Uva)" class="w-full text-xs p-2 border border-stone-300 rounded bg-stone-50 mb-3 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
-                <button id="btn-save-parcela" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs p-2.5 rounded transition-all flex items-center justify-center gap-2">
-                  <i class="fa-solid fa-floppy-disk"></i> Guardar Parcela
-                </button>
-                <button id="btn-demo" class="w-full mt-2 bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold text-xs p-2 rounded transition-all flex items-center justify-center gap-2">
-                  <i class="fa-solid fa-mountain-sun"></i> Cargar Parcela Demo
-                </button>
-              </div>
-              <div class="mt-4 pt-4 border-t border-stone-200">
-                <h4 class="font-bold text-xs text-stone-800 mb-2">Mis Parcelas</h4>
-                <ul id="parcelas-list" class="space-y-1.5 text-xs max-h-40 overflow-y-auto"></ul>
-              </div>
-            </div>
-          </div>
+        <!-- RESUMEN (MAPA PRINCIPAL A PANTALLA COMPLETA CON WIDGET FLOTANTE) -->
+        <section id="tab-resumen" class="tab-content active h-full w-full relative flex flex-col">
+          <div class="relative flex-1 w-full h-full min-h-[550px]">
+            <div id="map" class="w-full h-full rounded-2xl border border-stone-200 shadow-sm" style="height: calc(100vh - 7rem);"></div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex items-center gap-4">
-              <div class="p-3 bg-emerald-100 text-emerald-800 rounded-lg text-xl"><i class="fa-solid fa-leaf"></i></div>
-              <div><span class="text-xs text-stone-500 font-bold block">NDVI (último)</span><span id="kpi-ndvi" class="text-2xl font-bold text-stone-800">—</span></div>
-            </div>
-            <div class="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex items-center gap-4">
-              <div class="p-3 bg-blue-100 text-blue-800 rounded-lg text-xl"><i class="fa-solid fa-arrow-trend-up"></i></div>
-              <div><span class="text-xs text-stone-500 font-bold block">Tendencia NDVI</span><span id="kpi-trend" class="text-2xl font-bold text-stone-800">—</span></div>
-            </div>
-            <div class="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex items-center gap-4">
-              <div class="p-3 bg-amber-100 text-amber-800 rounded-lg text-xl"><i class="fa-solid fa-ruler-combined"></i></div>
-              <div><span class="text-xs text-stone-500 font-bold block">Área</span><span id="kpi-area" class="text-2xl font-bold text-stone-800">—</span></div>
-            </div>
-            <div class="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex items-center gap-4">
-              <div class="p-3 bg-purple-100 text-purple-800 rounded-lg text-xl"><i class="fa-solid fa-seedling"></i></div>
-              <div><span class="text-xs text-stone-500 font-bold block">Densidad</span><span class="text-sm font-bold text-stone-500">en desarrollo</span></div>
-            </div>
-          </div>
+            <!-- Botón del Selector de Parcelas (Widget Flotante) -->
+            <div class="absolute top-4 left-4 z-[1000] flex flex-col items-start gap-2">
+              <button id="btn-farm-selector-toggle" class="bg-stone-900/95 backdrop-blur text-stone-200 hover:text-white px-4 py-2.5 rounded-xl shadow-lg border border-stone-800 text-xs font-bold flex items-center gap-2 transition-all">
+                <i class="fa-solid fa-leaf text-emerald-500"></i>
+                <span id="current-farm-name">Seleccionar Parcela</span>
+                <i class="fa-solid fa-chevron-down text-stone-500 text-[10px]"></i>
+              </button>
 
-          <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm">
-            <h3 class="font-bold text-xs text-stone-800 mb-4">Evolución NDVI de la parcela seleccionada</h3>
-            <div class="relative h-64">
-              <canvas id="chart-resumen"></canvas>
+              <!-- Panel Flotante desplegable -->
+              <div id="farm-selector-dropdown" class="hidden w-72 bg-stone-950/95 backdrop-blur border border-stone-800 rounded-2xl shadow-2xl p-4 text-stone-200 space-y-4">
+                <!-- Info de usuario del perfil -->
+                <div class="flex items-center gap-2.5 pb-3 border-b border-stone-800/80">
+                  <div class="w-9 h-9 rounded-full bg-emerald-700 flex items-center justify-center text-xs font-bold text-white shrink-0" id="floating-avatar">AG</div>
+                  <div class="truncate">
+                    <h5 class="text-xs font-semibold text-stone-200" id="floating-user-name">Agrónomo</h5>
+                    <p class="text-[9px] text-stone-500" id="floating-user-email">alexprieto1997@gmail.com</p>
+                  </div>
+                </div>
+
+                <!-- Vista 1: Selector de Parcelas -->
+                <div id="farm-view-selector" class="space-y-3">
+                  <h4 class="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Nombre de la Parcela</h4>
+                  
+                  <!-- Listado de parcelas con radio selector + gear -->
+                  <div class="space-y-1 max-h-48 overflow-y-auto pr-1" id="floating-parcelas-list">
+                    <!-- Dinámico -->
+                  </div>
+
+                  <button id="btn-floating-add-parcel" class="w-full text-left flex items-center gap-2 text-xs font-bold text-emerald-400 hover:text-emerald-300 py-1 transition-colors mt-2">
+                    <i class="fa-solid fa-plus text-xs"></i> Agregar Nueva Parcela
+                  </button>
+                </div>
+
+                <!-- Vista 2: Crear Nueva Parcela (Formulario en flotante) -->
+                <div id="farm-view-creator" class="hidden space-y-3">
+                  <h4 class="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Crear Nueva Parcela</h4>
+                  <p class="text-[10px] text-stone-400 leading-relaxed">Dibuja el polígono sobre el mapa, ponle un nombre y guárdalo.</p>
+                  
+                  <div>
+                    <label class="block text-[9px] font-bold text-stone-500 uppercase mb-1" for="floating-parcela-name">Nombre de Parcela</label>
+                    <input id="floating-parcela-name" type="text" placeholder="Lote Norte (Uva)" class="w-full text-xs p-2 border border-stone-800 rounded bg-stone-900 text-stone-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 animate-none" />
+                  </div>
+
+                  <div class="space-y-1.5 pt-1">
+                    <button id="btn-floating-save-parcela" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs p-2 rounded transition-all flex items-center justify-center gap-1.5">
+                      <i class="fa-solid fa-floppy-disk"></i> Guardar Parcela
+                    </button>
+                    <button id="btn-floating-demo" class="w-full bg-stone-900 hover:bg-stone-800 text-stone-300 border border-stone-800 font-bold text-xs p-2 rounded transition-all flex items-center justify-center gap-1.5">
+                      <i class="fa-solid fa-mountain-sun"></i> Cargar Parcela Demo
+                    </button>
+                    <button id="btn-floating-cancel-create" class="w-full text-center text-stone-500 hover:text-stone-300 text-[10px] py-1">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+
+              </div>
             </div>
-            <p id="resumen-empty" class="text-xs text-stone-500 mt-2">Selecciona una parcela para ver su evolución.</p>
+
           </div>
         </section>
 
@@ -735,7 +745,20 @@ import "../styles/global.css";
         "tab-config": ["Credenciales & APIs", "Llaves efímeras (solo en esta sesión)."],
         "tab-settings": ["Ajustes de Perfil", "Gestión del modo de sesión y preferencias de usuario."],
       };
-      
+      function showSection2Chat() {
+        const form = $("section2-form");
+        const chat = $("section2-chat");
+        const icon = $("branding-icon");
+        const btn = $("btn-branding-toggle");
+        if (form && chat) {
+          form.classList.add("hidden");
+          chat.classList.remove("hidden");
+        }
+        if (icon) icon.className = "fa-solid fa-sliders text-base";
+        if (btn) btn.title = "Mostrar Ajustes de Parcela";
+        loadChatHistory();
+      }
+
       function switchTab(id) {
         document.querySelectorAll(".tab-content").forEach((s) => s.classList.remove("active"));
         document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("nav-btn-active"));
@@ -751,6 +774,7 @@ import "../styles/global.css";
         if (id === "tab-resumen") {
           setTimeout(initMap, 50);
           loadResumen();
+          showSection2Chat();
         }
         if (id === "tab-satelite") {
           loadTeledeteccion();
@@ -918,6 +942,52 @@ import "../styles/global.css";
       });
 
       // ===== Gestión de Parcelas y Mapa (Sección 3) =====
+      function renderFloatingParcels() {
+        const list = $("floating-parcelas-list");
+        if (!list) return;
+        const activeId = $("select-parcela").value;
+        list.innerHTML = parcels.length
+          ? parcels.map((p) => {
+              const isActive = p.id === activeId;
+              const circleIcon = isActive 
+                ? '<i class="fa-solid fa-circle-dot text-emerald-500"></i>' 
+                : '<i class="fa-regular fa-circle text-stone-500"></i>';
+              const bgClass = isActive 
+                ? 'bg-stone-900 border-emerald-800/40' 
+                : 'hover:bg-stone-900/50 border-transparent';
+              return `
+                <div data-pid="${p.id}" class="floating-parcel-item flex items-center justify-between p-2 rounded-lg border ${bgClass} cursor-pointer transition-all">
+                  <div class="flex items-center gap-2 select-item-click">
+                    ${circleIcon}
+                    <span class="text-xs font-semibold text-stone-200">${p.name}</span>
+                  </div>
+                  <i class="fa-solid fa-gear text-stone-500 hover:text-stone-300 cursor-pointer btn-gear-click" title="Ajustes de Parcela"></i>
+                </div>
+              `;
+            }).join("")
+          : '<div class="text-xs text-stone-500 py-2">Sin parcelas aún.</div>';
+
+        // Actualizar el botón principal y el estado en el widget
+        const activeParcel = parcels.find(p => p.id === activeId);
+        if (activeParcel) {
+          $("current-farm-name").innerText = activeParcel.name;
+          if ($("floating-parcel-name")) $("floating-parcel-name").innerText = activeParcel.name;
+          if ($("floating-parcel-area")) $("floating-parcel-area").innerText = `${activeParcel.area_ha != null ? activeParcel.area_ha.toFixed(1) : "—"} ha`;
+        } else {
+          $("current-farm-name").innerText = "Seleccionar Parcela";
+          if ($("floating-parcel-name")) $("floating-parcel-name").innerText = "Ninguna seleccionada";
+          if ($("floating-parcel-area")) $("floating-parcel-area").innerText = "— ha";
+        }
+      }
+
+      function selectParcel(id) {
+        const sel = $("select-parcela");
+        if (sel) {
+          sel.value = id;
+          sel.dispatchEvent(new Event("change"));
+        }
+      }
+
       async function refreshParcels() {
         try {
           const r = await api("/fields");
@@ -928,10 +998,13 @@ import "../styles/global.css";
           ? parcels.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")
           : '<option value="">(sin parcelas)</option>';
 
-        $("parcelas-list").innerHTML = parcels.length
-          ? parcels.map((p) => `<li data-pid="${p.id}" title="Ir a la parcela" class="flex items-center justify-between bg-stone-50 border border-stone-200 rounded px-2.5 py-1.5 cursor-pointer hover:bg-stone-100"><span class="font-semibold text-stone-700 text-[11px]"><i class="fa-solid fa-location-dot text-emerald-600 mr-1"></i>${p.name}</span><i class="fa-solid fa-crosshairs text-stone-400"></i></li>`).join("")
-          : '<li class="text-stone-500">Sin parcelas aún.</li>';
+        if ($("parcelas-list")) {
+          $("parcelas-list").innerHTML = parcels.length
+            ? parcels.map((p) => `<li data-pid="${p.id}" title="Ir a la parcela" class="flex items-center justify-between bg-stone-50 border border-stone-200 rounded px-2.5 py-1.5 cursor-pointer hover:bg-stone-100"><span class="font-semibold text-stone-700 text-[11px]"><i class="fa-solid fa-location-dot text-emerald-600 mr-1"></i>${p.name}</span><i class="fa-solid fa-crosshairs text-stone-400"></i></li>`).join("")
+            : '<li class="text-stone-500">Sin parcelas aún.</li>';
+        }
         
+        renderFloatingParcels();
         renderParcelsOnMap();
       }
       
@@ -976,50 +1049,103 @@ import "../styles/global.css";
         try { map.flyToBounds(L.geoJSON(p.geojson).getBounds(), { maxZoom: 15, padding: [25, 25] }); } catch {}
       }
       
-      $("btn-save-parcela").addEventListener("click", async () => {
-        const name = $("parcela-name").value.trim();
-        if (!drawnGeojson) return notify("Falta el polígono", "Dibuja un polígono en el mapa.");
-        if (!name) return notify("Falta el nombre", "Escribe un nombre.");
-        try {
-          track("parcel_draw_save", { name });
-          const r = await api("/fields", { method: "POST", body: JSON.stringify({ name, geojson: drawnGeojson }) });
-          if (r.ok) { track("parcel_create", { name }); notify("Parcela guardada", `${name}: backfill NDVI en curso…`); $("parcela-name").value = ""; drawnGeojson = null; drawnItems.clearLayers(); refreshParcels(); }
-          else { const e = await r.json().catch(() => ({})); notify("Error " + r.status, e.detail || ""); }
-        } catch (e) { notify("Error de red", String(e)); }
-      });
-      
-      $("btn-demo").addEventListener("click", async () => {
-        const geojson = { type: "Polygon", coordinates: [[[-77.40, -11.40], [-77.40, -11.34], [-77.34, -11.34], [-77.34, -11.40], [-77.40, -11.40]]] };
-        try {
-          track("parcel_demo");
-          const r = await api("/fields", { method: "POST", body: JSON.stringify({ name: "Lomas de Lachay (demo)", geojson }) });
-          if (r.ok) { track("parcel_create", { name: "Lomas de Lachay (demo)" }); notify("Parcela demo creada", "Lomas de Lachay: backfill NDVI (5 años) en curso…"); refreshParcels(); }
-          else { const e = await r.json().catch(() => ({})); notify("Error " + r.status, e.detail || ""); }
-        } catch (e) { notify("Error de red", String(e)); }
+      // Control del selector flotante de parcelas
+      if ($("btn-farm-selector-toggle")) {
+        $("btn-farm-selector-toggle").addEventListener("click", (e) => {
+          e.stopPropagation();
+          $("farm-selector-dropdown").classList.toggle("hidden");
+        });
+      }
+
+      document.addEventListener("click", (e) => {
+        const dropdown = $("farm-selector-dropdown");
+        const toggle = $("btn-farm-selector-toggle");
+        if (dropdown && !dropdown.classList.contains("hidden") && !dropdown.contains(e.target) && e.target !== toggle && !toggle?.contains(e.target)) {
+          dropdown.classList.add("hidden");
+        }
       });
 
-      $("parcelas-list").addEventListener("click", (e) => {
-        const li = e.target.closest("li[data-pid]");
-        if (li) { track("parcel_focus", { id: li.dataset.pid }); flyToParcel(li.dataset.pid); }
-      });
+      if ($("btn-floating-add-parcel")) {
+        $("btn-floating-add-parcel").addEventListener("click", () => {
+          $("farm-view-selector").classList.add("hidden");
+          $("farm-view-creator").classList.remove("hidden");
+        });
+      }
+
+      if ($("btn-floating-cancel-create")) {
+        $("btn-floating-cancel-create").addEventListener("click", () => {
+          $("farm-view-creator").classList.add("hidden");
+          $("farm-view-selector").classList.remove("hidden");
+        });
+      }
+
+      if ($("btn-floating-save-parcela")) {
+        $("btn-floating-save-parcela").addEventListener("click", async () => {
+          const name = $("floating-parcela-name").value.trim();
+          if (!drawnGeojson) return notify("Falta el polígono", "Dibuja un polígono en el mapa.");
+          if (!name) return notify("Falta el nombre", "Escribe un nombre.");
+          try {
+            track("parcel_draw_save", { name });
+            const r = await api("/fields", { method: "POST", body: JSON.stringify({ name, geojson: drawnGeojson }) });
+            if (r.ok) {
+              track("parcel_create", { name });
+              notify("Parcela guardada", `${name}: backfill NDVI en curso…`);
+              $("floating-parcela-name").value = "";
+              drawnGeojson = null;
+              drawnItems.clearLayers();
+              $("farm-view-creator").classList.add("hidden");
+              $("farm-view-selector").classList.remove("hidden");
+              $("farm-selector-dropdown").classList.add("hidden");
+              await refreshParcels();
+            }
+            else { const e = await r.json().catch(() => ({})); notify("Error " + r.status, e.detail || ""); }
+          } catch (e) { notify("Error de red", String(e)); }
+        });
+      }
+      
+      if ($("btn-floating-demo")) {
+        $("btn-floating-demo").addEventListener("click", async () => {
+          const geojson = { type: "Polygon", coordinates: [[[-77.40, -11.40], [-77.40, -11.34], [-77.34, -11.34], [-77.34, -11.40], [-77.40, -11.40]]] };
+          try {
+            track("parcel_demo");
+            const r = await api("/fields", { method: "POST", body: JSON.stringify({ name: "Lomas de Lachay (demo)", geojson }) });
+            if (r.ok) {
+              track("parcel_create", { name: "Lomas de Lachay (demo)" });
+              notify("Parcela demo creada", "Lomas de Lachay: backfill NDVI (5 años) en curso…");
+              $("farm-view-creator").classList.add("hidden");
+              $("farm-view-selector").classList.remove("hidden");
+              $("farm-selector-dropdown").classList.add("hidden");
+              await refreshParcels();
+            }
+            else { const e = await r.json().catch(() => ({})); notify("Error " + r.status, e.detail || ""); }
+          } catch (e) { notify("Error de red", String(e)); }
+        });
+      }
+
+      if ($("floating-parcelas-list")) {
+        $("floating-parcelas-list").addEventListener("click", (e) => {
+          const item = e.target.closest(".floating-parcel-item");
+          if (!item) return;
+          const pid = item.dataset.pid;
+          const gear = e.target.closest(".btn-gear-click");
+
+          selectParcel(pid);
+          flyToParcel(pid);
+
+          if (gear) {
+            // Mostrar formulario de Ajustes
+            $("section2-form").classList.remove("hidden");
+            $("section2-chat").classList.add("hidden");
+            $("branding-icon").className = "fa-solid fa-robot text-base";
+            $("btn-branding-toggle").title = "Mostrar Chat con Asistente";
+          }
+          $("farm-selector-dropdown").classList.add("hidden");
+        });
+      }
 
       // ===== Resumen KPIs y Gráfico NDVI =====
       async function loadResumen() {
-        const fid = $("select-parcela").value;
-        const parcel = parcels.find((p) => p.id === fid);
-        $("kpi-area").innerText = parcel?.area_ha != null ? `${parcel.area_ha.toFixed(1)} Ha` : "—";
-        if (!fid) { $("kpi-ndvi").innerText = "—"; $("kpi-trend").innerText = "—"; return; }
-        const r = await api("/ndvi", { method: "POST", body: JSON.stringify({ field_id: fid }) });
-        const series = r.ok ? (await r.json()).series : [];
-        if (!series.length) { $("kpi-ndvi").innerText = "sin datos"; $("kpi-trend").innerText = "—"; $("resumen-empty").classList.remove("hidden"); return; }
-        $("resumen-empty").classList.add("hidden");
-        const last = series[series.length - 1].mean_value, delta = last - series[0].mean_value;
-        $("kpi-ndvi").innerText = last.toFixed(2);
-        $("kpi-trend").innerText = (delta >= 0 ? "+" : "") + delta.toFixed(2);
-        const ctx = $("chart-resumen");
-        chartResumen?.destroy();
-        chartResumen = new Chart(ctx, { type: "line", data: { labels: series.map((p) => p.date), datasets: [{ label: "NDVI", data: series.map((p) => p.mean_value), borderColor: "#15803d", backgroundColor: "rgba(21,128,61,.08)", fill: true, tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 1 } } } });
-        track("chart_view", { chart: "resumen", points: series.length });
+        renderFloatingParcels();
       }
 
       // ===== Teledetección (GIS + Heatmap + Índices) =====
@@ -1631,12 +1757,26 @@ import "../styles/global.css";
             modeText = "Modo guardado temporal";
           }
           $("user-session-mode").innerText = modeText;
+
+          // Sincronizar con widget flotante
+          if ($("floating-user-name")) $("floating-user-name").innerText = currentProfile.display_name;
+          if ($("floating-avatar")) $("floating-avatar").innerText = currentProfile.display_name.slice(0, 2).toUpperCase();
+          if ($("floating-user-email")) {
+            $("floating-user-email").innerText = currentProfile.display_name.toLowerCase().replace(/\s+/g, "") === "alexprieto"
+              ? "alexprieto1997@gmail.com"
+              : `${currentProfile.display_name.toLowerCase().replace(/\s+/g, ".")}@agrovision.com`;
+          }
         } else {
           $("user-display-name").innerText = "Agrónomo";
           $("avatar-circle").innerText = "AG";
           $("settings-display-name").value = "Agrónomo";
           $("settings-session-mode").value = "ephemeral";
           $("user-session-mode").innerText = "Sesión efímera (BYOK)";
+
+          // Valores por defecto para widget flotante
+          if ($("floating-user-name")) $("floating-user-name").innerText = "Agrónomo";
+          if ($("floating-avatar")) $("floating-avatar").innerText = "AG";
+          if ($("floating-user-email")) $("floating-user-email").innerText = "alexprieto1997@gmail.com";
         }
       }
 
