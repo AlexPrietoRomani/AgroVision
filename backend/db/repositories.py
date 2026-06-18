@@ -80,11 +80,13 @@ async def create_field(
 
 
 async def get_field(session: AsyncSession, field_id: Any) -> Row | None:
-    """Devuelve la parcela por id (id, name, área ha, centroide lon/lat) o None."""
+    """Devuelve la parcela por id con sus coordenadas, área y atributos o None."""
     result = await session.execute(
         text(
             "select id, name, (ST_Area(geom::geography) / 10000.0) as area_ha, "
-            "ST_X(ST_Centroid(geom)) as lon, ST_Y(ST_Centroid(geom)) as lat "
+            "ST_X(ST_Centroid(geom)) as lon, ST_Y(ST_Centroid(geom)) as lat, "
+            "crop_variety, field_type, soil_type, irrigation_system, pests_diseases, "
+            "plantation_date, num_plants, historical_yield, target_market, document_metadata "
             "from fields where id = :id"
         ),
         {"id": str(field_id)},
@@ -124,7 +126,9 @@ async def list_fields(session: AsyncSession, user_id: str | None = None) -> list
     """Lista las parcelas (filtradas por usuario si se indica), ordenadas por nombre."""
     cols = (
         "select id, name, ST_X(ST_Centroid(geom)) as lon, "
-        "ST_Y(ST_Centroid(geom)) as lat, ST_AsGeoJSON(geom) as geojson from fields"
+        "ST_Y(ST_Centroid(geom)) as lat, ST_AsGeoJSON(geom) as geojson, "
+        "crop_variety, field_type, soil_type, irrigation_system, pests_diseases, "
+        "plantation_date, num_plants, historical_yield, target_market, document_metadata from fields"
     )
     if user_id is None:
         result = await session.execute(text(f"{cols} order by name"))
@@ -133,6 +137,53 @@ async def list_fields(session: AsyncSession, user_id: str | None = None) -> list
             text(f"{cols} where user_id = :uid order by name"), {"uid": user_id}
         )
     return list(result.all())
+
+
+async def update_field_attributes(
+    session: AsyncSession, field_id: Any, attributes: dict
+) -> Row | None:
+    """
+    Actualiza dinámicamente los atributos de configuración de una parcela.
+
+    Args:
+        session (AsyncSession): Sesión asíncrona de base de datos.
+        field_id (Any): ID de la parcela.
+        attributes (dict): Campos y valores a actualizar.
+
+    Returns:
+        Row | None: Fila con los atributos de la parcela actualizada o None si no existía.
+    """
+    allowed_fields = {
+        "crop_variety",
+        "field_type",
+        "soil_type",
+        "irrigation_system",
+        "pests_diseases",
+        "plantation_date",
+        "num_plants",
+        "historical_yield",
+        "target_market",
+        "document_metadata",
+    }
+    filtered = {k: v for k, v in attributes.items() if k in allowed_fields}
+    if not filtered:
+        return await get_field(session, field_id)
+
+    set_clause = ", ".join(f"{k} = :{k}" for k in filtered.keys())
+    query = f"update fields set {set_clause} where id = :field_id returning id"
+    params = {**filtered, "field_id": str(field_id)}
+
+    # Convertir fecha a ISO string si aplica para la consulta SQL
+    if "plantation_date" in params and params["plantation_date"] is not None:
+        if isinstance(params["plantation_date"], dt.date):
+            params["plantation_date"] = params["plantation_date"].isoformat()
+
+    result = await session.execute(text(query), params)
+    row = result.first()
+    await session.commit()
+    if row:
+        return await get_field(session, field_id)
+    return None
 
 
 async def delete_fields_for_user(session: AsyncSession, user_id: str) -> None:

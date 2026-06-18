@@ -64,6 +64,13 @@ async def get_parcel(session: AsyncSession, field_id: Any) -> Row | None:
     return await repo.get_field(session, field_id)
 
 
+async def update_parcel(
+    session: AsyncSession, field_id: Any, attributes: dict
+) -> Row | None:
+    """Actualiza los atributos de configuración de una parcela y la devuelve."""
+    return await repo.update_field_attributes(session, field_id, attributes)
+
+
 async def delete_parcel(session: AsyncSession, field_id: Any) -> bool:
     """Borra una parcela por id; True si existía."""
     return await repo.delete_field(session, field_id)
