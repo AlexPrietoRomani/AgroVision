@@ -72,12 +72,37 @@ class FieldIn(BaseModel):
         return value
 
 
+class FieldUpdate(BaseModel):
+    """Atributos actualizables opcionales de una parcela."""
+
+    crop_variety: str | None = Field(default=None, description="Variedad del cultivo")
+    field_type: str | None = Field(default=None, description="Tipo de lote/campo")
+    soil_type: str | None = Field(default=None, description="Tipo de suelo")
+    irrigation_system: str | None = Field(default=None, description="Sistema de riego")
+    pests_diseases: str | None = Field(default=None, description="Plagas y enfermedades")
+    plantation_date: dt.date | None = Field(default=None, description="Fecha de plantación")
+    num_plants: int | None = Field(default=None, ge=0, description="Número de plantas")
+    historical_yield: str | None = Field(default=None, description="Rendimiento histórico")
+    target_market: str | None = Field(default=None, description="Mercados objetivo")
+    document_metadata: str | None = Field(default=None, description="Metadatos de documentos")
+
+
 class FieldOut(BaseModel):
     """Representación de lectura de una parcela persistida."""
 
     id: str = Field(description="Identificador único (UUID) de la parcela")
     name: str = Field(description="Nombre legible de la parcela")
     area_ha: float | None = Field(default=None, ge=0, description="Área en hectáreas (PostGIS)")
+    crop_variety: str | None = Field(default=None, description="Variedad del cultivo")
+    field_type: str | None = Field(default=None, description="Tipo de lote/campo")
+    soil_type: str | None = Field(default=None, description="Tipo de suelo")
+    irrigation_system: str | None = Field(default=None, description="Sistema de riego")
+    pests_diseases: str | None = Field(default=None, description="Plagas y enfermedades")
+    plantation_date: dt.date | None = Field(default=None, description="Fecha de plantación")
+    num_plants: int | None = Field(default=None, description="Número de plantas")
+    historical_yield: str | None = Field(default=None, description="Rendimiento histórico")
+    target_market: str | None = Field(default=None, description="Mercados objetivo")
+    document_metadata: str | None = Field(default=None, description="Metadatos de documentos")
 
 
 class NDVIPoint(BaseModel):
