@@ -20,19 +20,59 @@ import "../styles/global.css";
       .tab-content.active { display: block; }
       @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
       .nav-btn-active { background-color: #15803d; color: #fff !important; box-shadow: 0 4px 6px -1px rgba(21,128,61,.2); }
-      #map, #map-readonly { height: 340px; border-radius: 0.5rem; z-index: 0; }
-      /* Sidebar: control de visibilidad con la propiedad `transform` (Tailwind v4 usa
-         la propiedad `translate`, que no se puede cancelar con transform inline). */
-      #sidebar { transform: translateX(-100%); transition: transform 0.3s ease; }
-      #sidebar.is-open { transform: translateX(0); }
-      @media (min-width: 768px) {
-        #sidebar { transform: translateX(0); }
-        #sidebar.is-collapsed { transform: translateX(-100%); }
+      
+      /* Sidebar: control de transición de ancho suave */
+      #sidebar {
+        transition: width 0.3s ease-in-out;
+        width: 4rem; /* Colapsado por defecto (w-16) */
+      }
+      #sidebar.expanded {
+        width: 16rem; /* Expandido (w-64) */
+      }
+      #sidebar:not(.expanded) .sidebar-text {
+        display: none;
+      }
+      #sidebar:not(.expanded) .nav-btn {
+        justify-content: center;
+        padding-left: 0;
+        padding-right: 0;
+      }
+      #sidebar:not(.expanded) .p-4,
+      #sidebar:not(.expanded) .p-5 {
+        justify-content: center;
+      }
+      #sidebar:not(.expanded) #btn-sidebar-toggle {
+        margin-left: 0;
+      }
+      #sidebar:not(.expanded) #btn-footer {
+        justify-content: center;
+        padding-left: 0;
+        padding-right: 0;
+      }
+      #sidebar:not(.expanded) #btn-footer span,
+      #sidebar:not(.expanded) #footer-chevron {
+        display: none;
+      }
+      #sidebar:not(.expanded) #btn-profile-menu {
+        justify-content: center;
+        padding-left: 0;
+        padding-right: 0;
+      }
+      #sidebar:not(.expanded) #btn-profile-menu div:not(#avatar-circle),
+      #sidebar:not(.expanded) #btn-profile-menu i {
+        display: none;
+      }
+      #sidebar:not(.expanded) #db-status {
+        justify-content: center;
+      }
+      #sidebar:not(.expanded) #db-status-text,
+      #sidebar:not(.expanded) #btn-telemetry {
+        display: none;
       }
     </style>
   </head>
 
-  <body class="h-screen overflow-hidden text-stone-900">
+  <body class="h-screen overflow-hidden text-stone-900 flex">
     <!-- Notificación flotante -->
     <div
       id="notif"
@@ -45,64 +85,47 @@ import "../styles/global.css";
     <!-- Contenedor para aviso de credenciales faltantes (Fase 15) -->
     <div id="creds-toast-warning" class="fixed top-20 right-4 z-50 max-w-sm hidden"></div>
 
-    <!-- Botón hamburguesa (móvil): abre el sidebar -->
-    <button
-      id="btn-hamburger"
-      class="md:hidden fixed top-3 left-3 z-40 bg-stone-900 text-white w-10 h-10 rounded-lg shadow-lg"
-      aria-label="Abrir menú"
-    >
-      <i class="fa-solid fa-bars"></i>
-    </button>
-    <!-- Botón reabrir (desktop, cuando el sidebar está plegado) -->
-    <button
-      id="btn-reopen"
-      class="hidden fixed top-3 left-3 z-40 bg-stone-900 text-white w-10 h-10 rounded-lg shadow-lg"
-      aria-label="Mostrar menú"
-    >
-      <i class="fa-solid fa-bars"></i>
-    </button>
-    <!-- Backdrop (móvil) -->
-    <div id="backdrop" class="fixed inset-0 bg-black/40 z-20 hidden md:hidden"></div>
-
-    <!-- SIDEBAR -->
+    <!-- SECCIÓN 1: SIDEBAR COLAPSABLE -->
     <aside
       id="sidebar"
-      class="fixed inset-y-0 left-0 w-72 bg-stone-900 text-stone-200 flex flex-col z-30 border-r border-stone-800"
+      class="flex-shrink-0 bg-stone-900 text-stone-200 flex flex-col z-30 border-r border-stone-800 h-full"
     >
-      <div class="p-5 border-b border-stone-800 flex items-center justify-between">
-        <div>
-          <h1 class="text-2xl font-bold text-emerald-500 tracking-wide flex items-center gap-2">
-            <i class="fa-solid fa-seedling"></i> AgroVisión
-          </h1>
-          <p class="text-[10px] text-stone-400 uppercase tracking-widest mt-1">
-            Plataforma Agronómica
-          </p>
+      <div class="p-4 border-b border-stone-800 flex items-center justify-between">
+        <div class="flex items-center gap-2 overflow-hidden">
+          <i class="fa-solid fa-seedling text-emerald-500 text-2xl shrink-0"></i>
+          <div class="sidebar-text">
+            <h1 class="text-lg font-bold text-emerald-500 tracking-wide">AgroVisión</h1>
+          </div>
         </div>
         <button
-          id="btn-collapse"
-          class="hidden md:block text-stone-500 hover:text-white"
-          title="Plegar"
+          id="btn-sidebar-toggle"
+          class="text-stone-500 hover:text-white p-1"
+          title="Alternar Sidebar"
         >
-          <i class="fa-solid fa-angles-left"></i>
+          <i class="fa-solid fa-bars" id="toggle-icon"></i>
         </button>
       </div>
 
       <nav class="flex-1 p-4 space-y-2 overflow-y-auto" id="main-nav">
         <button data-tab="tab-resumen" class="nav-btn nav-btn-active w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-stone-400 hover:bg-stone-800 hover:text-white transition-all">
-          <i class="fa-solid fa-chart-pie w-5"></i> Resumen de Campo
-        </button>
-        <button data-tab="tab-parcelas" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-stone-400 hover:bg-stone-800 hover:text-white transition-all">
-          <i class="fa-solid fa-draw-polygon w-5"></i> Creación de Parcelas
+          <i class="fa-solid fa-house w-5 text-center"></i>
+          <span class="sidebar-text">Resumen</span>
         </button>
         <button data-tab="tab-satelite" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-stone-400 hover:bg-stone-800 hover:text-white transition-all">
-          <i class="fa-solid fa-satellite-dish w-5"></i> Teledetección (GIS)
+          <i class="fa-solid fa-satellite-dish w-5 text-center"></i>
+          <span class="sidebar-text">Teledetección</span>
+        </button>
+        <button data-tab="tab-weather" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-stone-400 hover:bg-stone-800 hover:text-white transition-all">
+          <i class="fa-solid fa-cloud w-5 text-center"></i>
+          <span class="sidebar-text">Meteorología</span>
+        </button>
+        <button data-tab="tab-analysis" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-stone-400 hover:bg-stone-800 hover:text-white transition-all">
+          <i class="fa-solid fa-chart-line w-5 text-center"></i>
+          <span class="sidebar-text">Análisis Cruzado</span>
         </button>
         <button data-tab="tab-vision" class="nav-btn w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-stone-400 hover:bg-stone-800 hover:text-white transition-all">
-          <span class="flex items-center gap-3"><i class="fa-solid fa-helicopter w-5"></i> Detección Dron</span>
-          <span class="bg-amber-500/10 text-amber-400 text-[8px] font-bold px-1.5 py-0.5 rounded border border-amber-500/20 uppercase">En desarrollo</span>
-        </button>
-        <button data-tab="tab-chat" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-stone-400 hover:bg-stone-800 hover:text-white transition-all">
-          <i class="fa-solid fa-robot w-5"></i> Asistente Agéntico
+          <span class="flex items-center gap-3"><i class="fa-solid fa-helicopter w-5 text-center"></i><span class="sidebar-text">Conteo</span></span>
+          <span class="bg-amber-500/10 text-amber-400 text-[8px] font-bold px-1.5 py-0.5 rounded border border-amber-500/20 uppercase sidebar-text shrink-0">Standby</span>
         </button>
       </nav>
 
@@ -155,98 +178,187 @@ import "../styles/global.css";
       </div>
     </aside>
 
-    <!-- MAIN -->
-    <main id="main" class="h-full overflow-y-auto flex flex-col bg-stone-50 md:ml-72 transition-[margin] duration-300">
-      <header class="bg-white border-b border-stone-200 px-6 md:px-8 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
-        <div id="titlebox" class="pl-12 md:pl-0">
-          <h2 id="header-title" class="text-lg font-bold text-stone-800">Resumen de Campo</h2>
-          <p id="header-desc" class="text-xs text-stone-500">Visión analítica unificada de parcelas.</p>
+    <!-- MAIN BODY CONTENEDOR (SECCIÓN 2 + SECCIÓN 3) -->
+    <main id="main" class="flex-1 flex overflow-hidden h-full">
+      
+      <!-- SECCIÓN 2: PANEL CENTRAL DE AJUSTES Y CHAT (w-96 FIJO) -->
+      <div id="panel-middle" class="w-96 flex-shrink-0 border-r border-stone-200 bg-white flex flex-col h-full overflow-hidden">
+        <!-- Header con botón de branding central -->
+        <div class="bg-stone-50 border-b border-stone-200 px-4 py-3 flex items-center justify-between shrink-0">
+          <div class="flex items-center gap-1.5">
+            <label class="text-[10px] font-bold text-stone-600 uppercase" for="select-parcela">Parcela:</label>
+            <select id="select-parcela" class="text-xs border border-stone-300 rounded p-1.5 bg-white font-semibold focus:outline-none focus:border-emerald-600 max-w-[120px]">
+              <option value="">(sin parcelas)</option>
+            </select>
+          </div>
+          
+          <!-- Botón de branding central -->
+          <button id="btn-branding-toggle" class="w-9 h-9 rounded-full bg-emerald-700 text-white flex items-center justify-center shadow hover:bg-emerald-800 transition-all" title="Mostrar Chat con Asistente">
+            <i class="fa-solid fa-robot text-base" id="branding-icon"></i>
+          </button>
+          
+          <div class="text-right">
+            <span class="text-[9px] text-stone-500 font-bold block uppercase leading-none">Activa</span>
+            <span id="active-parcel-name-display" class="text-xs font-bold text-stone-800 truncate block max-w-[100px]">—</span>
+          </div>
         </div>
-        <div class="flex items-center gap-3">
-          <label class="text-xs font-bold text-stone-600" for="select-parcela">Parcela:</label>
-          <select id="select-parcela" class="text-xs border border-stone-300 rounded-lg p-2 bg-stone-50 font-semibold focus:outline-none focus:border-emerald-600 min-w-[180px]">
-            <option value="">(sin parcelas)</option>
-          </select>
-        </div>
-      </header>
 
-      <div class="flex-1 p-5 md:p-8 overflow-y-auto">
-        <!-- RESUMEN -->
+        <!-- Vista 1: Formulario de 10 Atributos de Ajustes de Parcela (Visible por defecto) -->
+        <div id="section2-form" class="flex-grow overflow-y-auto p-4 space-y-4">
+          <h3 class="font-bold text-sm text-stone-800 flex items-center gap-2">
+            <i class="fa-solid fa-sliders text-emerald-600"></i> Ajustes de Parcela
+          </h3>
+          <form id="parcel-attributes-form" class="space-y-3 text-xs" onsubmit="event.preventDefault();">
+            <div>
+              <label class="block text-[10px] font-bold text-stone-600 uppercase mb-0.5">Variedad de Cultivo</label>
+              <input type="text" id="attr-crop-variety" class="w-full p-2 border border-stone-300 rounded bg-stone-50 focus:ring-1 focus:ring-emerald-500" placeholder="Ej: Arándano Biloxi" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-stone-600 uppercase mb-0.5">Tipo de Campo</label>
+              <input type="text" id="attr-field-type" class="w-full p-2 border border-stone-300 rounded bg-stone-50 focus:ring-1 focus:ring-emerald-500" placeholder="Ej: Valle / Ladera" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-stone-600 uppercase mb-0.5">Tipo de Suelo</label>
+              <input type="text" id="attr-soil-type" class="w-full p-2 border border-stone-300 rounded bg-stone-50 focus:ring-1 focus:ring-emerald-500" placeholder="Ej: Franco-arenoso" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-stone-600 uppercase mb-0.5">Sistema de Riego</label>
+              <input type="text" id="attr-irrigation-system" class="w-full p-2 border border-stone-300 rounded bg-stone-50 focus:ring-1 focus:ring-emerald-500" placeholder="Ej: Goteo automatizado" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-stone-600 uppercase mb-0.5">Plagas / Enfermedades</label>
+              <input type="text" id="attr-pests-diseases" class="w-full p-2 border border-stone-300 rounded bg-stone-50 focus:ring-1 focus:ring-emerald-500" placeholder="Ej: Mosca de la fruta" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-stone-600 uppercase mb-0.5">Fecha de Plantación</label>
+              <input type="date" id="attr-plantation-date" class="w-full p-2 border border-stone-300 rounded bg-stone-50 focus:ring-1 focus:ring-emerald-500" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-stone-600 uppercase mb-0.5">Número de Plantas</label>
+              <input type="number" id="attr-num-plants" class="w-full p-2 border border-stone-300 rounded bg-stone-50 focus:ring-1 focus:ring-emerald-500" placeholder="Ej: 1250" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-stone-600 uppercase mb-0.5">Rendimiento Histórico</label>
+              <input type="text" id="attr-historical-yield" class="w-full p-2 border border-stone-300 rounded bg-stone-50 focus:ring-1 focus:ring-emerald-500" placeholder="Ej: 15 Tn/Ha" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-stone-600 uppercase mb-0.5">Mercado Objetivo</label>
+              <input type="text" id="attr-target-market" class="w-full p-2 border border-stone-300 rounded bg-stone-50 focus:ring-1 focus:ring-emerald-500" placeholder="Ej: Exportación EE.UU." />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-stone-600 uppercase mb-0.5">Metadatos del Documento</label>
+              <textarea id="attr-document-metadata" rows="2" class="w-full p-2 border border-stone-300 rounded bg-stone-50 focus:ring-1 focus:ring-emerald-500" placeholder="Ej: Contrato de arrendamiento #1024"></textarea>
+            </div>
+            <div class="pt-2">
+              <button id="btn-save-attributes" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold p-2.5 rounded transition-all flex items-center justify-center gap-2">
+                <i class="fa-solid fa-floppy-disk"></i> Guardar Ajustes
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Vista 2: Chat Assistant (Oculto por defecto) -->
+        <div id="section2-chat" class="hidden flex-1 flex flex-col h-full bg-stone-50">
+          <div class="bg-stone-900 text-white px-4 py-2 flex items-center justify-between shrink-0">
+            <span class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span>
+            <h4 class="font-bold text-[10px] font-mono">agrovision_agent (Llama-3)</h4>
+            <span class="text-[8px] text-stone-400">Contexto Sincronizado</span>
+          </div>
+          <div id="chat-history" class="flex-1 p-3 overflow-y-auto space-y-3 text-xs">
+            <p class="text-stone-500">Pregúntame sobre el NDVI, el clima o la densidad de tus parcelas.</p>
+          </div>
+          <div class="p-2 border-t border-stone-200 bg-white flex gap-1.5 shrink-0">
+            <input id="chat-input" type="text" placeholder="Preguntar al asistente..." class="flex-grow p-2 border border-stone-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+            <button id="btn-chat" class="bg-stone-900 hover:bg-stone-800 text-white font-bold px-3 py-2 rounded text-xs">Enviar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECCIÓN 3: PANEL DERECHO DINÁMICO (TAB CONTENTS) -->
+      <div id="panel-right" class="flex-grow overflow-y-auto bg-stone-50 h-full p-5 md:p-8">
+        
+        <!-- RESUMEN (MAPA PRINCIPAL + KPIS + EVOLUCIÓN NDVI) -->
         <section id="tab-resumen" class="tab-content active space-y-6">
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div class="bg-white p-4 rounded-xl border border-stone-200 shadow-sm lg:col-span-8">
+              <h3 class="font-bold text-sm text-stone-800 mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-map text-emerald-600"></i> Mapa General de Parcelas
+              </h3>
+              <div id="map" style="height: 380px;" class="rounded-lg border"></div>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-stone-200 shadow-sm lg:col-span-4 flex flex-col justify-between">
+              <div>
+                <h3 class="font-bold text-sm text-stone-800 mb-2">Crear Nueva Parcela</h3>
+                <p class="text-[11px] text-stone-500 mb-3">Dibuja el polígono sobre el mapa satelital, ponle un nombre y guárdalo.</p>
+                <label class="block text-[10px] font-bold text-stone-600 uppercase mb-1" for="parcela-name">Nombre de Parcela</label>
+                <input id="parcela-name" type="text" placeholder="Lote Norte (Uva)" class="w-full text-xs p-2 border border-stone-300 rounded bg-stone-50 mb-3 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                <button id="btn-save-parcela" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs p-2.5 rounded transition-all flex items-center justify-center gap-2">
+                  <i class="fa-solid fa-floppy-disk"></i> Guardar Parcela
+                </button>
+                <button id="btn-demo" class="w-full mt-2 bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold text-xs p-2 rounded transition-all flex items-center justify-center gap-2">
+                  <i class="fa-solid fa-mountain-sun"></i> Cargar Parcela Demo
+                </button>
+              </div>
+              <div class="mt-4 pt-4 border-t border-stone-200">
+                <h4 class="font-bold text-xs text-stone-800 mb-2">Mis Parcelas</h4>
+                <ul id="parcelas-list" class="space-y-1.5 text-xs max-h-40 overflow-y-auto"></ul>
+              </div>
+            </div>
+          </div>
+
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center gap-4">
+            <div class="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex items-center gap-4">
               <div class="p-3 bg-emerald-100 text-emerald-800 rounded-lg text-xl"><i class="fa-solid fa-leaf"></i></div>
               <div><span class="text-xs text-stone-500 font-bold block">NDVI (último)</span><span id="kpi-ndvi" class="text-2xl font-bold text-stone-800">—</span></div>
             </div>
-            <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center gap-4">
+            <div class="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex items-center gap-4">
               <div class="p-3 bg-blue-100 text-blue-800 rounded-lg text-xl"><i class="fa-solid fa-arrow-trend-up"></i></div>
               <div><span class="text-xs text-stone-500 font-bold block">Tendencia NDVI</span><span id="kpi-trend" class="text-2xl font-bold text-stone-800">—</span></div>
             </div>
-            <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center gap-4">
+            <div class="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex items-center gap-4">
               <div class="p-3 bg-amber-100 text-amber-800 rounded-lg text-xl"><i class="fa-solid fa-ruler-combined"></i></div>
               <div><span class="text-xs text-stone-500 font-bold block">Área</span><span id="kpi-area" class="text-2xl font-bold text-stone-800">—</span></div>
             </div>
-            <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center gap-4">
+            <div class="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex items-center gap-4">
               <div class="p-3 bg-purple-100 text-purple-800 rounded-lg text-xl"><i class="fa-solid fa-seedling"></i></div>
               <div><span class="text-xs text-stone-500 font-bold block">Densidad</span><span class="text-sm font-bold text-stone-500">en desarrollo</span></div>
             </div>
           </div>
-          <div class="bg-white p-6 rounded-xl border border-stone-200 shadow-sm">
-            <h3 class="font-bold text-sm text-stone-800 mb-4">Evolución NDVI del lote activo</h3>
-            <canvas id="chart-resumen" height="110"></canvas>
+
+          <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm">
+            <h3 class="font-bold text-xs text-stone-800 mb-4">Evolución NDVI de la parcela seleccionada</h3>
+            <div class="relative h-64">
+              <canvas id="chart-resumen"></canvas>
+            </div>
             <p id="resumen-empty" class="text-xs text-stone-500 mt-2">Selecciona una parcela para ver su evolución.</p>
           </div>
         </section>
 
-        <!-- CREACIÓN DE PARCELAS -->
-        <section id="tab-parcelas" class="tab-content space-y-6">
-          <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm text-sm text-stone-600">
-            Dibuja el polígono de tu parcela sobre el mapa (EPSG:4326), nómbrala y guárdala. Al guardar se dispara el <strong>backfill NDVI de 5 años</strong>.
-          </div>
-          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm lg:col-span-7">
-              <h3 class="font-bold text-sm text-stone-800 mb-3">Delimitador de Parcelas</h3>
-              <div id="map"></div>
-            </div>
-            <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm lg:col-span-5 flex flex-col">
-              <h3 class="font-bold text-sm text-stone-800 mb-3">Guardar Parcela</h3>
-              <label class="block text-xs font-bold text-stone-600 mb-1" for="parcela-name">Nombre</label>
-              <input id="parcela-name" type="text" placeholder="Lote Sur (Arándano - 12 Ha)" class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-stone-50 mb-3 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-              <button id="btn-save-parcela" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-4 py-3 rounded-lg transition-all flex items-center justify-center gap-2">
-                <i class="fa-solid fa-floppy-disk"></i> Guardar y disparar backfill
-              </button>
-              <button id="btn-demo" class="w-full mt-2 bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold text-xs px-4 py-2 rounded-lg transition-all flex items-center justify-center gap-2">
-                <i class="fa-solid fa-mountain-sun"></i> Cargar parcela demo (Lomas de Lachay)
-              </button>
-              <h4 class="font-bold text-xs text-stone-800 mt-5 mb-2">Parcelas registradas</h4>
-              <ul id="parcelas-list" class="space-y-2 text-xs"></ul>
-            </div>
-          </div>
-        </section>
-
-        <!-- TELEDETECCIÓN -->
+        <!-- TELEDETECCIÓN (GIS + HEATMAPS + SATÉLITE) -->
         <section id="tab-satelite" class="tab-content space-y-6">
-          <div class="bg-white p-6 rounded-xl border border-stone-200 shadow-sm">
-            <h3 class="text-base font-bold text-stone-800 mb-2">Teledetección (solo lectura)</h3>
-            <p class="text-sm text-stone-600 leading-relaxed">
-              Serie <strong>mensual de 5 años</strong> (Sentinel-2) vs. clima (Open-Meteo) para la parcela seleccionada. El heatmap tiene resolución ~10 m/px. <em>El dibujo está en «Creación de Parcelas».</em>
-            </p>
+          <div class="flex items-center justify-between">
+            <h3 class="text-lg font-bold text-stone-800 flex items-center gap-2">
+              <i class="fa-solid fa-satellite-dish text-emerald-600"></i> Teledetección Espectral (GIS)
+            </h3>
+            <button class="btn-volver-mapa text-xs font-semibold px-3 py-1.5 bg-stone-200 hover:bg-stone-300 rounded-lg text-stone-700 transition-colors">
+              <i class="fa-solid fa-arrow-left mr-1"></i> Volver al Mapa
+            </button>
           </div>
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm lg:col-span-5 flex flex-col">
+            <div class="bg-white p-4 rounded-xl border border-stone-200 shadow-sm lg:col-span-5 flex flex-col">
               <div class="flex items-center justify-between mb-3">
-                <h3 class="font-bold text-sm text-stone-800">Mapa de calor</h3>
-                <button id="btn-heatmap" class="text-[11px] bg-stone-100 hover:bg-stone-200 text-stone-800 px-2 py-1 rounded font-bold"><i class="fa-solid fa-fire"></i> Generar</button>
+                <h3 class="font-bold text-sm text-stone-800">Mapa de calor (Heatmap)</h3>
+                <button id="btn-heatmap" class="text-[11px] bg-emerald-700 hover:bg-emerald-800 text-white px-2 py-1 rounded font-bold"><i class="fa-solid fa-fire"></i> Generar Heatmap</button>
               </div>
               <div id="heatmap-box" class="flex-1 min-h-[300px] bg-stone-100 rounded-lg border border-stone-200 flex items-center justify-center text-xs text-stone-500">
-                Pulsa «Generar» para ver el heatmap de la parcela.
+                Pulsa «Generar Heatmap» para cargar el índice en el mapa de calor.
               </div>
               <div class="mt-3 h-3 w-full rounded" style="background:linear-gradient(to right,#a50026,#f46d43,#fee08b,#d9ef8b,#66bd63,#006837);"></div>
               <div class="flex justify-between text-[10px] font-mono text-stone-500"><span>-1</span><span>0</span><span>+1</span></div>
             </div>
-            <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm lg:col-span-7">
+            <div class="bg-white p-4 rounded-xl border border-stone-200 shadow-sm lg:col-span-7">
               <div class="flex items-center justify-between mb-3">
-                <h3 class="font-bold text-sm text-stone-800">Índice espectral vs. Clima — últimos 5 años (mensual)</h3>
+                <h3 class="font-bold text-sm text-stone-800">Serie Temporal de Índices</h3>
                 <div class="flex items-center gap-2">
                   <select id="select-index" class="text-[11px] border border-stone-300 rounded-lg p-1.5 bg-stone-50 font-semibold focus:outline-none focus:border-emerald-600">
                     <option value="ndvi">NDVI — Salud vegetal</option>
@@ -255,47 +367,64 @@ import "../styles/global.css";
                     <option value="ndwi">NDWI — Agua/humedad</option>
                     <option value="ndre">NDRE — Clorofila/N</option>
                   </select>
-                  <button id="btn-reprocess" class="text-[11px] bg-amber-100 hover:bg-amber-200 text-amber-800 px-2 py-1.5 rounded font-bold whitespace-nowrap"><i class="fa-solid fa-rotate"></i> Reprocesar</button>
+                  <button id="btn-reprocess" class="text-[11px] bg-amber-100 hover:bg-amber-200 text-amber-800 px-2 py-1.5 rounded font-bold"><i class="fa-solid fa-rotate"></i> Reprocesar</button>
                 </div>
               </div>
-              <canvas id="chart-satelite" height="150"></canvas>
-              <p id="satelite-empty" class="text-xs text-stone-500 mt-2">Selecciona una parcela.</p>
+              <div class="relative h-64">
+                <canvas id="chart-satelite"></canvas>
+              </div>
+              <p id="satelite-empty" class="text-xs text-stone-500 mt-2">Selecciona una parcela para ver los datos espectrales.</p>
             </div>
           </div>
         </section>
 
-        <!-- DETECCIÓN DRON (EN DESARROLLO) -->
+        <!-- METEOROLOGÍA (HISTÓRICO CLIMA) -->
+        <section id="tab-weather" class="tab-content space-y-6">
+          <div class="flex items-center justify-between">
+            <h3 class="text-lg font-bold text-stone-800 flex items-center gap-2">
+              <i class="fa-solid fa-cloud text-emerald-600"></i> Meteorología y Clima
+            </h3>
+            <button class="btn-volver-mapa text-xs font-semibold px-3 py-1.5 bg-stone-200 hover:bg-stone-300 rounded-lg text-stone-700 transition-colors">
+              <i class="fa-solid fa-arrow-left mr-1"></i> Volver al Mapa
+            </button>
+          </div>
+          <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm space-y-4">
+            <h3 class="font-bold text-sm text-stone-800">Evolución de Variables Agroclimáticas</h3>
+            <p class="text-xs text-stone-500">Datos históricos mensuales obtenidos de la API climática para el lote activo.</p>
+            <div class="relative h-80">
+              <canvas id="chart-weather"></canvas>
+            </div>
+            <p id="weather-empty" class="text-xs text-stone-500 mt-2">Selecciona una parcela para cargar la información meteorológica.</p>
+          </div>
+        </section>
+
+        <!-- ANÁLISIS CRUZADO (CORRELACIÓN NDVI VS CLIMA) -->
+        <section id="tab-analysis" class="tab-content space-y-6">
+          <div class="flex items-center justify-between">
+            <h3 class="text-lg font-bold text-stone-800 flex items-center gap-2">
+              <i class="fa-solid fa-chart-line text-emerald-600"></i> Análisis Cruzado (Correlaciones)
+            </h3>
+            <button class="btn-volver-mapa text-xs font-semibold px-3 py-1.5 bg-stone-200 hover:bg-stone-300 rounded-lg text-stone-700 transition-colors">
+              <i class="fa-solid fa-arrow-left mr-1"></i> Volver al Mapa
+            </button>
+          </div>
+          <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm space-y-4">
+            <h3 class="font-bold text-sm text-stone-800">Correlación Temporal: NDVI vs Clima</h3>
+            <p class="text-xs text-stone-500">Gráfico de doble eje Y para correlacionar la salud de la vegetación (NDVI) con la temperatura media y la precipitación mensual.</p>
+            <div class="relative h-80">
+              <canvas id="chart-analysis"></canvas>
+            </div>
+            <p id="analysis-empty" class="text-xs text-stone-500 mt-2">Selecciona una parcela para ver el análisis correlacionado.</p>
+          </div>
+        </section>
+
+        <!-- DETECCIÓN DRON (STANDBY CONTEO) -->
         <section id="tab-vision" class="tab-content space-y-6">
           <div class="bg-amber-50 border border-amber-300 text-amber-900 p-5 rounded-xl shadow-sm flex items-start gap-3">
             <i class="fa-solid fa-screwdriver-wrench text-amber-500 text-lg mt-0.5"></i>
             <div>
               <h4 class="font-bold text-sm">Módulo en desarrollo (standby)</h4>
               <p class="text-xs leading-relaxed mt-1">El conteo de plantas por dron aún <strong>no está activo</strong>. Se habilitará cuando el repo del modelo publique el artefacto <code>agrovision-plantcount</code> en Hugging Face Hub (<code>COUNTING_ENABLED=true</code>). La infraestructura (cola, worker, tabla) ya está creada e inactiva.</p>
-            </div>
-          </div>
-        </section>
-
-        <!-- ASISTENTE -->
-        <section id="tab-chat" class="tab-content space-y-4">
-          <div class="bg-white rounded-xl border border-stone-200 shadow-sm flex flex-col h-[60vh]">
-            <div class="bg-stone-900 text-white px-5 py-3 flex items-center justify-between gap-3 rounded-t-xl">
-              <div class="flex items-center gap-3">
-                <span class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                <h4 class="font-bold text-xs font-mono">agrovision_agent · Llama-3-70B (Groq)</h4>
-              </div>
-              <div class="flex items-center gap-2">
-                <label class="text-[10px] font-bold text-stone-400" for="chat-select-parcela">Contexto:</label>
-                <select id="chat-select-parcela" class="text-[10px] bg-stone-800 border border-stone-700 rounded px-2 py-1 text-white font-semibold focus:outline-none focus:border-emerald-500">
-                  <option value="">Pregunta general (Sin parcela)</option>
-                </select>
-              </div>
-            </div>
-            <div id="chat-history" class="flex-1 p-5 overflow-y-auto space-y-3 bg-stone-50 text-xs">
-              <p class="text-stone-500">Pregúntame sobre el NDVI, el clima o la densidad de tus parcelas.</p>
-            </div>
-            <div class="p-3 border-t border-stone-200 bg-white flex gap-2">
-              <input id="chat-input" type="text" placeholder="¿Cómo evolucionó el NDVI de mi parcela?" class="flex-grow p-3 border border-stone-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-              <button id="btn-chat" class="bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs px-5 rounded-lg">Enviar</button>
             </div>
           </div>
         </section>
@@ -308,7 +437,7 @@ import "../styles/global.css";
               Consulta las tablas de tu base de datos Supabase directamente. Selecciona una tabla para ver sus registros o ejecuta consultas SQL personalizadas.
             </p>
           </div>
-          <!-- Diagrama ER (full width) -->
+          <!-- Diagrama ER -->
           <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm">
             <h3 class="font-bold text-sm text-stone-800 mb-3">Diagrama Entidad-Relación</h3>
             <div id="er-diagram" class="w-full overflow-auto rounded-lg bg-stone-50 border border-stone-200">
@@ -316,14 +445,12 @@ import "../styles/global.css";
             </div>
           </div>
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <!-- Selector de tabla -->
             <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm lg:col-span-4">
               <h3 class="font-bold text-sm text-stone-800 mb-3">Tablas disponibles</h3>
               <div class="space-y-2" id="tables-list">
                 <p class="text-xs text-stone-500">Cargando tablas...</p>
               </div>
             </div>
-            <!-- Vista de datos -->
             <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm lg:col-span-8">
               <div class="flex items-center justify-between mb-3">
                 <h3 class="font-bold text-sm text-stone-800" id="data-view-title">Selecciona una tabla</h3>
@@ -350,7 +477,7 @@ import "../styles/global.css";
           </div>
         </section>
 
-        <!-- AJUSTES DE PERFIL (Fase 15) -->
+        <!-- AJUSTES DE PERFIL -->
         <section id="tab-settings" class="tab-content space-y-6">
           <div class="bg-white p-6 rounded-xl border border-stone-200 shadow-sm">
             <h3 class="text-base font-bold text-stone-800 mb-2">Ajustes de Perfil</h3>
@@ -413,10 +540,11 @@ import "../styles/global.css";
             </div>
           </div>
         </section>
+
       </div>
     </main>
 
-    <!-- Modal de Telemetría (Fase 12) -->
+    <!-- Modal de Telemetría -->
     <div id="telemetry-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
       <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[80vh] flex flex-col">
         <div class="flex items-center justify-between px-5 py-3 border-b border-stone-200">
@@ -444,7 +572,7 @@ import "../styles/global.css";
       </div>
     </div>
 
-    <!-- Modal de Reprocesar (SF13.1) -->
+    <!-- Modal de Reprocesar -->
     <div id="reprocess-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
       <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
         <div class="flex items-center justify-between mb-4">
@@ -486,7 +614,7 @@ import "../styles/global.css";
       let parcels = [];
       let drawnGeojson = null;
       let map = null, drawnItems = null, parcelsLayer = null;
-      let chartResumen = null, chartSatelite = null;
+      let chartResumen = null, chartSatelite = null, chartWeather = null, chartAnalysis = null;
       const sessionId = "sess-" + Math.random().toString(36).slice(2);
       let backendOk = false;
       let appEnv = "development";
@@ -505,6 +633,7 @@ import "../styles/global.css";
       }
 
       const $ = (id) => document.getElementById(id);
+      
       function authHeaders() {
         const h = {};
         if (creds.groq) h["X-User-Groq-Key"] = creds.groq;
@@ -514,11 +643,13 @@ import "../styles/global.css";
         if (creds.sbKey) h["X-User-Supabase-Key"] = creds.sbKey;
         return h;
       }
+      
       function notify(title, body) {
         $("notif-title").innerText = title; $("notif-body").innerText = body || "";
         const n = $("notif"); n.classList.remove("translate-x-[150%]");
         setTimeout(() => n.classList.add("translate-x-[150%]"), 3500);
       }
+      
       function updateStatus() {
         const el = $("db-status-text");
         const dot = $("db-status").querySelector("span.relative");
@@ -528,7 +659,6 @@ import "../styles/global.css";
           dot.className = "relative inline-flex rounded-full h-2 w-2 bg-red-500";
           return;
         }
-        // Consultar al backend qué credenciales están disponibles (incluye DEV_* en desarrollo)
         fetch("./api/credentials/status")
           .then((r) => r.ok ? r.json() : null)
           .then((s) => {
@@ -558,10 +688,8 @@ import "../styles/global.css";
             dot.className = "relative inline-flex rounded-full h-2 w-2 bg-amber-500";
           });
       }
+      
       // ===== Telemetría (Fase 9) =====
-      // Envía un evento por cada acción del usuario al backend (POST /api/events).
-      // Es "fire-and-forget": jamás bloquea ni rompe la UI. NUNCA mandar valores de
-      // credenciales — solo metadatos (contadores, pestaña, status...).
       function track(action, meta = {}) {
         try {
           fetch("./api/events", {
@@ -572,7 +700,7 @@ import "../styles/global.css";
           }).catch(() => {});
         } catch { /* la telemetría nunca debe propagar errores */ }
       }
-      // Errores globales no capturados (JS y promesas rechazadas).
+      
       window.addEventListener("error", (e) => track("js_error", { message: String(e.message || e), where: "window" }));
       window.addEventListener("unhandledrejection", (e) => track("js_error", { message: String(e.reason || ""), where: "promise" }));
 
@@ -590,74 +718,200 @@ import "../styles/global.css";
         }
       }
 
-      // ===== Navegación (hash routing) =====
+      // ===== Navegación =====
       const TITLES = {
         "tab-resumen": ["Resumen de Campo", "Visión analítica unificada de parcelas."],
-        "tab-parcelas": ["Creación de Parcelas", "Dibuja y guarda polígonos (EPSG:4326)."],
         "tab-satelite": ["Teledetección (GIS)", "NDVI 5 años + clima + heatmap (solo lectura)."],
+        "tab-weather": ["Meteorología y Clima", "Historial agroclimático mensual de Open-Meteo."],
+        "tab-analysis": ["Análisis Cruzado", "Correlación temporal entre índices y variables climáticas."],
         "tab-vision": ["Detección por Dron", "Conteo de plantas — EN DESARROLLO."],
-        "tab-chat": ["Asistente Agéntico", "Agente RAG sobre tus parcelas."],
         "tab-data": ["Explorador de Datos", "Consulta tus datos directamente (Fase 11)."],
         "tab-config": ["Credenciales & APIs", "Llaves efímeras (solo en esta sesión)."],
         "tab-settings": ["Ajustes de Perfil", "Gestión del modo de sesión y preferencias de usuario."],
       };
+      
       function switchTab(id) {
         document.querySelectorAll(".tab-content").forEach((s) => s.classList.remove("active"));
         document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("nav-btn-active"));
         const sec = $(id); if (!sec) return;
         sec.classList.add("active");
+        
+        // Mantener seleccionada la opción correcta del menú lateral
         document.querySelector(`.nav-btn[data-tab="${id}"]`)?.classList.add("nav-btn-active");
-        $("header-title").innerText = TITLES[id][0];
-        $("header-desc").innerText = TITLES[id][1];
+        
         if (location.hash !== "#" + id) history.replaceState(null, "", "#" + id);
         track("nav", { tab: id });
-        if (id === "tab-parcelas") setTimeout(initMap, 50);
-        if (id === "tab-satelite") setTimeout(() => { loadTeledeteccion(); }, 50);
-        if (id === "tab-resumen") loadResumen();
+        
+        if (id === "tab-resumen") {
+          setTimeout(initMap, 50);
+          loadResumen();
+        }
+        if (id === "tab-satelite") {
+          loadTeledeteccion();
+        }
+        if (id === "tab-weather") {
+          loadWeather();
+        }
+        if (id === "tab-analysis") {
+          loadAnalysis();
+        }
         if (id === "tab-data") loadDataExplorer();
         if (id === "tab-chat") loadChatHistory();
-        if (window.innerWidth < 768) closeSidebar();
       }
+      
       document.querySelectorAll(".nav-btn").forEach((b) =>
         b.addEventListener("click", () => switchTab(b.dataset.tab))
       );
 
-      // ===== Sidebar plegable / responsive =====
-      // Estado del sidebar vía clases CSS propias: `is-open` (móvil) / `is-collapsed`
-      // (desktop). El CSS (#sidebar) usa la propiedad `transform`, controlada por estas
-      // clases, sin chocar con las utilidades translate de Tailwind v4.
-      function openSidebar() {
-        if (window.innerWidth < 768) {
-          $("sidebar").classList.add("is-open");
-          $("backdrop").classList.remove("hidden");
-        } else {
-          $("sidebar").classList.remove("is-collapsed");
-          $("main").classList.add("md:ml-72"); $("main").classList.remove("md:ml-0");
-          $("btn-reopen").classList.add("hidden");
-          $("titlebox").classList.remove("md:pl-12");
-        }
-      }
-      function closeSidebar() {
-        $("sidebar").classList.remove("is-open");
-        $("backdrop").classList.add("hidden");
-        if (window.innerWidth >= 768) {
-          $("sidebar").classList.add("is-collapsed");
-          $("main").classList.remove("md:ml-72"); $("main").classList.add("md:ml-0");
-          $("btn-reopen").classList.remove("hidden");
-          $("titlebox").classList.add("md:pl-12");
-        }
-      }
-      $("btn-hamburger").addEventListener("click", openSidebar);
-      $("btn-reopen").addEventListener("click", openSidebar);
-      $("btn-collapse").addEventListener("click", closeSidebar);
-      $("backdrop").addEventListener("click", closeSidebar);
+      // Botón "Volver al Mapa" para regresar al visor principal del mapa
+      document.querySelectorAll(".btn-volver-mapa").forEach((btn) => {
+        btn.addEventListener("click", () => switchTab("tab-resumen"));
+      });
+
+      // ===== Sidebar colapsable manual (Sección 1) =====
+      $("btn-sidebar-toggle").addEventListener("click", () => {
+        const isExpanded = $("sidebar").classList.toggle("expanded");
+        $("toggle-icon").className = isExpanded ? "fa-solid fa-angles-left" : "fa-solid fa-bars";
+        track("sidebar_toggle", { expanded: isExpanded });
+        if (map) setTimeout(() => map.invalidateSize(), 300);
+      });
+
       $("btn-footer").addEventListener("click", () => {
         $("footer-body").classList.toggle("hidden");
         $("footer-chevron").classList.toggle("fa-chevron-up");
         $("footer-chevron").classList.toggle("fa-chevron-down");
       });
 
-      // ===== Parcelas =====
+      // ===== Alternador de Chat y Formulario en Sección 2 =====
+      $("btn-branding-toggle").addEventListener("click", () => {
+        const isFormVisible = !$("section2-form").classList.contains("hidden");
+        if (isFormVisible) {
+          $("section2-form").classList.add("hidden");
+          $("section2-chat").classList.remove("hidden");
+          $("branding-icon").className = "fa-solid fa-sliders text-base";
+          $("btn-branding-toggle").title = "Mostrar Ajustes de Parcela";
+          loadChatHistory();
+          track("chat_toggle", { state: "open" });
+        } else {
+          $("section2-form").classList.remove("hidden");
+          $("section2-chat").classList.add("hidden");
+          $("branding-icon").className = "fa-solid fa-robot text-base";
+          $("btn-branding-toggle").title = "Mostrar Chat con Asistente";
+          track("chat_toggle", { state: "closed" });
+        }
+      });
+
+      // ===== Gestión de Atributos de Ajustes de Parcela (Sección 2) =====
+      async function loadFieldAttributes(fid) {
+        if (!fid) {
+          clearFieldAttributes();
+          return;
+        }
+        try {
+          const res = await api(`/fields/${fid}`);
+          if (res.ok) {
+            const field = await res.json();
+            $("attr-crop-variety").value = field.crop_variety || "";
+            $("attr-field-type").value = field.field_type || "";
+            $("attr-soil-type").value = field.soil_type || "";
+            $("attr-irrigation-system").value = field.irrigation_system || "";
+            $("attr-pests-diseases").value = field.pests_diseases || "";
+            $("attr-plantation-date").value = field.plantation_date || "";
+            $("attr-num-plants").value = field.num_plants || "";
+            $("attr-historical-yield").value = field.historical_yield || "";
+            $("attr-target-market").value = field.target_market || "";
+            $("attr-document-metadata").value = field.document_metadata || "";
+            
+            $("active-parcel-name-display").innerText = field.name;
+          }
+        } catch (e) {
+          console.error("Error al cargar atributos de la parcela", e);
+        }
+      }
+
+      function clearFieldAttributes() {
+        $("attr-crop-variety").value = "";
+        $("attr-field-type").value = "";
+        $("attr-soil-type").value = "";
+        $("attr-irrigation-system").value = "";
+        $("attr-pests-diseases").value = "";
+        $("attr-plantation-date").value = "";
+        $("attr-num-plants").value = "";
+        $("attr-historical-yield").value = "";
+        $("attr-target-market").value = "";
+        $("attr-document-metadata").value = "";
+        $("active-parcel-name-display").innerText = "—";
+      }
+
+      async function saveFieldAttributes(fid, isAutosave) {
+        if (!fid) return;
+        const body = {
+          crop_variety: $("attr-crop-variety").value.trim() || null,
+          field_type: $("attr-field-type").value.trim() || null,
+          soil_type: $("attr-soil-type").value.trim() || null,
+          irrigation_system: $("attr-irrigation-system").value.trim() || null,
+          pests_diseases: $("attr-pests-diseases").value.trim() || null,
+          plantation_date: $("attr-plantation-date").value || null,
+          num_plants: $("attr-num-plants").value ? parseInt($("attr-num-plants").value, 10) : null,
+          historical_yield: $("attr-historical-yield").value.trim() || null,
+          target_market: $("attr-target-market").value.trim() || null,
+          document_metadata: $("attr-document-metadata").value.trim() || null
+        };
+        
+        try {
+          const res = await api(`/fields/${fid}`, {
+            method: "PATCH",
+            body: JSON.stringify(body)
+          });
+          if (res.ok) {
+            if (!isAutosave) {
+              notify("Ajustes guardados", "Los atributos de la parcela se han guardado.");
+            }
+            track("field_attributes_saved", { field_id: fid, autosave: isAutosave });
+          } else {
+            const e = await res.json().catch(() => ({}));
+            if (!isAutosave) {
+              notify("Error al guardar", e.detail || "Error desconocido");
+            }
+          }
+        } catch (e) {
+          if (!isAutosave) {
+            notify("Error de red", String(e));
+          }
+        }
+      }
+
+      let autosaveTimeout = null;
+      function triggerAutosave() {
+        const fid = $("select-parcela").value;
+        if (!fid) return;
+        if (autosaveTimeout) clearTimeout(autosaveTimeout);
+        autosaveTimeout = setTimeout(() => {
+          saveFieldAttributes(fid, true);
+        }, 1200); // 1.2s debounced auto-save
+      }
+
+      // Conectar eventos de autosave (input change o blur)
+      [
+        "attr-crop-variety", "attr-field-type", "attr-soil-type", "attr-irrigation-system",
+        "attr-pests-diseases", "attr-plantation-date", "attr-num-plants", "attr-historical-yield",
+        "attr-target-market", "attr-document-metadata"
+      ].forEach(id => {
+        $(id).addEventListener("input", triggerAutosave);
+        $(id).addEventListener("blur", () => {
+          const fid = $("select-parcela").value;
+          if (fid) saveFieldAttributes(fid, false); // guardar inmediatamente al perder el foco
+        });
+      });
+
+      $("btn-save-attributes").addEventListener("click", (e) => {
+        e.preventDefault();
+        const fid = $("select-parcela").value;
+        if (!fid) return notify("Error", "Selecciona una parcela primero.");
+        saveFieldAttributes(fid, false);
+      });
+
+      // ===== Gestión de Parcelas y Mapa (Sección 3) =====
       async function refreshParcels() {
         try {
           const r = await api("/fields");
@@ -667,23 +921,14 @@ import "../styles/global.css";
         sel.innerHTML = parcels.length
           ? parcels.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")
           : '<option value="">(sin parcelas)</option>';
-        
-        const chatSel = $("chat-select-parcela");
-        if (chatSel) {
-          const activeVal = chatSel.value;
-          chatSel.innerHTML = '<option value="">Pregunta general (Sin parcela)</option>' + (parcels.length
-            ? parcels.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")
-            : '');
-          if (activeVal && parcels.some((p) => p.id === activeVal)) {
-            chatSel.value = activeVal;
-          }
-        }
 
         $("parcelas-list").innerHTML = parcels.length
-          ? parcels.map((p) => `<li data-pid="${p.id}" title="Ir a la parcela" class="flex items-center justify-between bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 cursor-pointer hover:bg-stone-100"><span class="font-semibold text-stone-700"><i class="fa-solid fa-location-dot text-emerald-600 mr-1"></i>${p.name}</span><i class="fa-solid fa-crosshairs text-stone-400"></i></li>`).join("")
+          ? parcels.map((p) => `<li data-pid="${p.id}" title="Ir a la parcela" class="flex items-center justify-between bg-stone-50 border border-stone-200 rounded px-2.5 py-1.5 cursor-pointer hover:bg-stone-100"><span class="font-semibold text-stone-700 text-[11px]"><i class="fa-solid fa-location-dot text-emerald-600 mr-1"></i>${p.name}</span><i class="fa-solid fa-crosshairs text-stone-400"></i></li>`).join("")
           : '<li class="text-stone-500">Sin parcelas aún.</li>';
+        
         renderParcelsOnMap();
       }
+      
       function initMap() {
         if (map) { map.invalidateSize(); return; }
         const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap" });
@@ -707,6 +952,7 @@ import "../styles/global.css";
           drawnGeojson = e.layer.toGeoJSON().geometry;
         });
       }
+      
       function renderParcelsOnMap() {
         if (!parcelsLayer) return;
         parcelsLayer.clearLayers();
@@ -717,11 +963,13 @@ import "../styles/global.css";
         parcelsLayer.addData({ type: "FeatureCollection", features: feats });
         try { map.fitBounds(parcelsLayer.getBounds(), { maxZoom: 14, padding: [25, 25] }); } catch {}
       }
+      
       function flyToParcel(id) {
         const p = parcels.find((x) => x.id === id);
         if (!p || !p.geojson || !map) return;
         try { map.flyToBounds(L.geoJSON(p.geojson).getBounds(), { maxZoom: 15, padding: [25, 25] }); } catch {}
       }
+      
       $("btn-save-parcela").addEventListener("click", async () => {
         const name = $("parcela-name").value.trim();
         if (!drawnGeojson) return notify("Falta el polígono", "Dibuja un polígono en el mapa.");
@@ -733,8 +981,8 @@ import "../styles/global.css";
           else { const e = await r.json().catch(() => ({})); notify("Error " + r.status, e.detail || ""); }
         } catch (e) { notify("Error de red", String(e)); }
       });
+      
       $("btn-demo").addEventListener("click", async () => {
-        // Lomas de Lachay (reserva con vegetación estacional → buena variación NDVI)
         const geojson = { type: "Polygon", coordinates: [[[-77.40, -11.40], [-77.40, -11.34], [-77.34, -11.34], [-77.34, -11.40], [-77.40, -11.40]]] };
         try {
           track("parcel_demo");
@@ -744,17 +992,16 @@ import "../styles/global.css";
         } catch (e) { notify("Error de red", String(e)); }
       });
 
-      // Click en una parcela de la lista -> volar a su polígono
       $("parcelas-list").addEventListener("click", (e) => {
         const li = e.target.closest("li[data-pid]");
         if (li) { track("parcel_focus", { id: li.dataset.pid }); flyToParcel(li.dataset.pid); }
       });
 
-      // ===== Resumen =====
+      // ===== Resumen KPIs y Gráfico NDVI =====
       async function loadResumen() {
         const fid = $("select-parcela").value;
         const parcel = parcels.find((p) => p.id === fid);
-        $("kpi-area").innerText = parcel?.lat != null ? "ver mapa" : "—";
+        $("kpi-area").innerText = parcel?.area_ha != null ? `${parcel.area_ha.toFixed(1)} Ha` : "—";
         if (!fid) { $("kpi-ndvi").innerText = "—"; $("kpi-trend").innerText = "—"; return; }
         const r = await api("/ndvi", { method: "POST", body: JSON.stringify({ field_id: fid }) });
         const series = r.ok ? (await r.json()).series : [];
@@ -765,46 +1012,46 @@ import "../styles/global.css";
         $("kpi-trend").innerText = (delta >= 0 ? "+" : "") + delta.toFixed(2);
         const ctx = $("chart-resumen");
         chartResumen?.destroy();
-        chartResumen = new Chart(ctx, { type: "line", data: { labels: series.map((p) => p.date), datasets: [{ label: "NDVI", data: series.map((p) => p.mean_value), borderColor: "#15803d", backgroundColor: "rgba(21,128,61,.08)", fill: true, tension: 0.3 }] }, options: { plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 1 } } } });
+        chartResumen = new Chart(ctx, { type: "line", data: { labels: series.map((p) => p.date), datasets: [{ label: "NDVI", data: series.map((p) => p.mean_value), borderColor: "#15803d", backgroundColor: "rgba(21,128,61,.08)", fill: true, tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 1 } } } });
         track("chart_view", { chart: "resumen", points: series.length });
       }
 
-      // ===== Teledetección (Fase 13: multi-índice) =====
+      // ===== Teledetección (GIS + Heatmap + Índices) =====
       const INDEX_LABELS = { ndvi: "NDVI", evi: "EVI", savi: "SAVI", ndwi: "NDWI", ndre: "NDRE" };
       const INDEX_RANGES = { ndvi: [0, 1], evi: [0, 1], savi: [-0.4, 0.8], ndwi: [-0.6, 0.7], ndre: [0, 0.5] };
       let currentIndex = "ndvi";
+      
       $("select-index").addEventListener("change", () => {
         currentIndex = $("select-index").value;
         loadTeledeteccion();
       });
+      
       async function loadTeledeteccion() {
         const fid = $("select-parcela").value;
         if (!fid) { $("satelite-empty").classList.remove("hidden"); return; }
-        const parcel = parcels.find((p) => p.id === fid);
+        $("satelite-empty").classList.add("hidden");
+        
         const rI = await api("/vegetation/" + currentIndex, { method: "POST", body: JSON.stringify({ field_id: fid }) });
         const series = rI.ok ? (await rI.json()).series : [];
-        let weather = [];
-        if (parcel?.lat != null) {
-          const rW = await api("/weather", { method: "POST", body: JSON.stringify({ field_id: parcel.id }) });
-          weather = rW.ok ? (await rW.json()).series : [];
-        }
-        if (!series.length && !weather.length) { $("satelite-empty").classList.remove("hidden"); return; }
-        $("satelite-empty").classList.add("hidden");
+        if (!series.length) { $("satelite-empty").classList.remove("hidden"); return; }
+        
         const label = INDEX_LABELS[currentIndex] || currentIndex.toUpperCase();
         const range = INDEX_RANGES[currentIndex] || [0, 1];
+        
         chartSatelite?.destroy();
         chartSatelite = new Chart($("chart-satelite"), {
+          type: "line",
           data: {
             labels: series.map((p) => p.date),
             datasets: [
-              { type: "line", label: label, data: series.map((p) => p.mean_value), borderColor: "#15803d", yAxisID: "y", tension: 0.3 },
-              { type: "bar", label: "Precip (mm)", data: weather.map((p) => p.precip_mm), backgroundColor: "rgba(59,130,246,.6)", yAxisID: "y2" },
+              { label: label, data: series.map((p) => p.mean_value), borderColor: "#15803d", tension: 0.3, fill: false }
             ],
           },
-          options: { scales: { y: { position: "left", min: range[0], max: range[1], title: { display: true, text: label } }, y2: { position: "right", grid: { drawOnChartArea: false }, title: { display: true, text: "mm" } } } },
+          options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: range[0], max: range[1], title: { display: true, text: label } } } },
         });
-        track("chart_view", { chart: "teledeteccion", index: currentIndex, points: series.length, weather: weather.length });
+        track("chart_view", { chart: "teledeteccion", index: currentIndex, points: series.length });
       }
+      
       $("btn-heatmap").addEventListener("click", async () => {
         const fid = $("select-parcela").value;
         if (!fid) return notify("Selecciona una parcela", "");
@@ -813,12 +1060,99 @@ import "../styles/global.css";
         $("heatmap-box").innerHTML = '<span class="text-xs text-stone-500">Generando…</span>';
         try {
           const r = await api("/vegetation/" + idx + "/raster", { method: "POST", body: JSON.stringify({ field_id: fid }) });
-          if (r.ok) { const url = URL.createObjectURL(await r.blob()); $("heatmap-box").innerHTML = `<img src="${url}" class="max-w-full rounded" />`; }
-          else { $("heatmap-box").innerHTML = '<span class="text-xs text-red-500">No se pudo generar (¿Copernicus en Credenciales?).</span>'; }
+          if (r.ok) { const url = URL.createObjectURL(await r.blob()); $("heatmap-box").innerHTML = `<img src="${url}" class="max-w-full rounded shadow" />`; }
+          else { $("heatmap-box").innerHTML = '<span class="text-xs text-red-500">No se pudo generar. Verifica Copernicus.</span>'; }
         } catch (e) { $("heatmap-box").innerHTML = '<span class="text-xs text-red-500">Error de red.</span>'; }
       });
 
-      // ===== Reprocesar (SF13.1) =====
+      // ===== Meteorología (Weather) =====
+      async function loadWeather() {
+        const fid = $("select-parcela").value;
+        if (!fid) { $("weather-empty").classList.remove("hidden"); return; }
+        const parcel = parcels.find((p) => p.id === fid);
+        if (!parcel) { $("weather-empty").classList.remove("hidden"); return; }
+        $("weather-empty").classList.add("hidden");
+        
+        const rW = await api("/weather", { method: "POST", body: JSON.stringify({ field_id: fid }) });
+        const weather = rW.ok ? (await rW.json()).series : [];
+        if (!weather.length) { $("weather-empty").classList.remove("hidden"); return; }
+        
+        const ctx = $("chart-weather");
+        chartWeather?.destroy();
+        chartWeather = new Chart(ctx, {
+          data: {
+            labels: weather.map((p) => p.date),
+            datasets: [
+              { type: "line", label: "Temp Media (°C)", data: weather.map((p) => p.temp_mean_c), borderColor: "#f97316", tension: 0.3, yAxisID: "y" },
+              { type: "bar", label: "Precipitación (mm)", data: weather.map((p) => p.precip_mm), backgroundColor: "rgba(59,130,246,0.6)", yAxisID: "y2" }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { position: "left", title: { display: true, text: "°C" } },
+              y2: { position: "right", grid: { drawOnChartArea: false }, title: { display: true, text: "mm" } }
+            }
+          }
+        });
+        track("chart_view", { chart: "weather", points: weather.length });
+      }
+
+      // ===== Análisis Cruzado (Correlación) =====
+      async function loadAnalysis() {
+        const fid = $("select-parcela").value;
+        if (!fid) { $("analysis-empty").classList.remove("hidden"); return; }
+        const parcel = parcels.find((p) => p.id === fid);
+        if (!parcel) { $("analysis-empty").classList.remove("hidden"); return; }
+        $("analysis-empty").classList.add("hidden");
+        
+        const rI = await api("/vegetation/ndvi", { method: "POST", body: JSON.stringify({ field_id: fid }) });
+        const series = rI.ok ? (await rI.json()).series : [];
+        
+        let weather = [];
+        if (parcel.lat != null) {
+          const rW = await api("/weather", { method: "POST", body: JSON.stringify({ field_id: fid }) });
+          weather = rW.ok ? (await rW.json()).series : [];
+        }
+        if (!series.length && !weather.length) { $("analysis-empty").classList.remove("hidden"); return; }
+        
+        const weatherMap = new Map(weather.map(w => [w.date, w]));
+        const labels = series.map(s => s.date);
+        const ndviData = series.map(s => s.mean_value);
+        const tempMeanData = series.map(s => {
+          const w = weatherMap.get(s.date);
+          return w ? w.temp_mean_c : null;
+        });
+        const precipData = series.map(s => {
+          const w = weatherMap.get(s.date);
+          return w ? w.precip_mm : null;
+        });
+
+        const ctx = $("chart-analysis");
+        chartAnalysis?.destroy();
+        chartAnalysis = new Chart(ctx, {
+          data: {
+            labels: labels,
+            datasets: [
+              { type: "line", label: "NDVI", data: ndviData, borderColor: "#15803d", tension: 0.3, yAxisID: "y" },
+              { type: "line", label: "Temp Media (°C)", data: tempMeanData, borderColor: "#f97316", tension: 0.3, yAxisID: "y2" },
+              { type: "bar", label: "Precipitación (mm)", data: precipData, backgroundColor: "rgba(59,130,246,0.4)", yAxisID: "y2" }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { position: "left", min: 0, max: 1, title: { display: true, text: "NDVI" } },
+              y2: { position: "right", grid: { drawOnChartArea: false }, title: { display: true, text: "Clima (°C / mm)" } }
+            }
+          }
+        });
+        track("chart_view", { chart: "analysis", points: series.length });
+      }
+
+      // ===== Reprocesar Modal =====
       function showReprocessModal() {
         const fid = $("select-parcela").value;
         if (!fid) return notify("Selecciona una parcela", "");
@@ -872,14 +1206,14 @@ import "../styles/global.css";
       function appendChat(who, text, tools) {
         const div = document.createElement("div");
         const mine = who === "user";
-        div.className = "p-3 rounded-lg border max-w-[85%] " + (mine ? "bg-white border-stone-200 ml-auto" : "bg-stone-900 text-stone-100 border-stone-800");
-        div.innerHTML = `<p class="font-bold text-[10px] uppercase mb-1 ${mine ? "text-stone-500" : "text-emerald-400"}">${mine ? "🧑 Tú" : "🤖 AgroVisión AI"}${tools && tools.length ? " · " + tools.join(", ") : ""}</p><p class="leading-relaxed">${text}</p>`;
+        div.className = "p-3 rounded border max-w-[85%] " + (mine ? "bg-white border-stone-200 ml-auto text-right" : "bg-stone-900 text-stone-100 border-stone-800 text-left");
+        div.innerHTML = `<p class="font-bold text-[9px] uppercase mb-1 ${mine ? "text-stone-500" : "text-emerald-400"}">${mine ? "🧑 Tú" : "🤖 Asistente"}${tools && tools.length ? " · " + tools.join(", ") : ""}</p><p class="leading-relaxed whitespace-pre-wrap">${text}</p>`;
         $("chat-history").appendChild(div); $("chat-history").scrollTop = 1e9;
       }
       async function loadChatHistory() {
         const historyEl = $("chat-history");
         historyEl.innerHTML = '<span class="text-xs text-stone-500">Cargando historial...</span>';
-        const fid = $("chat-select-parcela")?.value || "";
+        const fid = $("select-parcela")?.value || "";
         try {
           let url = "/chat/history/" + sessionId;
           if (fid) url += "?field_id=" + fid;
@@ -903,7 +1237,7 @@ import "../styles/global.css";
       }
       async function sendChat() {
         const msg = $("chat-input").value.trim(); if (!msg) return;
-        const fid = $("chat-select-parcela")?.value || null;
+        const fid = $("select-parcela")?.value || null;
         track("chat_send", { len: msg.length, field_id: fid });
         appendChat("user", msg); $("chat-input").value = "";
         try {
@@ -914,9 +1248,8 @@ import "../styles/global.css";
       }
       $("btn-chat").addEventListener("click", sendChat);
       $("chat-input").addEventListener("keydown", (e) => { if (e.key === "Enter") sendChat(); });
-      $("chat-select-parcela").addEventListener("change", loadChatHistory);
 
-      // ===== Telemetría Modal (Fase 12) =====
+      // ===== Telemetría Modal =====
       function openTelemetryModal() {
         $("telemetry-modal").classList.remove("hidden");
         $("telemetry-modal").classList.add("flex");
@@ -932,7 +1265,6 @@ import "../styles/global.css";
         const content = $("telemetry-content");
         content.innerHTML = '<p class="text-xs text-stone-500">Cargando eventos...</p>';
         try {
-          // Intentar primero eventos persistentes (BD)
           let events = [];
           try {
             const r = await api("/events/all?limit=200");
@@ -940,7 +1272,6 @@ import "../styles/global.css";
               events = await r.json();
             }
           } catch {}
-          // Si no hay eventos en BD, usar buffer en memoria
           if (!events || events.length === 0) {
             try {
               const r2 = await api("/events/recent?limit=200");
@@ -950,7 +1281,7 @@ import "../styles/global.css";
             } catch {}
           }
           if (!events || events.length === 0) {
-            content.innerHTML = '<p class="text-xs text-stone-500">Sin eventos en esta sesión. Interactúa con la UI para generar eventos.</p>';
+            content.innerHTML = '<p class="text-xs text-stone-500">Sin eventos en esta sesión.</p>';
             return;
           }
           renderTelemetryEvents(events, content);
@@ -982,7 +1313,7 @@ import "../styles/global.css";
       $("btn-refresh-telemetry").addEventListener("click", loadTelemetryEvents);
       $("telemetry-modal").addEventListener("click", (e) => { if (e.target === $("telemetry-modal")) closeTelemetryModal(); });
 
-      // ===== Explorador de Datos (Fase 11) =====
+      // ===== Explorador de Datos =====
       const TABLES = ["fields", "vegetation_indices", "weather_data", "chat_messages", "events", "plant_counts"];
       async function loadDataExplorer() {
         loadSchema();
@@ -1065,11 +1396,11 @@ import "../styles/global.css";
       });
       $("btn-clear-query").addEventListener("click", () => { $("sql-query").value = ""; $("query-result").innerHTML = ""; });
 
-      // ===== Credenciales (efímeras) =====
+      // ===== Credenciales =====
       $("btn-save-creds").addEventListener("click", async () => {
         creds = { groq: $("in-groq").value, copId: $("in-copid").value, copSecret: $("in-copsecret").value, sbUrl: $("in-sburl").value, sbKey: $("in-sbkey").value };
         const n = Object.values(creds).filter(Boolean).length;
-        track("creds_set", { count: n });  // ¡solo el número de llaves, nunca los valores!
+        track("creds_set", { count: n });
         $("creds-state").innerText = `${n} llave(s) activas (se borran al refrescar)`;
         notify("Credenciales en sesión", `${n} llave(s) activas solo en esta sesión.`);
         updateStatus();
@@ -1095,9 +1426,7 @@ import "../styles/global.css";
         } catch { notify("Error", "No se pudo consultar el .env del servidor."); }
       });
 
-      // ===== Perfiles y Modos de Sesión (Fase 15) =====
-      
-      // Control de visibilidad del dropdown de perfil
+      // ===== Perfiles y Modos de Sesión =====
       $("btn-profile-menu").addEventListener("click", (e) => {
         e.stopPropagation();
         $("profile-dropdown").classList.toggle("hidden");
@@ -1109,7 +1438,6 @@ import "../styles/global.css";
         e.stopPropagation();
       });
 
-      // Manejadores de botones del dropdown
       document.querySelectorAll(".dropdown-btn").forEach((btn) => {
         btn.addEventListener("click", () => {
           $("profile-dropdown").classList.add("hidden");
@@ -1125,7 +1453,6 @@ import "../styles/global.css";
         logout();
       });
 
-      // Guardar Ajustes de Perfil
       $("btn-save-settings").addEventListener("click", async () => {
         if (isSharedMode) return notify("Modo compartido", "No puedes editar ajustes en modo de solo lectura.");
         const displayName = $("settings-display-name").value.trim();
@@ -1161,7 +1488,6 @@ import "../styles/global.css";
         }
       });
 
-      // Eliminar Perfil
       $("btn-delete-profile").addEventListener("click", async () => {
         if (isSharedMode) return notify("Modo compartido", "No puedes eliminar perfiles en modo de solo lectura.");
         if (!profileId) return;
@@ -1183,7 +1509,6 @@ import "../styles/global.css";
         }
       });
 
-      // Lógica de logout
       function logout() {
         track("session_logout", { profileId });
         localStorage.removeItem("agrovision_profile_id");
@@ -1206,14 +1531,10 @@ import "../styles/global.css";
         notify("Sesión cerrada", "Se han limpiado todas las llaves y preferencias.");
       }
 
-      // Conectar perfil basado en credenciales de Supabase
       async function connectUserProfile() {
         if (isSharedMode) return;
-        
-        // Determinar URL de Supabase a usar
         let sbUrl = creds.sbUrl;
         if (!sbUrl) {
-          // Intentar obtener de /api/credentials/status
           try {
             const r = await fetch("./api/credentials/status");
             if (r.ok) {
@@ -1222,15 +1543,12 @@ import "../styles/global.css";
             }
           } catch {}
         }
-
         if (!sbUrl) {
-          // Si no hay Supabase URL, no podemos conectar perfil (permanecer efímero)
           profileId = null;
           currentProfile = null;
           updateProfileUI();
           return;
         }
-
         try {
           fingerprint = await sha256(sbUrl);
           track("profile_connect_attempt", { hash: fingerprint });
@@ -1243,13 +1561,9 @@ import "../styles/global.css";
             currentProfile = await r.json();
             profileId = currentProfile.id;
             updateProfileUI();
-            
-            // Si el perfil tiene active_field_id y coincide con alguna de nuestras parcelas, seleccionarlo
             if (currentProfile.active_field_id) {
               localStorage.setItem("agrovision_last_field_id", currentProfile.active_field_id);
             }
-            
-            // Guardar ID en localStorage si está en modo guardado
             if (currentProfile.session_mode === "saved") {
               localStorage.setItem("agrovision_profile_id", profileId);
             } else {
@@ -1262,13 +1576,11 @@ import "../styles/global.css";
         }
       }
 
-      // Cargar Perfil Compartido (Read-Only)
       async function loadSharedProfile(id) {
         isSharedMode = true;
         profileId = id;
         track("shared_mode_start", { profileId });
 
-        // Modificar UI para modo lectura
         document.body.classList.add("shared-read-only");
         $("btn-save-parcela").disabled = true;
         $("btn-save-parcela").classList.add("opacity-50", "cursor-not-allowed");
@@ -1277,11 +1589,8 @@ import "../styles/global.css";
         $("btn-save-settings").style.display = "none";
         $("btn-delete-profile").style.display = "none";
         
-        // Ocultar Detección Dron, Asistente y botones de telemetría/ajustes
         const droneBtn = document.querySelector('[data-tab="tab-vision"]');
         if (droneBtn) droneBtn.style.display = "none";
-        const chatBtn = document.querySelector('[data-tab="tab-chat"]');
-        if (chatBtn) chatBtn.style.display = "none";
         const settingsBtn = document.querySelector('[data-action="tab-settings"]');
         if (settingsBtn) settingsBtn.style.display = "none";
         const logoutBtn = $("dropdown-logout");
@@ -1302,7 +1611,6 @@ import "../styles/global.css";
         }
       }
 
-      // Actualizar UI del perfil
       function updateProfileUI() {
         if (currentProfile) {
           $("user-display-name").innerText = currentProfile.display_name;
@@ -1326,7 +1634,6 @@ import "../styles/global.css";
         }
       }
 
-      // Verificar si faltan credenciales críticas (solo si es producción)
       async function checkMissingCredentials() {
         try {
           const r = await fetch("./api/credentials/status");
@@ -1334,10 +1641,8 @@ import "../styles/global.css";
           const s = await r.json();
           appEnv = s.env || "development";
           
-          // Toast solo si es producción y faltan llaves
           if (appEnv === "production") {
             const missing = [];
-            // Verificar credenciales locales en memoria primero, sino usar las del status
             const hasGroq = creds.groq || s.groq;
             const hasCop = (creds.copId && creds.copSecret) || s.copernicus;
             const hasSb = (creds.sbUrl && creds.sbKey) || s.supabase;
@@ -1366,12 +1671,12 @@ import "../styles/global.css";
         } catch {}
       }
 
-      // ===== Init =====
+      // ===== Sincronización del Selector de Parcela =====
       $("select-parcela").addEventListener("change", async () => {
         const fid = $("select-parcela").value;
         if (fid) {
           localStorage.setItem("agrovision_last_field_id", fid);
-          // Si hay perfil activo, guardar la parcela activa
+          loadFieldAttributes(fid);
           if (profileId && !isSharedMode) {
             try {
               await api(`/profiles/${profileId}`, {
@@ -1380,16 +1685,20 @@ import "../styles/global.css";
               });
             } catch {}
           }
+        } else {
+          clearFieldAttributes();
         }
+        
         const active = document.querySelector(".tab-content.active")?.id;
         if (active === "tab-satelite") loadTeledeteccion();
+        else if (active === "tab-weather") loadWeather();
+        else if (active === "tab-analysis") loadAnalysis();
         else loadResumen();
       });
       
       (async function init() {
         track("session_start", { w: window.innerWidth, h: window.innerHeight });
         
-        // Detectar si estamos en modo compartido vía URL hash parameter (#profile=UUID)
         const hashParams = new URLSearchParams(location.hash.slice(1));
         const sharedProfileId = hashParams.get("profile");
         
@@ -1400,7 +1709,6 @@ import "../styles/global.css";
           if (backendOk) { $("db-status-text").classList.replace("text-stone-400", "text-emerald-400"); }
         } catch { $("db-status-text").innerText = "Backend no disponible"; }
         
-        // Cargar credenciales si es producción y nos avisa
         try {
           const r = await fetch("./api/credentials/status");
           if (r.ok) {
@@ -1416,7 +1724,6 @@ import "../styles/global.css";
         if (sharedProfileId) {
           await loadSharedProfile(sharedProfileId);
         } else {
-          // Intentar reconectar perfil si ya existe en localStorage
           const savedProfileId = localStorage.getItem("agrovision_profile_id");
           if (savedProfileId) {
             try {
@@ -1433,7 +1740,6 @@ import "../styles/global.css";
               track("profile_reconnect_error", { error: String(e) });
             }
           } else {
-            // Intentar conectar con credenciales por defecto/existentes del servidor
             await connectUserProfile();
           }
         }
@@ -1442,19 +1748,17 @@ import "../styles/global.css";
         checkMissingCredentials();
         await refreshParcels();
         
-        // Seleccionar parcela última usada o por defecto del perfil
         const lastFieldId = localStorage.getItem("agrovision_last_field_id") || (currentProfile ? currentProfile.active_field_id : null);
         if (lastFieldId && $("select-parcela").querySelector(`option[value="${lastFieldId}"]`)) {
           $("select-parcela").value = lastFieldId;
+          loadFieldAttributes(lastFieldId);
         }
 
-        // Navegar a la pestaña correcta
         let initial = "tab-resumen";
         if (location.hash && location.hash.startsWith("#tab-")) {
           initial = location.hash.slice(1);
         }
         switchTab(document.getElementById(initial) ? initial : "tab-resumen");
-        loadResumen();
       })();
     </script>
   </body>
