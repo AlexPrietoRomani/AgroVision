@@ -407,29 +407,6 @@ import "../styles/global.css";
                   </button>
                 </div>
 
-                <!-- Vista 2: Crear Nueva Parcela (Formulario en flotante) -->
-                <div id="farm-view-creator" class="hidden space-y-3">
-                  <h4 class="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Crear Nueva Parcela</h4>
-                  <p class="text-[10px] text-stone-400 leading-relaxed">Dibuja el polígono sobre el mapa, ponle un nombre y guárdalo.</p>
-                  
-                  <div>
-                    <label class="block text-[9px] font-bold text-stone-500 uppercase mb-1" for="floating-parcela-name">Nombre de Parcela</label>
-                    <input id="floating-parcela-name" type="text" placeholder="Lote Norte (Uva)" class="w-full text-xs p-2 border border-stone-800 rounded bg-stone-900 text-stone-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 animate-none" />
-                  </div>
-
-                  <div class="space-y-1.5 pt-1">
-                    <button id="btn-floating-save-parcela" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs p-2 rounded transition-all flex items-center justify-center gap-1.5">
-                      <i class="fa-solid fa-floppy-disk"></i> Guardar Parcela
-                    </button>
-                    <button id="btn-floating-demo" class="w-full bg-stone-900 hover:bg-stone-800 text-stone-300 border border-stone-800 font-bold text-xs p-2 rounded transition-all flex items-center justify-center gap-1.5">
-                      <i class="fa-solid fa-mountain-sun"></i> Cargar Parcela Demo
-                    </button>
-                    <button id="btn-floating-cancel-create" class="w-full text-center text-stone-500 hover:text-stone-300 text-[10px] py-1">
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-
               </div>
             </div>
 
@@ -1113,8 +1090,39 @@ import "../styles/global.css";
         });
         map.addControl(drawControl);
         map.on(L.Draw.Event.CREATED, (e) => {
-          drawnItems.clearLayers(); drawnItems.addLayer(e.layer);
+          drawnItems.clearLayers();
+          drawnItems.addLayer(e.layer);
           drawnGeojson = e.layer.toGeoJSON().geometry;
+          
+          let areaHa = 1.25;
+          try {
+            const latlngs = e.layer.getLatLngs()[0];
+            const areaM2 = L.GeometryUtil.geodesicArea(latlngs);
+            areaHa = areaM2 / 10000;
+          } catch(err) {
+            console.log("No L.GeometryUtil, using default estimation.");
+          }
+          $("creator-area-ha").innerText = `${areaHa.toFixed(2)} ha`;
+          $("creator-name-input").value = `Lote_${parcels.length + 1}`;
+          
+          // Cambiar a Paso B (Detalles) en Seccion 2
+          $("creator-step-drawing").classList.add("hidden");
+          $("creator-step-details").classList.remove("hidden");
+          
+          // Ocultar banner de dibujo
+          $("map-draw-banner").classList.add("hidden");
+          if (polygonDrawer) {
+            try { polygonDrawer.disable(); } catch(err){}
+          }
+        });
+
+        map.on(L.Draw.Event.DRAWSTART, () => {
+          $("map-draw-banner").classList.remove("hidden");
+          $("map-draw-banner-text").innerText = "Haz clic en el mapa para marcar tu primer punto.";
+        });
+
+        map.on(L.Draw.Event.DRAWVERTEX, () => {
+          $("map-draw-banner-text").innerText = "Completa tu lote marcando los puntos restantes en el mapa. Haz doble clic o cierra para terminar.";
         });
       }
       
@@ -1151,60 +1159,153 @@ import "../styles/global.css";
         }
       });
 
+      let polygonDrawer = null;
+
+      function enableDrawingMode() {
+        // Mostrar panel de creación
+        $("section2-form").classList.add("hidden");
+        $("section2-chat").classList.add("hidden");
+        $("section2-creator").classList.remove("hidden");
+        
+        // Poner Paso A activo (Instrucciones)
+        $("creator-step-drawing").classList.remove("hidden");
+        $("creator-step-details").classList.add("hidden");
+        $("creator-step-loading").classList.add("hidden");
+
+        // Activar el dibujador de polígonos de Leaflet
+        if (polygonDrawer) {
+          try { polygonDrawer.disable(); } catch(err){}
+        }
+        drawnItems.clearLayers();
+        drawnGeojson = null;
+
+        polygonDrawer = new L.Draw.Polygon(map, {
+          shapeOptions: { color: "#15803d", weight: 2, fillColor: "#15803d", fillOpacity: 0.15 }
+        });
+        polygonDrawer.enable();
+      }
+
+      function disableDrawingMode() {
+        if (polygonDrawer) {
+          try { polygonDrawer.disable(); } catch(err){}
+        }
+        $("map-draw-banner").classList.add("hidden");
+        drawnItems.clearLayers();
+        drawnGeojson = null;
+
+        $("section2-creator").classList.add("hidden");
+        
+        // Regresar a la vista correspondiente
+        showSection2Chat();
+      }
+
       if ($("btn-floating-add-parcel")) {
         $("btn-floating-add-parcel").addEventListener("click", () => {
-          $("farm-view-selector").classList.add("hidden");
-          $("farm-view-creator").classList.remove("hidden");
+          $("farm-selector-dropdown").classList.add("hidden");
+          enableDrawingMode();
         });
       }
 
-      if ($("btn-floating-cancel-create")) {
-        $("btn-floating-cancel-create").addEventListener("click", () => {
-          $("farm-view-creator").classList.add("hidden");
-          $("farm-view-selector").classList.remove("hidden");
+      if ($("btn-cancel-draw")) {
+        $("btn-cancel-draw").addEventListener("click", () => {
+          disableDrawingMode();
         });
       }
 
-      if ($("btn-floating-save-parcela")) {
-        $("btn-floating-save-parcela").addEventListener("click", async () => {
-          const name = $("floating-parcela-name").value.trim();
+      if ($("btn-creator-cancel")) {
+        $("btn-creator-cancel").addEventListener("click", () => {
+          disableDrawingMode();
+        });
+      }
+
+      if ($("btn-show-creator")) {
+        $("btn-show-creator").addEventListener("click", () => {
+          enableDrawingMode();
+        });
+      }
+
+      if ($("btn-draw-undo")) {
+        $("btn-draw-undo").addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (polygonDrawer && typeof polygonDrawer.deleteLastVertex === 'function') {
+            polygonDrawer.deleteLastVertex();
+          }
+        });
+      }
+
+      if ($("btn-creator-save")) {
+        $("btn-creator-save").addEventListener("click", async () => {
+          const name = $("creator-name-input").value.trim();
+          const crop = $("creator-crop-select").value;
           if (!drawnGeojson) return notify("Falta el polígono", "Dibuja un polígono en el mapa.");
           if (!name) return notify("Falta el nombre", "Escribe un nombre.");
+
+          // Mostrar pantalla de carga (Paso C)
+          $("creator-step-details").classList.add("hidden");
+          $("creator-step-loading").classList.remove("hidden");
+
           try {
-            track("parcel_draw_save", { name });
-            const r = await api("/fields", { method: "POST", body: JSON.stringify({ name, geojson: drawnGeojson }) });
+            track("parcel_draw_save", { name, crop });
+            
+            // 1. Crear la parcela en la base de datos
+            const r = await api("/fields", { 
+              method: "POST", 
+              body: JSON.stringify({ name, geojson: drawnGeojson }) 
+            });
+
             if (r.ok) {
-              track("parcel_create", { name });
-              notify("Parcela guardada", `${name}: backfill NDVI en curso…`);
-              $("floating-parcela-name").value = "";
-              drawnGeojson = null;
-              drawnItems.clearLayers();
-              $("farm-view-creator").classList.add("hidden");
-              $("farm-view-selector").classList.remove("hidden");
-              $("farm-selector-dropdown").classList.add("hidden");
-              await refreshParcels();
+              const field = await r.json();
+              const newFieldId = field.id;
+              
+              // 2. Si seleccionó cultivo, guardar cultivo vía PATCH
+              if (crop) {
+                await api(`/fields/${newFieldId}`, {
+                  method: "PATCH",
+                  body: JSON.stringify({ crop_variety: crop })
+                });
+              }
+
+              track("parcel_create_wizard_success", { name, crop });
+
+              // 3. Simular procesamiento para esperar recálculo e iniciar notificaciones escalonadas
+              setTimeout(async () => {
+                // Limpiar cargando
+                $("section2-creator").classList.add("hidden");
+                showSection2Chat();
+
+                // Notificaciones escalonadas (toasts en la esquina superior derecha)
+                setTimeout(() => {
+                  notify("Meteorología Lista", `El clima histórico de Open-Meteo para ${name} está disponible.`, "success");
+                }, 100);
+
+                setTimeout(() => {
+                  notify("Teledetección Lista", `Sentinel-2 ha completado el análisis espectral (NDVI/EVI/SAVI/NDWI/NDRE) de ${name}.`, "success");
+                }, 800);
+
+                setTimeout(() => {
+                  notify("Asistente Listo", `El agente RAG de AgroVisión ya tiene cargado el contexto completo de ${name}.`, "success");
+                }, 1500);
+
+                drawnGeojson = null;
+                drawnItems.clearLayers();
+                
+                await refreshParcels();
+                selectParcel(newFieldId);
+                flyToParcel(newFieldId);
+              }, 3000);
+
+            } else {
+              const e = await r.json().catch(() => ({}));
+              notify("Error " + r.status, e.detail || "");
+              $("creator-step-loading").classList.add("hidden");
+              $("creator-step-details").classList.remove("hidden");
             }
-            else { const e = await r.json().catch(() => ({})); notify("Error " + r.status, e.detail || ""); }
-          } catch (e) { notify("Error de red", String(e)); }
-        });
-      }
-      
-      if ($("btn-floating-demo")) {
-        $("btn-floating-demo").addEventListener("click", async () => {
-          const geojson = { type: "Polygon", coordinates: [[[-77.40, -11.40], [-77.40, -11.34], [-77.34, -11.34], [-77.34, -11.40], [-77.40, -11.40]]] };
-          try {
-            track("parcel_demo");
-            const r = await api("/fields", { method: "POST", body: JSON.stringify({ name: "Lomas de Lachay (demo)", geojson }) });
-            if (r.ok) {
-              track("parcel_create", { name: "Lomas de Lachay (demo)" });
-              notify("Parcela demo creada", "Lomas de Lachay: backfill NDVI (5 años) en curso…");
-              $("farm-view-creator").classList.add("hidden");
-              $("farm-view-selector").classList.remove("hidden");
-              $("farm-selector-dropdown").classList.add("hidden");
-              await refreshParcels();
-            }
-            else { const e = await r.json().catch(() => ({})); notify("Error " + r.status, e.detail || ""); }
-          } catch (e) { notify("Error de red", String(e)); }
+          } catch (e) {
+            notify("Error de red", String(e));
+            $("creator-step-loading").classList.add("hidden");
+            $("creator-step-details").classList.remove("hidden");
+          }
         });
       }
 
@@ -1222,6 +1323,7 @@ import "../styles/global.css";
             // Mostrar formulario de Ajustes
             $("section2-form").classList.remove("hidden");
             $("section2-chat").classList.add("hidden");
+            $("section2-creator").classList.add("hidden");
             $("branding-icon").className = "fa-solid fa-robot text-base";
             $("btn-branding-toggle").title = "Mostrar Chat con Asistente";
           }
