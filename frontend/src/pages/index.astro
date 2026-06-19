@@ -516,20 +516,186 @@ import "../styles/global.css";
         <!-- METEOROLOGÍA (HISTÓRICO CLIMA) -->
         <section id="tab-weather" class="tab-content space-y-6">
           <div class="flex items-center justify-between">
-            <h3 class="text-lg font-bold text-stone-800 flex items-center gap-2">
-              <i class="fa-solid fa-cloud text-emerald-600"></i> Meteorología y Clima
-            </h3>
+            <div class="flex items-center gap-3">
+              <h3 class="text-lg font-bold text-stone-800 flex items-center gap-2">
+                <i class="fa-solid fa-cloud text-emerald-600"></i> Meteorología y Clima
+              </h3>
+              <!-- Campaign Start Badge added dynamically inside the tab header -->
+              <div class="bg-stone-100 border border-stone-200 rounded-lg px-2.5 py-1 text-[11px] font-semibold text-stone-600 flex items-center gap-1.5">
+                <i class="fa-solid fa-calendar text-emerald-600"></i>
+                Inicio de Campaña: <span id="campaign-start-badge" class="font-bold text-stone-850">Cargando...</span>
+              </div>
+            </div>
             <button class="btn-volver-mapa text-xs font-semibold px-3 py-1.5 bg-stone-200 hover:bg-stone-300 rounded-lg text-stone-700 transition-colors">
               <i class="fa-solid fa-arrow-left mr-1"></i> Volver al Mapa
             </button>
           </div>
-          <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm space-y-4">
-            <h3 class="font-bold text-sm text-stone-800">Evolución de Variables Agroclimáticas</h3>
-            <p class="text-xs text-stone-500">Datos históricos mensuales obtenidos de la API climática para el lote activo.</p>
-            <div class="relative h-80">
-              <canvas id="chart-weather"></canvas>
+
+          <!-- Legacy elements for backwards compatibility -->
+          <div class="hidden">
+            <p id="weather-empty">Selecciona una parcela para cargar la información meteorológica.</p>
+            <canvas id="chart-weather"></canvas>
+          </div>
+
+          <!-- SECCIÓN SUPERIOR: METEOROLOGÍA MULTI-RESOLUCIÓN -->
+          <div class="bg-white p-6 rounded-2xl border border-stone-200 shadow-sm space-y-6">
+            <!-- Controles, filtros y selectores -->
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-stone-100 pb-4">
+              <!-- Pestañas de granularidad -->
+              <div class="flex gap-1 p-1 bg-stone-100 rounded-xl w-full md:max-w-sm shrink-0">
+                <button id="btn-gran-horario" class="flex-1 text-center py-2 bg-white text-emerald-800 font-extrabold rounded-lg text-xs shadow-sm transition-all">
+                  Horario
+                </button>
+                <button id="btn-gran-diario" class="flex-1 text-center py-2 text-stone-500 hover:text-stone-850 font-bold rounded-lg text-xs transition-all">
+                  Diario
+                </button>
+                <button id="btn-gran-semanal" class="flex-1 text-center py-2 text-stone-500 hover:text-stone-850 font-bold rounded-lg text-xs transition-all">
+                  Semanal
+                </button>
+              </div>
+
+              <!-- Filtro de fecha horaria (solo visible en modo horario) -->
+              <div id="filter-date-container" class="flex items-center gap-2 text-xs">
+                <label class="font-bold text-stone-500 uppercase text-[10px]" for="historical-date-picker">Día Histórico:</label>
+                <input type="date" id="historical-date-picker" value="2026-06-19" class="p-2 border border-stone-200 rounded-lg bg-stone-50 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-600" />
+              </div>
+
+              <!-- Badge Informativo para diario/semanal (oculto en horario) -->
+              <div id="campaign-info-container" class="hidden text-xs text-stone-500 font-semibold bg-emerald-50 border border-emerald-100 px-3 py-2 rounded-xl flex items-center gap-1.5">
+                <i class="fa-solid fa-circle-info text-emerald-600"></i>
+                Mostrando datos acumulados desde el inicio de la temporada.
+              </div>
             </div>
-            <p id="weather-empty" class="text-xs text-stone-500 mt-2">Selecciona una parcela para cargar la información meteorológica.</p>
+
+            <!-- Fila de KPIs Dinámicos -->
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4" id="kpis-container">
+              <!-- Los KPIs se generan con JS según la granularidad -->
+            </div>
+
+            <!-- Contenedor del Gráfico de Clima -->
+            <div class="space-y-4">
+              <div class="flex items-center justify-between">
+                <h3 class="font-bold text-xs text-stone-750 uppercase tracking-wider flex items-center gap-1.5">
+                  <i class="fa-solid fa-chart-line text-emerald-600"></i>
+                  Evolución Temporal de Variables Climáticas
+                </h3>
+                <select id="weather-variable-select" class="text-xs p-2 border border-stone-200 rounded-lg bg-stone-50 font-bold focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/10">
+                  <option value="temperatures">Temperatura Máxima / Mínima / Rocío</option>
+                  <option value="humidity">Humedad Relativa Máx/Mín y Suelo</option>
+                  <option value="water">Precipitación Acumulada y DPV</option>
+                  <option value="radiation_wind">Radiación Solar y Viento Máx/Mín</option>
+                </select>
+              </div>
+              <div class="relative h-80 w-full">
+                <canvas id="main-weather-chart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECCIÓN INFERIOR: INDICADORES AGRONÓMICOS Y BALANCE HÍDRICO -->
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- Gráfico del Balance Hídrico Acumulado (Semanal) -->
+            <div class="lg:col-span-7 bg-white p-6 rounded-2xl border border-stone-200 shadow-sm flex flex-col justify-between space-y-4">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-stone-50 pb-2">
+                <div>
+                  <h3 class="font-bold text-sm text-stone-850 flex items-center gap-2" id="bottom-chart-title">
+                    <i class="fa-solid fa-droplet text-blue-600"></i>
+                    Balance Hídrico Acumulado Semanal
+                  </h3>
+                  <p class="text-xs text-stone-500 mt-0.5" id="bottom-chart-subtitle">Diferencia entre Precipitación (ingreso) y Evapotranspiración ET0 (pérdida).</p>
+                </div>
+                <select id="bottom-chart-filter-select" class="text-[11px] p-2 border border-stone-200 rounded-lg bg-stone-50 font-bold focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/10 shrink-0">
+                  <option value="water_balance">Balance Hídrico (ET0 vs Precipitación)</option>
+                  <option value="gdd">Grados Día Acumulados (GDD)</option>
+                  <option value="chill_hours">Horas Frío Acumuladas</option>
+                  <option value="stress_hours">Horas de Estrés (Térmico vs DPV)</option>
+                </select>
+              </div>
+              <div class="relative h-64 w-full">
+                <canvas id="water-balance-chart"></canvas>
+              </div>
+            </div>
+
+            <!-- Grilla de Estadísticas de Indicadores Agronómicos -->
+            <div class="lg:col-span-5 bg-white p-6 rounded-2xl border border-stone-200 shadow-sm flex flex-col justify-between space-y-4">
+              <div>
+                <h3 class="font-bold text-sm text-stone-850 flex items-center gap-2">
+                  <i class="fa-solid fa-calculator text-emerald-600"></i>
+                  Indicadores de Estrés y Acumulados de Campaña
+                </h3>
+                <p class="text-xs text-stone-500 mt-0.5">Cálculos agronómicos computados a partir de registros climáticos horarios.</p>
+              </div>
+
+              <div class="grid grid-cols-2 gap-4">
+                <!-- Grados Día -->
+                <div id="btn-indicator-gdd" class="p-3 bg-stone-50 border border-stone-200/60 rounded-xl flex items-start gap-3 cursor-pointer hover:bg-stone-100 hover:border-orange-400/40 hover:shadow-md transition-all">
+                  <div class="w-8 h-8 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-fire-flame-simple"></i></div>
+                  <div>
+                    <span class="text-[9px] font-bold text-stone-400 uppercase">Grados Día (GDD)</span>
+                    <h4 id="val-gdd" class="text-base font-extrabold text-stone-800 mt-0.5">0.0 GD</h4>
+                    <p class="text-[9px] text-stone-400">Base Temp: 10°C</p>
+                  </div>
+                </div>
+
+                <!-- Horas Frío -->
+                <div id="btn-indicator-chill" class="p-3 bg-stone-50 border border-stone-200/60 rounded-xl flex items-start gap-3 cursor-pointer hover:bg-stone-100 hover:border-blue-400/40 hover:shadow-md transition-all">
+                  <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-snowflake"></i></div>
+                  <div>
+                    <span class="text-[9px] font-bold text-stone-400 uppercase">Horas Frío (HF)</span>
+                    <h4 id="val-chill" class="text-base font-extrabold text-stone-800 mt-0.5">0 horas</h4>
+                    <p class="text-[9px] text-stone-400">Umbral: &lt; 7.2°C</p>
+                  </div>
+                </div>
+
+                <!-- Horas Estrés Térmico -->
+                <div id="btn-indicator-thermal" class="p-3 bg-stone-50 border border-stone-200/60 rounded-xl flex items-start gap-3 cursor-pointer hover:bg-stone-100 hover:border-red-400/40 hover:shadow-md transition-all">
+                  <div class="w-8 h-8 rounded-lg bg-red-100 text-red-650 flex items-center justify-center shrink-0"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                  <div>
+                    <span class="text-[9px] font-bold text-stone-400 uppercase">Estrés Térmico</span>
+                    <h4 id="val-thermal" class="text-base font-extrabold text-stone-800 mt-0.5">0 horas</h4>
+                    <p class="text-[9px] text-stone-400">Umbral: &gt; 32°C</p>
+                  </div>
+                </div>
+
+                <!-- Horas Estrés DPV -->
+                <div id="btn-indicator-dpv" class="p-3 bg-stone-50 border border-stone-200/60 rounded-xl flex items-start gap-3 cursor-pointer hover:bg-stone-100 hover:border-amber-400/40 hover:shadow-md transition-all">
+                  <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-wind"></i></div>
+                  <div>
+                    <span class="text-[9px] font-bold text-stone-400 uppercase">Estrés por DPV</span>
+                    <h4 id="val-dpv" class="text-base font-extrabold text-stone-800 mt-0.5">0 horas</h4>
+                    <p class="text-[9px] text-stone-400">Umbral DPV: &gt; 2.0 kPa</p>
+                  </div>
+                </div>
+
+                <!-- Horas Heladas -->
+                <div id="btn-indicator-frost" class="p-3 bg-stone-50 border border-stone-200/60 rounded-xl flex items-start gap-3 cursor-pointer hover:bg-stone-100 hover:border-indigo-400/40 hover:shadow-md transition-all">
+                  <div class="w-8 h-8 rounded-lg bg-indigo-150 text-indigo-700 flex items-center justify-center shrink-0"><i class="fa-solid fa-temperature-arrow-down"></i></div>
+                  <div>
+                    <span class="text-[9px] font-bold text-stone-400 uppercase">Horas Heladas</span>
+                    <h4 id="val-frost" class="text-base font-extrabold text-stone-800 mt-0.5">0 horas</h4>
+                    <p class="text-[9px] text-stone-400">Umbral: &lt; 0°C</p>
+                  </div>
+                </div>
+
+                <!-- Evapotranspiración FAO -->
+                <div id="btn-indicator-et0" class="p-3 bg-stone-50 border border-stone-200/60 rounded-xl flex items-start gap-3 cursor-pointer hover:bg-stone-100 hover:border-emerald-450/40 hover:shadow-md transition-all">
+                  <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-droplet-slash"></i></div>
+                  <div>
+                    <span class="text-[9px] font-bold text-stone-400 uppercase">ET0 Acumulada</span>
+                    <h4 id="val-et0" class="text-base font-extrabold text-stone-800 mt-0.5">0.0 mm</h4>
+                    <p class="text-[9px] text-stone-400">Ecuación FAO-56 Penman</p>
+                  </div>
+                </div>
+              </div>
+
+              <div id="agronomic-note-box" class="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-[10px] leading-relaxed text-emerald-800 flex gap-2 cursor-pointer transition-all duration-300 hover:shadow-sm">
+                <i id="agronomic-note-icon" class="fa-solid fa-wand-magic-sparkles text-emerald-600 text-xs shrink-0 mt-0.5"></i>
+                <div>
+                  <h5 id="agronomic-note-title" class="font-bold">Estimación de Balance Hídrico</h5>
+                  <span id="agronomic-note-text">Selecciona una parcela para ver las estimaciones y notas agronómicas del lote activo.</span>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
