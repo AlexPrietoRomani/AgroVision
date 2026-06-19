@@ -416,6 +416,33 @@ async def upsert_weather_data(
     return len(params)
 
 
+def _parse_timestamp(val: str | None) -> dt.datetime | None:
+    """
+    Parsea una fecha o timestamp en string a objeto datetime compatible con PostgreSQL TIMESTAMPTZ.
+
+    Args:
+        val (str | None): Fecha o timestamp en formato string (ISO o YYYY-MM-DD).
+
+    Returns:
+        dt.datetime | None: Objeto datetime con huso horario UTC, o None si es nulo/inválido.
+    """
+    if not val:
+        return None
+    if isinstance(val, dt.datetime):
+        return val
+    if isinstance(val, dt.date):
+        return dt.datetime.combine(val, dt.time.min).replace(tzinfo=dt.timezone.utc)
+    try:
+        # Si es formato simple YYYY-MM-DD de 10 caracteres
+        if len(val) == 10:
+            return dt.datetime.combine(dt.date.fromisoformat(val), dt.time.min).replace(tzinfo=dt.timezone.utc)
+        # Formato ISO completo
+        val_clean = val.replace("Z", "+00:00")
+        return dt.datetime.fromisoformat(val_clean)
+    except Exception:
+        return None
+
+
 async def get_weather_series(
     session: AsyncSession, field_id: Any, start: str | None = None, end: str | None = None
 ) -> list[dict]:
@@ -425,11 +452,15 @@ async def get_weather_series(
         params: dict[str, Any] = {"fid": str(field_id)}
         
         if start:
-            query += " and timestamp >= :start"
-            params["start"] = start
+            parsed_start = _parse_timestamp(start)
+            if parsed_start:
+                query += " and timestamp >= :start"
+                params["start"] = parsed_start
         if end:
-            query += " and timestamp <= :end"
-            params["end"] = end
+            parsed_end = _parse_timestamp(end)
+            if parsed_end:
+                query += " and timestamp <= :end"
+                params["end"] = parsed_end
             
         query += " order by timestamp"
         

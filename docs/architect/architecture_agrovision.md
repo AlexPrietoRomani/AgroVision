@@ -192,8 +192,9 @@ flowchart LR
 
 **Variables persistidas (13):** temperatura a 2m, humedad relativa, punto de rocío, cobertura de nubes, presión MSL, velocidad y dirección del viento, precipitaciones, radiación de onda corta, evapotranspiración FAO, déficit de presión de vapor, temperatura y humedad del suelo.
 **Detalles clave:**
-- La UI envía `field_id` al endpoint `/api/weather`.
-- El servicio obtiene las coordenadas de la parcela desde la base de datos, consulta Open-Meteo para las variables horarias, formatea e inserta de forma idempotente en `weather_data` y devuelve a la UI la agregación mensual del histórico para Chart.js.
+- La UI envía `field_id` al endpoint `/api/weather`, pudiendo solicitar la serie horaria completa (`raw: true`).
+- El servicio obtiene las coordenadas de la parcela desde la base de datos, consulta Open-Meteo para las variables horarias, formatea e inserta de forma idempotente en `weather_data`. Devuelve la agregación mensual histórica por defecto, o la serie horaria cruda si se solicita para que la UI realice sus propios cálculos agronómicos y acumulados client-side.
+
 
 ### 3.4 Backfill al Crear Parcela
 
