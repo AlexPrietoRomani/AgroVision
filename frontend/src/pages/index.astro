@@ -8,6 +8,10 @@ import "../styles/global.css";
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AgroVisión — Plataforma Agronómica</title>
+    <!-- Fuentes de Google Fonts para un diseño moderno y estilizado -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
@@ -15,15 +19,67 @@ import "../styles/global.css";
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
     <style is:inline>
-      body { background-color: #faf9f6; }
-      .tab-content { display: none; animation: fadeIn 0.25s ease-in-out forwards; }
+      /* Sistema de diseño tipográfico y estética general */
+      body {
+        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+        background-color: #faf9f6;
+      }
+      
+      h1, h2, h3, h4, h5, h6, .font-bold, .font-semibold {
+        font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+      }
+      
+      /* Animaciones de cambio de pestaña */
+      .tab-content { display: none; animation: fadeIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
       .tab-content.active { display: block; }
-      @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-      .nav-btn-active { background-color: #15803d; color: #fff !important; box-shadow: 0 4px 6px -1px rgba(21,128,61,.2); }
+      @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+      
+      /* Estilo activo del menú con gradientes sutiles y sombreados */
+      .nav-btn-active {
+        background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+        color: #fff !important;
+        box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
+      }
+      
+      /* Transiciones suaves en todos los botones e inputs interactivos */
+      button, input, select, textarea, a, .cursor-pointer {
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      
+      /* Estilo de inputs y focos modernos */
+      input[type="text"], input[type="number"], input[type="date"], select, textarea {
+        border-color: #e5e7eb; /* border-gray-200 */
+      }
+      input[type="text"]:focus, input[type="number"]:focus, input[type="date"]:focus, select:focus, textarea:focus {
+        outline: none;
+        border-color: #10b981 !important; /* emerald-500 */
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12) !important;
+        background-color: #ffffff !important;
+      }
+      
+      /* Personalización de barras de desplazamiento (Scrollbars) */
+      .overflow-y-auto::-webkit-scrollbar,
+      .overflow-x-auto::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      .overflow-y-auto::-webkit-scrollbar-track,
+      .overflow-x-auto::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .overflow-y-auto::-webkit-scrollbar-thumb,
+      .overflow-x-auto::-webkit-scrollbar-thumb {
+        background: rgba(120, 113, 108, 0.2); /* stone-500 al 20% */
+        border-radius: 9999px;
+      }
+      .overflow-y-auto::-webkit-scrollbar-thumb:hover,
+      .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+        background: rgba(120, 113, 108, 0.4);
+      }
       
       /* Sidebar: control de transición de ancho suave */
       #sidebar {
-        transition: width 0.3s ease-in-out;
+        transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         width: 4rem; /* Colapsado por defecto (w-16) */
       }
       #sidebar.expanded {
