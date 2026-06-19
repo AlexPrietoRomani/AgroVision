@@ -193,10 +193,24 @@ async def weather_series(
     db_records = await repositories.get_weather_series(session, field_id, start, end)
     _logger.info("Leídos %d registros horarios de la BD para parcela %s", len(db_records), field_id)
     
-    # Si la cantidad de registros horarios es muy pequeña (ej. < 1 mes = 720 hs),
-    # o no hay datos, forzamos descarga completa
-    if len(db_records) < 720:
-        _logger.info("Registros en base de datos insuficientes (%d < 720 hs). Activando descarga de Open-Meteo.", len(db_records))
+    # Calcular las horas esperadas aproximadas entre start y end
+    start_dt = repositories._parse_timestamp(start)
+    end_dt = repositories._parse_timestamp(end)
+    if isinstance(end, str) and len(end) == 10 and end_dt:
+        end_dt = dt.datetime.combine(end_dt.date(), dt.time.max).replace(tzinfo=dt.UTC)
+
+    if start_dt and end_dt:
+        expected_hours = int((end_dt - start_dt).total_seconds() / 3600) + 1
+    else:
+        expected_hours = 720
+
+    # Forzar descarga desde Open-Meteo si tenemos menos del 90% de los datos esperados en BD
+    if len(db_records) < expected_hours * 0.9:
+        _logger.info(
+            "Registros en base de datos insuficientes (%d < %d hs esperadas). Activando descarga de Open-Meteo.",
+            len(db_records),
+            expected_hours
+        )
         db_records = await fetch_and_persist_weather(
             session, field_id, lat=field.lat, lon=field.lon, start=start, end=end
         )

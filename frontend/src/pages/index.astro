@@ -1797,11 +1797,21 @@ import "../styles/global.css";
             if (datePicker) datePicker.value = selectedDateStr;
           }
           
-          const filtered = weatherRawData.filter(r => r.date.startsWith(selectedDateStr));
+          const filtered = weatherRawData.filter(r => {
+            if (!r.date) return false;
+            const d = new Date(r.date);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, "0");
+            const dateStr = String(d.getDate()).padStart(2, "0");
+            return `${y}-${m}-${dateStr}` === selectedDateStr;
+          });
+
           // Produce 24 points (hours 0-23)
           const hoursData = Array.from({ length: 24 }, (_, hour) => {
-            const padHour = String(hour).padStart(2, "0");
-            const match = filtered.find(r => r.date.split("T")[1]?.startsWith(padHour) || (new Date(r.date).getHours() === hour));
+            const match = filtered.find(r => {
+              if (!r.date) return false;
+              return new Date(r.date).getHours() === hour;
+            });
             return match || {
               temp_c: 0,
               relative_humidity_percentage: 0,
