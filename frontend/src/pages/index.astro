@@ -1797,11 +1797,21 @@ import "../styles/global.css";
             if (datePicker) datePicker.value = selectedDateStr;
           }
           
-          const filtered = weatherRawData.filter(r => r.date.startsWith(selectedDateStr));
+          const filtered = weatherRawData.filter(r => {
+            if (!r.date) return false;
+            const d = new Date(r.date);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, "0");
+            const dateStr = String(d.getDate()).padStart(2, "0");
+            return `${y}-${m}-${dateStr}` === selectedDateStr;
+          });
+
           // Produce 24 points (hours 0-23)
           const hoursData = Array.from({ length: 24 }, (_, hour) => {
-            const padHour = String(hour).padStart(2, "0");
-            const match = filtered.find(r => r.date.split("T")[1]?.startsWith(padHour) || (new Date(r.date).getHours() === hour));
+            const match = filtered.find(r => {
+              if (!r.date) return false;
+              return new Date(r.date).getHours() === hour;
+            });
             return match || {
               temp_c: 0,
               relative_humidity_percentage: 0,
@@ -2494,7 +2504,19 @@ import "../styles/global.css";
           }
 
           const responseData = await rW.json();
-          weatherRawData = responseData.series || [];
+          const rawSeries = responseData.series || [];
+          weatherRawData = rawSeries.map(r => ({
+            date: r.timestamp || "",
+            temp_c: r.temperature_2m,
+            relative_humidity_percentage: r.relative_humidity_2m,
+            soil_temperature_0_to_7cm_c: r.soil_temperature_0_to_7cm,
+            soil_moisture_0_to_7cm_m3_m3: r.soil_moisture_0_to_7cm,
+            precip_mm: r.precipitation,
+            solar_radiation_w_m2: r.shortwave_radiation,
+            wind_speed_10m_km_h: r.wind_speed_10m,
+            et0_fao_evapotranspiration: r.et0_fao_evapotranspiration,
+            vapour_pressure_deficit: r.vapour_pressure_deficit
+          }));
 
           if (!weatherRawData.length) {
             console.warn("No weather raw records returned");

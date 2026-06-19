@@ -431,11 +431,11 @@ def _parse_timestamp(val: str | None) -> dt.datetime | None:
     if isinstance(val, dt.datetime):
         return val
     if isinstance(val, dt.date):
-        return dt.datetime.combine(val, dt.time.min).replace(tzinfo=dt.timezone.utc)
+        return dt.datetime.combine(val, dt.time.min).replace(tzinfo=dt.UTC)
     try:
         # Si es formato simple YYYY-MM-DD de 10 caracteres
         if len(val) == 10:
-            return dt.datetime.combine(dt.date.fromisoformat(val), dt.time.min).replace(tzinfo=dt.timezone.utc)
+            return dt.datetime.combine(dt.date.fromisoformat(val), dt.time.min).replace(tzinfo=dt.UTC)
         # Formato ISO completo
         val_clean = val.replace("Z", "+00:00")
         return dt.datetime.fromisoformat(val_clean)
@@ -459,6 +459,10 @@ async def get_weather_series(
         if end:
             parsed_end = _parse_timestamp(end)
             if parsed_end:
+                # Si el parámetro end es una fecha YYYY-MM-DD de 10 caracteres,
+                # extendemos al final del día (23:59:59.999999) para incluir todas las horas.
+                if isinstance(end, str) and len(end) == 10:
+                    parsed_end = dt.datetime.combine(parsed_end.date(), dt.time.max).replace(tzinfo=dt.UTC)
                 query += " and timestamp <= :end"
                 params["end"] = parsed_end
             

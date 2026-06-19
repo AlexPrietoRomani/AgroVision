@@ -37,7 +37,10 @@ class WeatherRequest(BaseModel):
     field_id: str = Field(description="UUID de la parcela asociada.")
     start: str | None = None
     end: str | None = None
-    raw: bool = Field(default=False, description="Si es True, devuelve la serie horaria sin agregar.")
+    raw: bool = Field(
+        default=False,
+        description="Si es True, devuelve la serie horaria sin agregar."
+    )
 
 
 @router.post("")

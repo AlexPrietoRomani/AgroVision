@@ -21,8 +21,12 @@ Entradas / Dependencias:
 from __future__ import annotations
 
 import datetime as dt
+import logging
 from collections import defaultdict
 from typing import Any
+
+_logger = logging.getLogger("agrovision.weather")
+
 
 import httpx
 from dateutil.relativedelta import relativedelta
@@ -99,6 +103,7 @@ async def fetch_and_persist_weather(
     Returns:
         list[dict]: La lista de diccionarios insertada (datos horarios).
     """
+    _logger.info("Consultando API Open-Meteo (archive) para parcela %s (rango: %s a %s, lat=%s, lon=%s)", field_id, start, end, lat, lon)
     params = {
         "latitude": str(lat),
         "longitude": str(lon),
@@ -116,6 +121,7 @@ async def fetch_and_persist_weather(
     times = hourly.get("time", [])
     
     if not times:
+        _logger.warning("No se recibieron datos horarios de Open-Meteo para %s", field_id)
         return []
 
     # Extraer arrays paralelos
@@ -135,10 +141,7 @@ async def fetch_and_persist_weather(
 
     records = []
     for i, t in enumerate(times):
-        # La API de Open-Meteo suele devolver arreglos de idéntica longitud.
-        # Añade segundos e indicador de zona horaria si tiene formato 'YYYY-MM-DDTHH:MM'
         ts_str = t + ":00Z" if len(t) == 16 else t
-        # Convierte el string ISO a objeto datetime.datetime para la inserción correcta en DB
         ts_val = dt.datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
         
         records.append({
@@ -158,8 +161,7 @@ async def fetch_and_persist_weather(
             "soil_moisture_0_to_7cm": sm[i] if i < len(sm) else None,
         })
 
-    # Persistir en lotes para evitar sobrecargar la query
-    # En 5 años son ~43800 registros
+    _logger.info("Persitiendo %d registros horarios de clima en la base de datos para %s", len(records), field_id)
     batch_size = 5000
     for i in range(0, len(records), batch_size):
         batch = records[i:i + batch_size]
@@ -185,12 +187,30 @@ async def weather_series(
     if not start or not end:
         start, end = _default_range()
 
+    _logger.info("Solicitando clima para parcela %s (%s) en rango %s a %s (raw=%s)", field_id, field.name, start, end, raw)
+    
     # Chequear si ya tenemos datos en ese rango (aprox) en la base de datos
     db_records = await repositories.get_weather_series(session, field_id, start, end)
+    _logger.info("Leídos %d registros horarios de la BD para parcela %s", len(db_records), field_id)
     
-    # Si la cantidad de registros horarios es muy pequeña (ej. < 1 mes = 720 hs),
-    # o no hay datos, forzamos descarga completa
-    if len(db_records) < 720:
+    # Calcular las horas esperadas aproximadas entre start y end
+    start_dt = repositories._parse_timestamp(start)
+    end_dt = repositories._parse_timestamp(end)
+    if isinstance(end, str) and len(end) == 10 and end_dt:
+        end_dt = dt.datetime.combine(end_dt.date(), dt.time.max).replace(tzinfo=dt.UTC)
+
+    if start_dt and end_dt:
+        expected_hours = int((end_dt - start_dt).total_seconds() / 3600) + 1
+    else:
+        expected_hours = 720
+
+    # Forzar descarga desde Open-Meteo si tenemos menos del 90% de los datos esperados en BD
+    if len(db_records) < expected_hours * 0.9:
+        _logger.info(
+            "Registros en base de datos insuficientes (%d < %d hs esperadas). Activando descarga de Open-Meteo.",
+            len(db_records),
+            expected_hours
+        )
         db_records = await fetch_and_persist_weather(
             session, field_id, lat=field.lat, lon=field.lon, start=start, end=end
         )
@@ -198,3 +218,4 @@ async def weather_series(
     if raw:
         return db_records
     return aggregate_weather_monthly(db_records)
+
