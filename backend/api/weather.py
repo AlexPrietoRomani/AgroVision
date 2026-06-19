@@ -37,14 +37,15 @@ class WeatherRequest(BaseModel):
     field_id: str = Field(description="UUID de la parcela asociada.")
     start: str | None = None
     end: str | None = None
+    raw: bool = Field(default=False, description="Si es True, devuelve la serie horaria sin agregar.")
 
 
 @router.post("")
 async def weather_series(
     body: WeatherRequest, session: AsyncSession = Depends(get_db)
 ) -> dict:
-    """Devuelve la serie climática mensual de la parcela indicada."""
+    """Devuelve la serie climática mensual o cruda de la parcela indicada."""
     series = await weather.weather_series(
-        session, body.field_id, body.start, body.end
+        session, body.field_id, body.start, body.end, body.raw
     )
     return {"series": series}

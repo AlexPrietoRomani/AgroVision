@@ -169,10 +169,14 @@ async def fetch_and_persist_weather(
 
 
 async def weather_series(
-    session: AsyncSession, field_id: Any, start: str | None = None, end: str | None = None
+    session: AsyncSession,
+    field_id: Any,
+    start: str | None = None,
+    end: str | None = None,
+    raw: bool = False,
 ) -> list[dict]:
     """
-    Orquesta la obtención del clima horario (BD o API) y devuelve la serie mensual.
+    Orquesta la obtención del clima horario (BD o API) y devuelve la serie mensual o cruda.
     """
     field = await repositories.get_field(session, field_id)
     if not field:
@@ -182,11 +186,6 @@ async def weather_series(
         start, end = _default_range()
 
     # Chequear si ya tenemos datos en ese rango (aprox) en la base de datos
-    # Como la descarga de 5 años toma unos segundos, para simplificar, si hay datos
-    # que cubren parcialmente el rango, asumimos que no necesitamos descargar todo
-    # En producción real se cruzarían rangos faltantes. Para este MV, validamos
-    # si hay al menos un registro en el mes inicial.
-    
     db_records = await repositories.get_weather_series(session, field_id, start, end)
     
     # Si la cantidad de registros horarios es muy pequeña (ej. < 1 mes = 720 hs),
@@ -196,4 +195,6 @@ async def weather_series(
             session, field_id, lat=field.lat, lon=field.lon, start=start, end=end
         )
 
+    if raw:
+        return db_records
     return aggregate_weather_monthly(db_records)
