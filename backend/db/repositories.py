@@ -128,7 +128,8 @@ async def list_fields(session: AsyncSession, user_id: str | None = None) -> list
         "select id, name, ST_X(ST_Centroid(geom)) as lon, "
         "ST_Y(ST_Centroid(geom)) as lat, ST_AsGeoJSON(geom) as geojson, "
         "crop_variety, field_type, soil_type, irrigation_system, pests_diseases, "
-        "plantation_date, num_plants, historical_yield, target_market, document_metadata from fields"
+        "plantation_date, num_plants, historical_yield, target_market, "
+        "document_metadata from fields"
     )
     if user_id is None:
         result = await session.execute(text(f"{cols} order by name"))
@@ -435,7 +436,9 @@ def _parse_timestamp(val: str | None) -> dt.datetime | None:
     try:
         # Si es formato simple YYYY-MM-DD de 10 caracteres
         if len(val) == 10:
-            return dt.datetime.combine(dt.date.fromisoformat(val), dt.time.min).replace(tzinfo=dt.UTC)
+            return dt.datetime.combine(
+                dt.date.fromisoformat(val), dt.time.min
+            ).replace(tzinfo=dt.UTC)
         # Formato ISO completo
         val_clean = val.replace("Z", "+00:00")
         return dt.datetime.fromisoformat(val_clean)
@@ -462,7 +465,9 @@ async def get_weather_series(
                 # Si el parámetro end es una fecha YYYY-MM-DD de 10 caracteres,
                 # extendemos al final del día (23:59:59.999999) para incluir todas las horas.
                 if isinstance(end, str) and len(end) == 10:
-                    parsed_end = dt.datetime.combine(parsed_end.date(), dt.time.max).replace(tzinfo=dt.UTC)
+                    parsed_end = dt.datetime.combine(
+                        parsed_end.date(), dt.time.max
+                    ).replace(tzinfo=dt.UTC)
                 query += " and timestamp <= :end"
                 params["end"] = parsed_end
             
