@@ -1,0 +1,31 @@
+---
+// Modal de telemetría que lista los eventos de la sesión actual.
+---
+
+<!-- Modal de Telemetría -->
+<div id="telemetry-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
+  <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[80vh] flex flex-col">
+    <div class="flex items-center justify-between px-5 py-3 border-b border-stone-200">
+      <h3 class="font-bold text-sm text-stone-800"><i class="fa-solid fa-chart-line mr-2 text-emerald-600"></i>Telemetría de Sesión</h3>
+      <button id="btn-close-telemetry" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark text-lg"></i></button>
+    </div>
+    <div class="flex-1 overflow-y-auto p-5">
+      <div class="flex items-center gap-3 mb-4">
+        <span class="text-xs text-stone-500">Sesión:</span>
+        <code class="text-[10px] bg-stone-100 px-2 py-1 rounded font-mono" id="telemetry-session-id"></code>
+        <button id="btn-refresh-telemetry" class="ml-auto text-xs bg-stone-100 hover:bg-stone-200 text-stone-700 px-3 py-1 rounded font-semibold">
+          <i class="fa-solid fa-rotate-right mr-1"></i>Actualizar
+        </button>
+      </div>
+      <div id="telemetry-content" class="space-y-2">
+        <p class="text-xs text-stone-500">Cargando eventos...</p>
+      </div>
+    </div>
+    <div class="px-5 py-3 border-t border-stone-200 bg-stone-50 rounded-b-xl">
+      <p class="text-[10px] text-stone-500">
+        <i class="fa-solid fa-info-circle mr-1"></i>
+        Los eventos se guardan en la BD si <code>EVENTS_PERSIST=true</code>. El buffer en memoria muestra los últimos 500 eventos de esta sesión.
+      </p>
+    </div>
+  </div>
+</div>

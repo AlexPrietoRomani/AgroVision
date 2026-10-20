@@ -1,0 +1,23 @@
+---
+// Cabecera del panel central: selector de parcela activa y alternador del asistente.
+---
+
+<!-- Header con botón de branding central -->
+<div class="bg-stone-50 border-b border-stone-200 px-4 py-3 flex items-center justify-between shrink-0">
+  <div class="flex items-center gap-1.5">
+    <label class="text-[10px] font-bold text-stone-600 uppercase" for="select-parcela">Parcela:</label>
+    <select id="select-parcela" class="text-xs border border-stone-300 rounded p-1.5 bg-white font-semibold focus:outline-none focus:border-emerald-600 max-w-[120px]">
+      <option value="">(sin parcelas)</option>
+    </select>
+  </div>
+
+  <!-- Botón de branding central -->
+  <button id="btn-branding-toggle" class="w-9 h-9 rounded-full bg-emerald-700 text-white flex items-center justify-center shadow hover:bg-emerald-800 transition-all" title="Mostrar Chat con Asistente">
+    <i class="fa-solid fa-robot text-base" id="branding-icon"></i>
+  </button>
+
+  <div class="text-right">
+    <span class="text-[9px] text-stone-500 font-bold block uppercase leading-none">Activa</span>
+    <span id="active-parcel-name-display" class="text-xs font-bold text-stone-800 truncate block max-w-[100px]">—</span>
+  </div>
+</div>
