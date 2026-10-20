@@ -305,8 +305,15 @@ sequenceDiagram
     G->>DB: SELECT FROM vegetation_indices
     DB-->>G: Serie mensual
     G-->>C: {index, series}
-    C->>G: POST /api/weather {lat, lon}
-    G->>G: Open-Meteo (on-demand)
+    C->>G: POST /api/weather {field_id}
+    G->>DB: SELECT FROM weather_data
+    DB-->>G: Serie horaria persistida
+    alt Caché insuficiente (<90% de horas)
+        G->>G: Open-Meteo Archive (on-demand)
+        G->>DB: UPSERT weather_data
+        DB-->>G: Serie horaria actualizada
+    end
+    G->>G: Agregación mensual
     G-->>C: Serie climática mensual
     C->>C: Chart.js: línea + barras
     U->>C: Clic "Generar" heatmap
@@ -417,10 +424,20 @@ sequenceDiagram
 erDiagram
     FIELDS {
         uuid id PK
-        uuid user_id "propietario (BYOK)"
+        uuid user_id "propietario (BYOK, nullable)"
         text name "nombre legible"
         geometry geom "Polygon 4326"
-        timestamptz created_at
+        text crop_variety
+        text field_type
+        text soil_type
+        text irrigation_system
+        text pests_diseases
+        date plantation_date
+        integer num_plants
+        text historical_yield
+        text target_market
+        text document_metadata
+        timestamp created_at
     }
 
     VEGETATION_INDICES {
@@ -441,9 +458,9 @@ erDiagram
         text supabase_url_hash "SHA-256 hash"
         uuid active_field_id FK "active field, nullable"
         jsonb preferences "JSON configurations"
-        text session_mode "temporary|saved"
-        timestamptz created_at
-        timestamptz updated_at
+        text session_mode "ephemeral|saved|shared"
+        timestamp created_at
+        timestamp updated_at
     }
 
     WEATHER_DATA {
@@ -473,7 +490,7 @@ erDiagram
         text image_url "bucket privado"
         integer count "CHECK >= 0"
         jsonb result_json "detecciones"
-        timestamptz processed_at
+        timestamp processed_at
     }
 
     CHAT_MESSAGES {
@@ -482,7 +499,7 @@ erDiagram
         text session_id "hilo conversacional"
         text role "user|assistant"
         text content
-        timestamptz created_at
+        timestamp created_at
         uuid field_id FK "nullable"
     }
 
@@ -491,7 +508,7 @@ erDiagram
         text action "ej: nav|error|backfill_start"
         text session_id "correlación UI"
         jsonb meta "contexto redactado"
-        timestamptz created_at
+        timestamp created_at
     }
 
     FIELDS ||--o{ VEGETATION_INDICES : "tiene"
@@ -505,13 +522,13 @@ erDiagram
 
 | Tabla | Propósito | Creada en | Registros típicos |
 |-------|-----------|-----------|-------------------|
-| `fields` | Parcelas agrícolas con geometría (Polygon 4326) | `0001_init.sql` | 1–50 por espacio |
-| `vegetation_indices` | Serie mensual de los 5 índices espectrales (NDVI/EVI/SAVI/NDWI/NDRE) | `0004_indices.sql` (Fase 13) | ~33 pts/mes × 5 índices = ~165 por parcela |
-| `weather_data` | Registro histórico horario de 13 variables de clima de Open-Meteo | `0008_weather_data.sql` (Fase 14) | 24 pts/día × variables por parcela |
-| `user_profiles` | Perfiles de usuario y preferencias de sesión asociadas de forma segura | `0009_user_profiles.sql` (Fase 15) | 1 por host Supabase |
-| `plant_counts` | Resultados de conteo por dron (standby, sin escrituras) | `0001_init.sql` | 0 (inactiva) |
-| `chat_messages` | Memoria conversacional del agente RAG | `0001_init.sql` | Variable por sesión |
-| `events` | Telemetría de UI/backend (opcional, si `EVENTS_PERSIST=true`) | `0003_events.sql` (Fase 9) | ~500 últimos en buffer |
+| `fields` | Parcelas agrícolas con geometría (Polygon 4326) | `0001_initial_schema.sql` | 1–50 por espacio |
+| `vegetation_indices` | Serie mensual de los 5 índices espectrales (NDVI/EVI/SAVI/NDWI/NDRE) | `0001_initial_schema.sql` | ~33 pts/mes × 5 índices = ~165 por parcela |
+| `weather_data` | Registro histórico horario de 13 variables de clima de Open-Meteo | `0001_initial_schema.sql` | 24 pts/día × variables por parcela |
+| `user_profiles` | Perfiles de usuario y preferencias de sesión asociadas de forma segura | `0001_initial_schema.sql` | 1 por host Supabase |
+| `plant_counts` | Resultados de conteo por dron (standby, sin escrituras) | `0001_initial_schema.sql` | 0 (inactiva) |
+| `chat_messages` | Memoria conversacional del agente RAG | `0001_initial_schema.sql` | Variable por sesión |
+| `events` | Telemetría de UI/backend (opcional, si `EVENTS_PERSIST=true`) | `0001_initial_schema.sql` | ~500 últimos en buffer |
 
 ### 5.3 Constraints y Relaciones Clave
 
@@ -526,7 +543,7 @@ erDiagram
 |------|-------------|------------|
 | Parcelas | `fields` | INSERT/UPDATE/DELETE vía repositorios |
 | Índices espectrales | `vegetation_indices` | Upsert idempotente (ON CONFLICT DO UPDATE) |
-| Clima | No persiste | On-demand desde Open-Meteo, agregación mensual en memoria |
+| Clima | `weather_data` | Upsert idempotente por `(field_id, timestamp)`; agregación mensual en el backend |
 | Chat | `chat_messages` | INSERT al finalizar turno |
 | Telemetría | Buffer (`deque`) + opcional `events` | Buffer en memoria (500 máx); persistencia best-effort si `EVENTS_PERSIST=true` |
 | Conteo | `plant_counts` + Storage | Standby sin escrituras |

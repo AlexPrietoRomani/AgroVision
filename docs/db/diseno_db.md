@@ -6,7 +6,7 @@
 >
 > **Alcance de construcción (esta iteración):** se implementan **todas** las tablas:
 > - **`fields`, `vegetation_indices`, `chat_messages`** se usan activamente (parcelas, teledetección 5 índices espectrales, agente).
-> - **`plant_counts`** y la **cola PGMQ `count_tasks`** se crean en la migración pero quedan **inactivas** (el módulo de Conteo está **en desarrollo**); se activan con `COUNTING_ENABLED=true`.
+> - **`plant_counts`** se crea en la migración pero queda **inactiva** (el módulo de Conteo está **en desarrollo**); se activa con `COUNTING_ENABLED=true`. La cola PGMQ `count_tasks` se habilitará en la fase de activación del conteo.
 > - **`weather_data`** persiste series horarias de clima con 13 variables climáticas asociadas a cada parcela.
 > - **`user_profiles`** gestiona la configuración de los perfiles de usuario y las preferencias de sesión (temporal/guardada).
 >
@@ -38,9 +38,19 @@ erDiagram
 
     FIELDS {
         uuid id PK "DEFAULT gen_random_uuid()"
-        uuid user_id "NOT NULL"
+        uuid user_id "NULL en BYOK monousuario"
         string name "NOT NULL"
         geometry geom "Polygon 4326, NOT NULL, GIST"
+        string crop_variety
+        string field_type
+        string soil_type
+        string irrigation_system
+        string pests_diseases
+        date plantation_date
+        int num_plants
+        string historical_yield
+        string target_market
+        string document_metadata
         timestamp created_at "DEFAULT now()"
     }
 
@@ -62,7 +72,7 @@ erDiagram
         string supabase_url_hash "UNIQUE, NOT NULL"
         uuid active_field_id FK "SET NULL ON DELETE"
         jsonb preferences "NOT NULL DEFAULT '{}'"
-        string session_mode "NOT NULL DEFAULT 'temporary'"
+        string session_mode "NOT NULL DEFAULT 'ephemeral'"
         timestamp created_at "DEFAULT now()"
         timestamp updated_at "DEFAULT now()"
     }
@@ -89,7 +99,7 @@ erDiagram
 
     PLANT_COUNTS {
         int id PK "SERIAL"
-        uuid user_id "CASCADE ON DELETE"
+        uuid user_id "NULL; sin FK a auth.users (BYOK)"
         uuid field_id FK "SET NULL ON DELETE"
         string image_url "NOT NULL, Storage privado"
         int count "NOT NULL"
@@ -99,7 +109,7 @@ erDiagram
 
     CHAT_MESSAGES {
         int id PK "SERIAL"
-        uuid user_id "CASCADE ON DELETE"
+        uuid user_id "NULL; sin FK a auth.users (BYOK)"
         string session_id "NOT NULL"
         string role "CHECK (user|assistant)"
         string content "NOT NULL"
@@ -126,12 +136,22 @@ erDiagram
 | Campo | Tipo de Dato | Modificadores | Descripción / Regla de Negocio |
 | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | `PK`, `DEFAULT gen_random_uuid()` | Identificador único. |
-| `user_id` | `UUID` | `NOT NULL` | Propietario del lote. |
+| `user_id` | `UUID` | `NULL` | Propietario del lote. Admite `NULL` en el modo BYOK monousuario; se rellena cuando el gateway dispone de identidad. |
 | `name` | `TEXT` | `NOT NULL` | Nombre legible (canonicalizado a *Title Case*). |
 | `geom` | `GEOMETRY(Polygon, 4326)` | `NOT NULL` | Polígono WGS84; validado con `ST_IsValid`. |
+| `crop_variety` | `TEXT` | — | Variedad del cultivo. |
+| `field_type` | `TEXT` | — | Tipo de lote o campo. |
+| `soil_type` | `TEXT` | — | Tipo de suelo. |
+| `irrigation_system` | `TEXT` | — | Sistema de riego. |
+| `pests_diseases` | `TEXT` | — | Plagas y enfermedades declaradas. |
+| `plantation_date` | `DATE` | — | Fecha de plantación. |
+| `num_plants` | `INTEGER` | `CHECK (num_plants >= 0)` | Número de plantas (si se conoce). |
+| `historical_yield` | `TEXT` | — | Rendimiento histórico declarado. |
+| `target_market` | `TEXT` | — | Mercados objetivo. |
+| `document_metadata` | `TEXT` | — | Metadatos de documentos asociados. |
 | `created_at` | `TIMESTAMP` | `DEFAULT now()` | Fecha de creación. |
 
-*   **Restricciones:** `ST_IsValid(geom)` debe ser verdadero; SRID siempre 4326.
+*   **Restricciones:** `CHECK (ST_IsValid(geom))` debe ser verdadero; SRID siempre 4326. Los atributos agronómicos son opcionales y los edita la UI vía `PATCH /api/fields/{id}`.
 
 ### 3.2 Tabla: `vegetation_indices`
 *   **Descripción:** Serie temporal histórica de 5 índices espectrales (NDVI/EVI/SAVI/NDWI/NDRE) derivados de Sentinel-2. Se persiste **agregada por mes** (un punto por mes por índice, la escena de menor nubosidad), con un **backfill inicial de 5 años** al crear la parcela y refresco **incremental** después.
@@ -147,7 +167,7 @@ erDiagram
 | `cloud_cover` | `DOUBLE PRECISION` | — | % de nubes; > 60 % marca baja confianza. |
 | `source` | `TEXT` | `DEFAULT 'sentinel2'` | Origen (minúsculas). |
 
-*   **Restricciones:** `UNIQUE (field_id, index_type, date)` — una observación por lote, índice y fecha; el `UNIQUE` hace **idempotente** el backfill/refresco incremental.
+*   **Restricciones:** `UNIQUE (field_id, index_type, date)` — una observación por lote, índice y fecha; el `UNIQUE` hace **idempotente** el backfill/refresco incremental. `cloud_cover` se valida en el rango $[0, 100]$.
 
 ### 3.3 Tabla: `user_profiles`
 *   **Descripción:** Gestión de perfiles de usuario y preferencias de sesión asociadas de forma segura.
@@ -159,7 +179,7 @@ erDiagram
 | `supabase_url_hash` | `VARCHAR(64)` | `UNIQUE`, `NOT NULL` | Fingerprint SHA-256 del host Supabase. |
 | `active_field_id` | `UUID` | `FK (fields.id)`, `ON DELETE SET NULL` | Parcela activa del perfil. |
 | `preferences` | `JSONB` | `NOT NULL DEFAULT '{}'` | Preferencias (ej. índice por defecto, unidades). |
-| `session_mode` | `VARCHAR(20)` | `NOT NULL DEFAULT 'temporary'` | Modo de sesión: `ephemeral` o `saved`. |
+| `session_mode` | `VARCHAR(20)` | `NOT NULL DEFAULT 'ephemeral'` | Modo de sesión: `ephemeral`, `saved` o `shared`. |
 | `created_at` | `TIMESTAMP` | `DEFAULT now()` | Fecha de registro. |
 | `updated_at` | `TIMESTAMP` | `DEFAULT now()` | Fecha de actualización. |
 
@@ -194,7 +214,7 @@ erDiagram
 | Campo | Tipo de Dato | Modificadores | Descripción / Regla de Negocio |
 | :--- | :--- | :--- | :--- |
 | `id` | `SERIAL` | `PK` | Identificador secuencial. |
-| `user_id` | `UUID` | `ON DELETE CASCADE` | Quién ejecutó el conteo. |
+| `user_id` | `UUID` | `NULL` | Quién ejecutó el conteo. Sin FK a `auth.users` para permitir PostgreSQL local y el modo BYOK. |
 | `field_id` | `UUID` | `FK (fields.id)`, `ON DELETE SET NULL` | Lote (opcional). |
 | `image_url` | `TEXT` | `NOT NULL` | Ruta en Storage privado (no pública). |
 | `count` | `INTEGER` | `NOT NULL` | Conteo total de plantas. |
@@ -209,7 +229,7 @@ erDiagram
 | Campo | Tipo de Dato | Modificadores | Descripción / Regla de Negocio |
 | :--- | :--- | :--- | :--- |
 | `id` | `SERIAL` | `PK` | Identificador secuencial. |
-| `user_id` | `UUID` | `ON DELETE CASCADE` | Dueño de la conversación. |
+| `user_id` | `UUID` | `NULL` | Dueño de la conversación. Sin FK a `auth.users` para permitir PostgreSQL local y el modo BYOK. |
 | `session_id` | `TEXT` | `NOT NULL` | Hilo conversacional. |
 | `role` | `TEXT` | `NOT NULL`, `CHECK (role IN ('user','assistant'))` | Emisor del mensaje. |
 | `content` | `TEXT` | `NOT NULL` | Texto del turno. |
@@ -242,7 +262,7 @@ erDiagram
 | `plant_counts` | `CountService` (read) | `InferenceWorker` (write) | lectura vía API | `API: Read` <br> `Worker: Write` | **En desarrollo:** sin escrituras hasta `COUNTING_ENABLED=true`. |
 | `chat_messages` | `AgentService` | *Ninguno* | lectura vía API (*Asistente*) | `API: Read/Write` | Memoria del agente con soporte de acotamiento por `field_id`. |
 | `events` | `events` router (write best-effort) | *Ninguno* | escritura vía `POST /api/events` (telemetría) | `API: Write` <br> (opcional) | **Opcional** (`EVENTS_PERSIST=true`). Sin secretos (redactado). Por defecto solo buffer en memoria. |
-| `pgmq.count_tasks` (cola) | `CountService` (produce) | `InferenceWorker` (consume) | — | `API: send` <br> `Worker: read/archive` | **En desarrollo:** cola creada pero inactiva hasta activar el conteo. |
+| `pgmq.count_tasks` (cola) | `CountService` (produce) | `InferenceWorker` (consume) | — | `API: send` <br> `Worker: read/archive` | **En desarrollo:** cola pendiente de creación; se habilitará en la fase de activación del conteo, no forma parte de `0001_initial_schema.sql`. |
 
 > **NDVI raster / heatmap:** el endpoint `POST /api/ndvi/raster` genera un PNG colorizado **on-demand** (no escribe en BD ni en Storage; se regenera). No aparece en la matriz por no tocar persistencia.
 
@@ -254,15 +274,16 @@ erDiagram
 
 ### 5.1 Índices Planificados
 *   **`fields_geom_gist_idx`** en `fields USING gist (geom)` — acelera operaciones espaciales (intersección, área).
-*   **`vegetation_indices_field_type_date_idx`** en `vegetation_indices (field_id, index_type, date)` — optimiza filtros de fecha/índice del agente.
+*   **`vegetation_indices_field_type_date_idx`** en `vegetation_indices (field_id, index_type, date)` — optimiza filtros de fecha/índice del agente; lo materializa el índice único de `UNIQUE (field_id, index_type, date)`.
 *   **`weather_data_field_timestamp_idx`** en `weather_data (field_id, timestamp DESC)` — optimiza consultas de series temporales de clima.
-*   **`user_profiles_supabase_url_hash_idx`** en `user_profiles (supabase_url_hash)` — aceleración de la reconexión de perfiles.
+*   **`user_profiles_supabase_url_hash_idx`** en `user_profiles (supabase_url_hash)` — aceleración de la reconexión de perfiles; lo materializa el índice único de `UNIQUE (supabase_url_hash)`.
 *   **`plant_counts_json_gin_idx`** en `plant_counts USING gin (result_json)` — búsquedas/agregaciones sobre el JSONB de detecciones.
 *   **`chat_session_history_idx`** en `chat_messages (session_id, created_at)` — recuperación ordenada del historial.
 *   **`events_session_created_idx`** en `events (session_id, created_at)` — traza de una sesión ordenada (depuración; tabla opcional).
+*   **Índices de FK y propietario:** `idx_fields_user_id`, `idx_user_profiles_active_field_id`, `idx_plant_counts_field_id`, `idx_plant_counts_user_id`, `idx_chat_messages_field_id` — aceleran los filtros por parcela/usuario de la matriz CRUD.
 
 ### 5.2 Control de Concurrencia y Seguridad
-*   **Row Level Security (RLS):** políticas `auth.uid() = user_id` o vinculación con dueños de parcelas en todas las tablas para aislar usuarios dentro del mismo proyecto Supabase.
+*   **Row Level Security (RLS):** RLS habilitado en todas las tablas. `fields`, `vegetation_indices`, `weather_data`, `plant_counts` y `chat_messages` tienen políticas para `authenticated` basadas en `auth.uid() = user_id` o en el dueño de la parcela; `user_profiles` y `events` quedan sin políticas de cliente y solo son accesibles por el rol propietario (gateway), porque el modelo BYOK no garantiza una identidad de usuario fiable.
 *   **Cola PGMQ:** *visibility timeout* `vt=120` garantiza que un solo worker procese cada tarea; si falla, el mensaje reaparece y se reintenta.
 *   **Storage privado:** bucket `drone-images` privado; acceso solo vía **Signed URLs** (`expires_in=600`).
 
@@ -270,7 +291,7 @@ erDiagram
 *   **Herramienta primaria:** **Supabase CLI** con migraciones SQL versionadas (`supabase/migrations/*.sql`), aplicadas con `supabase db push` (idempotentes).
 *   **Alternativa local (dev):** **Alembic** o script de migración nativo (`backend/db/migrate.py`) cuando se trabaja contra el Postgres+PostGIS de `docker-compose`.
 *   **Política:** prohibido alterar el esquema manualmente en producción; todo cambio pasa por una migración versionada y revisable.
-*   **Orden de bootstrap:** (1) `create extension postgis`; (2) `create extension pgmq` / habilitar Supabase Queues; (3) tablas + índices; (4) políticas RLS; (5) bucket de Storage privado.
+*   **Orden de bootstrap:** (1) `create extension postgis`; (2) tablas + índices; (3) políticas RLS; (4) bucket de Storage privado. La extensión/cola PGMQ queda **diferida** a la fase de activación del conteo y no se crea en `0001_initial_schema.sql`.
 
 ---
 
