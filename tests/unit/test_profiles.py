@@ -13,25 +13,23 @@ Ejemplo de Integración:
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from unittest.mock import AsyncMock
+
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.api.deps import get_db
 from backend.main import app
 
 
-# Mock de la sesión de base de datos
-class MockDbSession:
-    """Mock simple de la sesión de base de datos async de SQLAlchemy."""
-    
-    def __init__(self) -> None:
-        self.committed = False
-        self.rolled_back = False
-
-    async def commit(self) -> None:
-        self.committed = True
-
-    async def rollback(self) -> None:
-        self.rolled_back = True
+@pytest.fixture(autouse=True)
+def override_db_dependency() -> Iterator[None]:
+    """Inyecta una sesión mock para que los tests no requieran `DATABASE_URL`."""
+    app.dependency_overrides[get_db] = lambda: AsyncMock(spec=AsyncSession)
+    yield
+    app.dependency_overrides.pop(get_db, None)
 
 
 @pytest.fixture
