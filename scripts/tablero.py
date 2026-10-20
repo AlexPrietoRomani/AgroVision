@@ -4,9 +4,11 @@ mantiene el indice de un tablero partido en un archivo por Fase, calcula roll-up
 automatico de checkboxes, y lleva/trae esos documentos --que estan gitignorados--
 entre el repo principal y una worktree con alcance por Fase o Subfase.
 
-Run: python scripts/tablero.py --indice | --verificar | --rollup | --partir | --worktree FNN[/SFx.y] | --sync
+Run: python scripts/tablero.py --indice | --verificar | --rollup
+     python scripts/tablero.py --partir | --worktree FNN[/SFx.y] | --sync
 Stdlib only.
 """
+
 import argparse
 import hashlib
 import json
@@ -37,12 +39,42 @@ PATRON_SUBFASE = re.compile(r"^### \[([ X/])\] (SF\d+\.\d+) — (.+)$")
 PATRON_TAREA = re.compile(r"^(####|\s*-\s*) \[([ X/])\] (T\d+\.\d+\.\d+) — (.+)$")
 PATRON_ACCION = re.compile(r"^\s+-\s+\[([ X/])\] (?:A\d+\.\d+\.\d+\.\d+|Paso|\d+).*$")
 
-VACIAS = {"el", "la", "lo", "los", "las", "un", "una", "unos", "unas", "de", "del",
-          "y", "o", "a", "en", "con", "por", "para", "que", "se", "su", "sus", "al",
-          "es", "the", "of", "and", "to", "in", "for"}
+VACIAS = {
+    "el",
+    "la",
+    "lo",
+    "los",
+    "las",
+    "un",
+    "una",
+    "unos",
+    "unas",
+    "de",
+    "del",
+    "y",
+    "o",
+    "a",
+    "en",
+    "con",
+    "por",
+    "para",
+    "que",
+    "se",
+    "su",
+    "sus",
+    "al",
+    "es",
+    "the",
+    "of",
+    "and",
+    "to",
+    "in",
+    "for",
+}
 
 
 # --- Track y rutas ---------------------------------------------------------------
+
 
 def raiz_repo(inicio: Path = None) -> Path:
     """Sube desde `inicio` hasta el directorio que contiene .git."""
@@ -74,13 +106,15 @@ def resolver_track(raiz: Path, pedido: str = None) -> str:
     if pedido:
         if pedido not in disponibles:
             raise SystemExit(
-                f"track '{pedido}' no existe. Disponibles: {', '.join(disponibles) or 'ninguno'}")
+                f"track '{pedido}' no existe. Disponibles: {', '.join(disponibles) or 'ninguno'}"
+            )
         return pedido
     if (raiz / "docs" / "plan" / "plan_maestro.md").is_file():
         return None
     if not disponibles:
         raise SystemExit(
-            "no hay plan: falta docs/plan/plan_maestro.md o docs/plan/<track>/plan_maestro.md")
+            "no hay plan: falta docs/plan/plan_maestro.md o docs/plan/<track>/plan_maestro.md"
+        )
     try:
         activo = (raiz / ARCHIVO_TRACK).read_text(encoding="utf-8").strip()
     except OSError:
@@ -90,7 +124,8 @@ def resolver_track(raiz: Path, pedido: str = None) -> str:
     if len(disponibles) == 1:
         return disponibles[0]
     raise SystemExit(
-        f"varios tracks y ninguno activo: {', '.join(disponibles)}. Elegi uno con /track <slug>")
+        f"varios tracks y ninguno activo: {', '.join(disponibles)}. Elegi uno con /track <slug>"
+    )
 
 
 def rutas(raiz: Path, track: str) -> dict:
@@ -106,6 +141,7 @@ def rutas(raiz: Path, track: str) -> dict:
 
 
 # --- Anclas, nombres de archivo, rollup e indice ---------------------------------
+
 
 def ancla_de_titulo(titulo: str) -> str:
     """El fragmento `#...` que GitHub genera para un encabezado.
@@ -143,7 +179,7 @@ def parse_and_rollup_texto(contenido: str) -> str:
     ini = re.search(rf"^{re.escape(MARCA_FASE_INICIO)}$", contenido, re.M)
     fin = re.search(rf"^{re.escape(MARCA_FASE_FIN)}$", contenido, re.M)
     if ini and fin and ini.start() < fin.end():
-        limpio = contenido[:ini.start()].rstrip() + "\n\n" + contenido[fin.end():].lstrip()
+        limpio = contenido[: ini.start()].rstrip() + "\n\n" + contenido[fin.end() :].lstrip()
     else:
         limpio = contenido
 
@@ -212,9 +248,8 @@ def parse_and_rollup_texto(contenido: str) -> str:
 
     # Reconstruir lineas
     if fase_idx is not None and fase_info:
-        lineas[fase_idx] = (
-            f"## [{fase_info['estado']}] Fase {fase_info['num']}{fase_info['calif']}— {fase_info['tit']}"
-        )
+        encabezado = f"Fase {fase_info['num']}{fase_info['calif']}— {fase_info['tit']}"
+        lineas[fase_idx] = f"## [{fase_info['estado']}] {encabezado}\n"
 
     for sf in subfases:
         lineas[sf["idx"]] = f"### [{sf['estado']}] {sf['id']} — {sf['tit']}"
@@ -233,11 +268,11 @@ def parse_and_rollup_texto(contenido: str) -> str:
     # Inyectar inmediatamente después del encabezado de la Fase
     if fase_idx is not None:
         cuerpo = (
-            "\n".join(lineas[:fase_idx + 1])
+            "\n".join(lineas[: fase_idx + 1])
             + "\n\n"
             + bloque_str
             + "\n\n"
-            + "\n".join(lineas[fase_idx + 1:]).lstrip("\n")
+            + "\n".join(lineas[fase_idx + 1 :]).lstrip("\n")
         )
     else:
         cuerpo = bloque_str + "\n\n" + "\n".join(lineas)
@@ -293,9 +328,13 @@ def bloque_markdown(entradas: list) -> str:
 
     La Fase enlaza a su archivo; las Sub fases se listan sin enlaces (solo estado y titulo).
     """
-    lineas = [MARCA_INICIO, "",
-              "> Una Fase por archivo, bajo [`fases/`](fases/). Regenerar con",
-              "> `python scripts/tablero.py --indice`; `--verificar` avisa si quedo viejo.", ""]
+    lineas = [
+        MARCA_INICIO,
+        "",
+        "> Una Fase por archivo, bajo [`fases/`](fases/). Regenerar con",
+        "> `python scripts/tablero.py --indice`; `--verificar` avisa si quedo viejo.",
+        "",
+    ]
     for archivo, estado, etiqueta, subfases in entradas:
         lineas.append(f"- [{estado}] [**{etiqueta}**](fases/{archivo})")
         for est_sf, etq_sf in subfases:
@@ -311,8 +350,9 @@ def _reemplazar_bloque(texto: str, bloque: str) -> str:
     if not ini or not fin or fin.start() < ini.start():
         raise SystemExit(
             f"el tablero no tiene los marcadores {MARCA_INICIO} / {MARCA_FIN}: "
-            "agregalos donde va el indice (ver templates/plantilla_tareas.md)")
-    return texto[:ini.start()] + bloque + texto[fin.end():]
+            "agregalos donde va el indice (ver templates/plantilla_tareas.md)"
+        )
+    return texto[: ini.start()] + bloque + texto[fin.end() :]
 
 
 def escribir_indice(r: dict) -> bool:
@@ -344,6 +384,7 @@ def verificar_indice(r: dict) -> bool:
 
 # --- Migracion de un tablero monolitico -------------------------------------------
 
+
 def partir(r: dict) -> list:
     """Corta un tablero monolitico en un archivo por Fase y deja el tablero como portada.
 
@@ -351,7 +392,11 @@ def partir(r: dict) -> list:
     """
     texto = r["tablero"].read_text(encoding="utf-8")
     lineas = texto.splitlines(keepends=True)
-    cortes = [(i, PATRON_FASE.match(l)) for i, l in enumerate(lineas) if PATRON_FASE.match(l)]
+    cortes = [
+        (i, PATRON_FASE.match(linea))
+        for i, linea in enumerate(lineas)
+        if PATRON_FASE.match(linea)
+    ]
     if not cortes:
         raise SystemExit("no se encontro ninguna Fase (`## [ ] Fase N — ...`) en el tablero")
 
@@ -368,13 +413,14 @@ def partir(r: dict) -> list:
         actualizar_rollup(destino)
         creados.append(destino)
 
-    portada = "".join(lineas[:cortes[0][0]]).rstrip() + "\n"
+    portada = "".join(lineas[: cortes[0][0]]).rstrip() + "\n"
     r["tablero"].write_text(portada, encoding="utf-8")
     escribir_indice(r)
     return creados
 
 
 # --- Worktree: llevar y traer los documentos ignorados ------------------------------
+
 
 def sha256(p: Path) -> str:
     """Hash del contenido, o '' si el archivo no existe."""
@@ -399,7 +445,9 @@ def resolver_objetivo(r: dict, pedido: str) -> tuple:
     else:
         m_num = re.search(r"\d+", p)
         if not m_num:
-            raise SystemExit(f"identificador no reconocido: '{pedido}'. Usa FNN (ej. F02) o SFx.y (ej. SF2.1)")
+            raise SystemExit(
+                f"identificador no reconocido: '{pedido}'. Usa FNN (ej. F02) o SFx.y (ej. SF2.1)"
+            )
         prefijo = f"F{int(m_num.group(0)):02d}"
 
     archivos = sorted(r["fases"].glob(f"{prefijo}*.md"))
@@ -434,16 +482,23 @@ def copiar_a_worktree(r: dict, worktree: Path, pedido: str) -> list:
         destino.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(r["raiz"] / rel, destino)
 
-    (worktree / ORIGEN).write_text(json.dumps({
-        "track": r["track"],
-        "raiz": str(r["raiz"]),
-        "scope": {
-            "fase": prefijo,
-            "subfase": subfase,
-            "archivo": archivo.name,
-        },
-        "archivos": {rel.as_posix(): sha256(r["raiz"] / rel) for rel in relativos},
-    }, indent=2, ensure_ascii=False), encoding="utf-8")
+    (worktree / ORIGEN).write_text(
+        json.dumps(
+            {
+                "track": r["track"],
+                "raiz": str(r["raiz"]),
+                "scope": {
+                    "fase": prefijo,
+                    "subfase": subfase,
+                    "archivo": archivo.name,
+                },
+                "archivos": {rel.as_posix(): sha256(r["raiz"] / rel) for rel in relativos},
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
     return relativos
 
 
@@ -470,11 +525,13 @@ def sincronizar(worktree: Path, raiz: Path = None) -> tuple:
         if fases_dir.is_dir():
             for f in fases_dir.glob("F*.md"):
                 if not f.name.startswith(fase_permitida):
-                    raise SystemExit(
+                    subfase_info = scope.get("subfase") or "fase completa"
+                    msg = (
                         f"CAMBIO BLOQUEADO: esta worktree esta acotada a {fase_permitida} "
-                        f"({scope.get('subfase') or 'fase completa'}). No tiene permisos para modificar "
-                        f"'{f.name}'. Los cambios fuera de esta Fase solo se permiten desde master/main."
+                        f"({subfase_info}). No tiene permisos para modificar '{f.name}'. "
+                        "Los cambios fuera de esta Fase solo se permiten desde master/main."
                     )
+                    raise SystemExit(msg)
 
     aplicados, divergentes = [], []
     for rel, hash_origen in registro["archivos"].items():
@@ -506,32 +563,54 @@ def crear_worktree(r: dict, pedido: str) -> Path:
 
     destino = r["raiz"] / ".claude" / "worktrees" / nombre
 
-    ignorado = subprocess.run(["git", "check-ignore", "-q", ".claude/worktrees/"],
-                              cwd=r["raiz"]).returncode == 0
+    ignorado = (
+        subprocess.run(
+            ["git", "check-ignore", "-q", ".claude/worktrees/"], cwd=r["raiz"]
+        ).returncode
+        == 0
+    )
     if not ignorado:
-        print("AVISO: .claude/worktrees/ no esta en .gitignore. Son repos embebidos y "
-              "nunca deben llegar al indice -- agregalo antes de commitear.")
+        print(
+            "AVISO: .claude/worktrees/ no esta en .gitignore. Son repos embebidos y "
+            "nunca deben llegar al indice -- agregalo antes de commitear."
+        )
 
-    subprocess.run(["git", "worktree", "add", "-b", f"fase/{nombre}", str(destino), "HEAD"],
-                   cwd=r["raiz"], check=True)
+    subprocess.run(
+        ["git", "worktree", "add", "-b", f"fase/{nombre}", str(destino), "HEAD"],
+        cwd=r["raiz"],
+        check=True,
+    )
     copiar_a_worktree(r, destino, pedido)
     return destino
 
 
 # --- CLI ---------------------------------------------------------------------------
 
+
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description="Tablero de project-suite: track, indice, rollup y worktree.")
+    ap = argparse.ArgumentParser(
+        description="Tablero de project-suite: track, indice, rollup y worktree."
+    )
     ap.add_argument("--track", help="track a usar; por defecto, el activo")
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--rutas", action="store_true", help="imprime las rutas resueltas en JSON")
     g.add_argument("--tracks", action="store_true", help="lista los tracks del repo")
-    g.add_argument("--indice", action="store_true", help="regenera el indice del tablero y roll-ups")
-    g.add_argument("--rollup", action="store_true", help="fuerza calculo de roll-up en todas las fases")
-    g.add_argument("--verificar", action="store_true", help="sale 1 si el indice o roll-up quedo viejo")
+    g.add_argument(
+        "--indice", action="store_true", help="regenera el indice del tablero y roll-ups"
+    )
+    g.add_argument(
+        "--rollup", action="store_true", help="fuerza calculo de roll-up en todas las fases"
+    )
+    g.add_argument(
+        "--verificar", action="store_true", help="sale 1 si el indice o roll-up quedo viejo"
+    )
     g.add_argument("--partir", action="store_true", help="migra un tablero monolitico a fases/")
-    g.add_argument("--worktree", metavar="FNN[/SFx.y]", help="crea rama y worktree para esa Fase o Subfase")
-    g.add_argument("--sync", action="store_true", help="copia worktree -> repo principal con roll-up")
+    g.add_argument(
+        "--worktree", metavar="FNN[/SFx.y]", help="crea rama y worktree para esa Fase o Subfase"
+    )
+    g.add_argument(
+        "--sync", action="store_true", help="copia worktree -> repo principal con roll-up"
+    )
     a = ap.parse_args(argv)
 
     if a.sync:
@@ -553,8 +632,13 @@ def main(argv=None) -> int:
 
     r = rutas(raiz, resolver_track(raiz, a.track))
     if a.rutas:
-        print(json.dumps({k: (str(v) if isinstance(v, Path) else v) for k, v in r.items()},
-                         indent=2, ensure_ascii=False))
+        print(
+            json.dumps(
+                {k: (str(v) if isinstance(v, Path) else v) for k, v in r.items()},
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
         return 0
     if a.rollup:
         modificados = 0
@@ -572,7 +656,11 @@ def main(argv=None) -> int:
         if verificar_indice(r):
             print("OK: indice al dia")
             return 0
-        print(f"el indice de {r['tablero']} o sus fases quedaron viejos. Corre: python scripts/tablero.py --indice")
+        msg = (
+            f"el indice de {r['tablero']} o sus fases quedaron viejos. "
+            "Corre: python scripts/tablero.py --indice"
+        )
+        print(msg)
         return 1
     if a.partir:
         creados = partir(r)
