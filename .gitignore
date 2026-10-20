@@ -80,6 +80,10 @@ Desktop.ini
 .claude/
 .agents/
 .opencode/
+.project-suite/
+docs/plan/
+docs/task/
+docs/logs/
 graphify-out/
 CLAUDE.md
 AGENTS.md
