@@ -305,8 +305,15 @@ sequenceDiagram
     G->>DB: SELECT FROM vegetation_indices
     DB-->>G: Serie mensual
     G-->>C: {index, series}
-    C->>G: POST /api/weather {lat, lon}
-    G->>G: Open-Meteo (on-demand)
+    C->>G: POST /api/weather {field_id}
+    G->>DB: SELECT FROM weather_data
+    DB-->>G: Serie horaria persistida
+    alt Caché insuficiente (<90% de horas)
+        G->>G: Open-Meteo Archive (on-demand)
+        G->>DB: UPSERT weather_data
+        DB-->>G: Serie horaria actualizada
+    end
+    G->>G: Agregación mensual
     G-->>C: Serie climática mensual
     C->>C: Chart.js: línea + barras
     U->>C: Clic "Generar" heatmap

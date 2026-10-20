@@ -262,7 +262,7 @@ erDiagram
 | `plant_counts` | `CountService` (read) | `InferenceWorker` (write) | lectura vía API | `API: Read` <br> `Worker: Write` | **En desarrollo:** sin escrituras hasta `COUNTING_ENABLED=true`. |
 | `chat_messages` | `AgentService` | *Ninguno* | lectura vía API (*Asistente*) | `API: Read/Write` | Memoria del agente con soporte de acotamiento por `field_id`. |
 | `events` | `events` router (write best-effort) | *Ninguno* | escritura vía `POST /api/events` (telemetría) | `API: Write` <br> (opcional) | **Opcional** (`EVENTS_PERSIST=true`). Sin secretos (redactado). Por defecto solo buffer en memoria. |
-| `pgmq.count_tasks` (cola) | `CountService` (produce) | `InferenceWorker` (consume) | — | `API: send` <br> `Worker: read/archive` | **En desarrollo:** cola creada pero inactiva hasta activar el conteo. |
+| `pgmq.count_tasks` (cola) | `CountService` (produce) | `InferenceWorker` (consume) | — | `API: send` <br> `Worker: read/archive` | **En desarrollo:** cola pendiente de creación; se habilitará en la fase de activación del conteo, no forma parte de `0001_initial_schema.sql`. |
 
 > **NDVI raster / heatmap:** el endpoint `POST /api/ndvi/raster` genera un PNG colorizado **on-demand** (no escribe en BD ni en Storage; se regenera). No aparece en la matriz por no tocar persistencia.
 
@@ -291,7 +291,7 @@ erDiagram
 *   **Herramienta primaria:** **Supabase CLI** con migraciones SQL versionadas (`supabase/migrations/*.sql`), aplicadas con `supabase db push` (idempotentes).
 *   **Alternativa local (dev):** **Alembic** o script de migración nativo (`backend/db/migrate.py`) cuando se trabaja contra el Postgres+PostGIS de `docker-compose`.
 *   **Política:** prohibido alterar el esquema manualmente en producción; todo cambio pasa por una migración versionada y revisable.
-*   **Orden de bootstrap:** (1) `create extension postgis`; (2) `create extension pgmq` / habilitar Supabase Queues; (3) tablas + índices; (4) políticas RLS; (5) bucket de Storage privado.
+*   **Orden de bootstrap:** (1) `create extension postgis`; (2) tablas + índices; (3) políticas RLS; (4) bucket de Storage privado. La extensión/cola PGMQ queda **diferida** a la fase de activación del conteo y no se crea en `0001_initial_schema.sql`.
 
 ---
 
