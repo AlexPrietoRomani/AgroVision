@@ -1,0 +1,42 @@
+---
+// Ajustes del perfil de agrónomo y del modo de sesión.
+---
+
+<!-- AJUSTES DE PERFIL -->
+<section id="tab-settings" class="tab-content space-y-6">
+  <div class="bg-white p-6 rounded-xl border border-stone-200 shadow-sm">
+    <h3 class="text-base font-bold text-stone-800 mb-2">Ajustes de Perfil</h3>
+    <p class="text-sm text-stone-600 leading-relaxed mb-4">
+      Configura tu perfil de agrónomo, selecciona el modo de sesión y gestiona la persistencia de tus preferencias.
+    </p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+      <div>
+        <label class="block text-xs font-bold text-stone-600 mb-1" for="settings-display-name">Nombre de Agrónomo</label>
+        <input id="settings-display-name" type="text" placeholder="Agrónomo" class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-stone-600 mb-1" for="settings-session-mode">Modo de Sesión</label>
+        <select id="settings-session-mode" class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          <option value="ephemeral">Efímera (BYOK — Nada se guarda al salir)</option>
+          <option value="saved">Guardada Temporal (Persistencia de perfil sin llaves)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="bg-stone-50 border border-stone-200 rounded-lg p-4 mb-5">
+      <h4 class="font-bold text-xs text-stone-800 mb-1"><i class="fa-solid fa-circle-info mr-1 text-emerald-600"></i>Sobre la persistencia de sesión:</h4>
+      <p class="text-xs text-stone-600 leading-relaxed">
+        El modo <strong>Guardada Temporal</strong> utiliza un fingerprint SHA-256 basado en tu URL de Supabase para almacenar de forma segura tu nombre y la parcela activa. Las API keys <strong>nunca se guardan en la base de datos ni en localStorage</strong> por motivos de seguridad.
+      </p>
+    </div>
+
+    <div class="flex items-center justify-between pt-4 border-t border-stone-100 gap-3">
+      <button id="btn-delete-profile" class="bg-red-50 hover:bg-red-100 text-red-700 hover:text-red-800 border border-red-200 font-bold text-xs px-5 py-3 rounded-lg transition-all">
+        <i class="fa-solid fa-trash-can mr-1"></i> Eliminar Perfil
+      </button>
+      <button id="btn-save-settings" class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-5 py-3 rounded-lg transition-all">
+        Guardar Ajustes
+      </button>
+    </div>
+  </div>
+</section>
