@@ -1,0 +1,51 @@
+---
+// Explorador de tablas, diagrama ER y consultas SQL personalizadas.
+---
+
+<!-- EXPLORADOR DE DATOS (Fase 11) -->
+<section id="tab-data" class="tab-content space-y-6">
+  <div class="bg-white p-6 rounded-xl border border-stone-200 shadow-sm">
+    <h3 class="text-base font-bold text-stone-800 mb-2">Explorador de Datos</h3>
+    <p class="text-sm text-stone-600 leading-relaxed">
+      Consulta las tablas de tu base de datos Supabase directamente. Selecciona una tabla para ver sus registros o ejecuta consultas SQL personalizadas.
+    </p>
+  </div>
+  <!-- Diagrama ER -->
+  <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm">
+    <h3 class="font-bold text-sm text-stone-800 mb-3">Diagrama Entidad-Relación</h3>
+    <div id="er-diagram" class="w-full overflow-auto rounded-lg bg-stone-50 border border-stone-200">
+      <p class="text-xs text-stone-500 p-3">Cargando esquema...</p>
+    </div>
+  </div>
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm lg:col-span-4">
+      <h3 class="font-bold text-sm text-stone-800 mb-3">Tablas disponibles</h3>
+      <div class="space-y-2" id="tables-list">
+        <p class="text-xs text-stone-500">Cargando tablas...</p>
+      </div>
+    </div>
+    <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm lg:col-span-8">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-bold text-sm text-stone-800" id="data-view-title">Selecciona una tabla</h3>
+        <span class="text-[10px] text-stone-500" id="data-view-count"></span>
+      </div>
+      <div id="data-view-content" class="overflow-x-auto max-h-[400px] overflow-y-auto">
+        <p class="text-xs text-stone-500">Los datos aparecerán aquí.</p>
+      </div>
+    </div>
+  </div>
+  <!-- Consulta SQL personalizada -->
+  <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm">
+    <h3 class="font-bold text-sm text-stone-800 mb-3">Consulta SQL personalizada</h3>
+    <textarea id="sql-query" rows="4" placeholder="SELECT * FROM fields LIMIT 10;" class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-stone-50 font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 mb-3"></textarea>
+    <div class="flex gap-2">
+      <button id="btn-run-query" class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-4 py-2 rounded-lg">
+        <i class="fa-solid fa-play"></i> Ejecutar
+      </button>
+      <button id="btn-clear-query" class="bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold text-xs px-4 py-2 rounded-lg">
+        <i class="fa-solid fa-eraser"></i> Limpiar
+      </button>
+    </div>
+    <div id="query-result" class="mt-4 overflow-x-auto max-h-[300px] overflow-y-auto"></div>
+  </div>
+</section>

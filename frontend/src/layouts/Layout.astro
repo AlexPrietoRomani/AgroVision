@@ -1,0 +1,165 @@
+---
+import "../styles/global.css";
+import appScript from "../scripts/app.js?raw";
+
+interface Props {
+  title?: string;
+}
+
+const { title = "AgroVisión — Plataforma Agronómica" } = Astro.props;
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <!-- Fuentes de Google Fonts para un diseño moderno y estilizado -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+    />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    <style is:inline>
+      /* Sistema de diseño tipográfico y estética general */
+      body {
+        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+        background-color: #faf9f6;
+      }
+      
+      h1, h2, h3, h4, h5, h6, .font-bold, .font-semibold {
+        font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+      }
+      
+      /* Animaciones de cambio de pestaña */
+      .tab-content { display: none; animation: fadeIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+      .tab-content.active { display: block; }
+      @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+      
+      /* Estilo activo del menú con gradientes sutiles y sombreados */
+      .nav-btn-active {
+        background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+        color: #fff !important;
+        box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
+      }
+      
+      /* Transiciones suaves en todos los botones e inputs interactivos */
+      button, input, select, textarea, a, .cursor-pointer {
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      
+      /* Estilo de inputs y focos modernos */
+      input[type="text"], input[type="number"], input[type="date"], select, textarea {
+        border-color: #e5e7eb; /* border-gray-200 */
+      }
+      input[type="text"]:focus, input[type="number"]:focus, input[type="date"]:focus, select:focus, textarea:focus {
+        outline: none;
+        border-color: #10b981 !important; /* emerald-500 */
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12) !important;
+        background-color: #ffffff !important;
+      }
+      
+      /* Personalización de barras de desplazamiento (Scrollbars) */
+      .overflow-y-auto::-webkit-scrollbar,
+      .overflow-x-auto::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      .overflow-y-auto::-webkit-scrollbar-track,
+      .overflow-x-auto::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .overflow-y-auto::-webkit-scrollbar-thumb,
+      .overflow-x-auto::-webkit-scrollbar-thumb {
+        background: rgba(120, 113, 108, 0.2); /* stone-500 al 20% */
+        border-radius: 9999px;
+      }
+      .overflow-y-auto::-webkit-scrollbar-thumb:hover,
+      .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+        background: rgba(120, 113, 108, 0.4);
+      }
+      
+      /* Sidebar: control de transición de ancho suave */
+      #sidebar {
+        transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        width: 4rem; /* Colapsado por defecto (w-16) */
+      }
+      #sidebar.expanded {
+        width: 16rem; /* Expandido (w-64) */
+      }
+      #sidebar:not(.expanded) .sidebar-text {
+        display: none;
+      }
+      #sidebar:not(.expanded) .nav-btn {
+        justify-content: center;
+        padding-left: 0;
+        padding-right: 0;
+      }
+      #sidebar:not(.expanded) .p-4,
+      #sidebar:not(.expanded) .p-5 {
+        justify-content: center;
+      }
+      #sidebar:not(.expanded) #btn-sidebar-toggle {
+        margin-left: 0;
+      }
+      #sidebar:not(.expanded) #btn-footer {
+        justify-content: center;
+        padding-left: 0;
+        padding-right: 0;
+      }
+      #sidebar:not(.expanded) #btn-footer span,
+      #sidebar:not(.expanded) #footer-chevron {
+        display: none;
+      }
+      #sidebar:not(.expanded) #btn-profile-menu {
+        justify-content: center;
+        padding-left: 0;
+        padding-right: 0;
+      }
+      #sidebar:not(.expanded) #btn-profile-menu div:not(#avatar-circle),
+      #sidebar:not(.expanded) #btn-profile-menu i {
+        display: none;
+      }
+      #sidebar:not(.expanded) #db-status {
+        justify-content: center;
+      }
+      #sidebar:not(.expanded) #db-status-text,
+      #sidebar:not(.expanded) #btn-telemetry {
+        display: none;
+      }
+      #sidebar:not(.expanded) #profile-dropdown {
+        left: calc(100% + 0.5rem);
+        bottom: 0.5rem;
+        right: auto;
+        width: 14rem;
+      }
+    </style>
+  </head>
+
+  <body class="h-screen overflow-hidden text-stone-900 flex">
+    <!-- Notificación flotante -->
+    <div
+      id="notif"
+      class="fixed top-4 right-4 bg-stone-900 text-stone-100 px-5 py-3 rounded-xl shadow-2xl transition-all duration-300 translate-x-[150%] z-50 max-w-xs border border-stone-700"
+    >
+      <p class="font-bold text-sm" id="notif-title">Notificación</p>
+      <p class="text-xs text-stone-300 mt-0.5" id="notif-body"></p>
+    </div>
+
+    <!-- Contenedor para aviso de credenciales faltantes (Fase 15) -->
+    <div id="creds-toast-warning" class="fixed top-20 right-4 z-50 max-w-sm hidden"></div>
+    <slot />
+
+    <!-- Librerías CDN -->
+    <script is:inline src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script is:inline src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script is:inline src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script is:inline src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <script is:inline set:html={appScript}></script>
+  </body>
+</html>

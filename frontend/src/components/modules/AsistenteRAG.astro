@@ -1,0 +1,19 @@
+---
+// Consola de chat del agente RAG con historial de la sesión.
+---
+
+<!-- Vista 2: Chat Assistant (Oculto por defecto) -->
+<div id="section2-chat" class="hidden flex-1 flex flex-col h-full bg-stone-50">
+  <div class="bg-stone-900 text-white px-4 py-2 flex items-center justify-between shrink-0">
+    <span class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span>
+    <h4 class="font-bold text-[10px] font-mono">agrovision_agent (Llama-3)</h4>
+    <span class="text-[8px] text-stone-400">Contexto Sincronizado</span>
+  </div>
+  <div id="chat-history" class="flex-1 p-3 overflow-y-auto space-y-3 text-xs">
+    <p class="text-stone-500">Pregúntame sobre el NDVI, el clima o la densidad de tus parcelas.</p>
+  </div>
+  <div class="p-2 border-t border-stone-200 bg-white flex gap-1.5 shrink-0">
+    <input id="chat-input" type="text" placeholder="Preguntar al asistente..." class="flex-grow p-2 border border-stone-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+    <button id="btn-chat" class="bg-stone-900 hover:bg-stone-800 text-white font-bold px-3 py-2 rounded text-xs">Enviar</button>
+  </div>
+</div>

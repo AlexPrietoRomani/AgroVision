@@ -1,0 +1,23 @@
+---
+// Correlación temporal entre índices de vegetación y variables climáticas.
+---
+
+<!-- ANÁLISIS CRUZADO (CORRELACIÓN NDVI VS CLIMA) -->
+<section id="tab-analysis" class="tab-content space-y-6">
+  <div class="flex items-center justify-between">
+    <h3 class="text-lg font-bold text-stone-800 flex items-center gap-2">
+      <i class="fa-solid fa-chart-line text-emerald-600"></i> Análisis Cruzado (Correlaciones)
+    </h3>
+    <button class="btn-volver-mapa text-xs font-semibold px-3 py-1.5 bg-stone-200 hover:bg-stone-300 rounded-lg text-stone-700 transition-colors">
+      <i class="fa-solid fa-arrow-left mr-1"></i> Volver al Mapa
+    </button>
+  </div>
+  <div class="bg-white p-5 rounded-xl border border-stone-200 shadow-sm space-y-4">
+    <h3 class="font-bold text-sm text-stone-800">Correlación Temporal: NDVI vs Clima</h3>
+    <p class="text-xs text-stone-500">Gráfico de doble eje Y para correlacionar la salud de la vegetación (NDVI) con la temperatura media y la precipitación mensual.</p>
+    <div class="relative h-80">
+      <canvas id="chart-analysis"></canvas>
+    </div>
+    <p id="analysis-empty" class="text-xs text-stone-500 mt-2">Selecciona una parcela para ver el análisis correlacionado.</p>
+  </div>
+</section>

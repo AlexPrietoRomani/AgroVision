@@ -1,0 +1,55 @@
+---
+// Mapa principal con el selector flotante de parcelas y el aviso de dibujo.
+---
+
+<!-- RESUMEN (MAPA PRINCIPAL A PANTALLA COMPLETA CON WIDGET FLOTANTE) -->
+<section id="tab-resumen" class="tab-content active h-full w-full relative flex flex-col">
+  <div class="relative flex-1 w-full h-full min-h-[550px]">
+    <div id="map" class="w-full h-full rounded-2xl border border-stone-200 shadow-sm" style="height: calc(100vh - 7rem);"></div>
+
+    <!-- Banner flotante de dibujo de Leaflet (Oculto por defecto) -->
+    <div id="map-draw-banner" class="hidden absolute top-4 left-1/2 -translate-x-1/2 z-[1000] w-[90%] md:w-auto px-4 py-2 bg-stone-950/95 backdrop-blur text-stone-200 border border-stone-800 rounded-xl text-xs flex justify-between items-center gap-4 shadow-2xl">
+      <span id="map-draw-banner-text" class="font-medium text-[11px] text-stone-300">Haz clic en el mapa para marcar tu primer punto.</span>
+      <button id="btn-draw-undo" class="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold border border-emerald-500/20 px-2 py-0.5 rounded hover:bg-emerald-500/10 transition-colors">
+        <i class="fa-solid fa-rotate-left mr-1"></i> Deshacer
+      </button>
+    </div>
+
+    <!-- Botón del Selector de Parcelas (Widget Flotante) -->
+    <div class="absolute top-4 left-4 z-[1000] flex flex-col items-start gap-2">
+      <button id="btn-farm-selector-toggle" class="bg-stone-900/95 backdrop-blur text-stone-200 hover:text-white px-4 py-2.5 rounded-xl shadow-lg border border-stone-800 text-xs font-bold flex items-center gap-2 transition-all">
+        <i class="fa-solid fa-leaf text-emerald-500"></i>
+        <span id="current-farm-name">Seleccionar Parcela</span>
+        <i class="fa-solid fa-chevron-down text-stone-500 text-[10px]"></i>
+      </button>
+
+      <!-- Panel Flotante desplegable -->
+      <div id="farm-selector-dropdown" class="hidden w-72 bg-stone-950/95 backdrop-blur border border-stone-800 rounded-2xl shadow-2xl p-4 text-stone-200 space-y-4">
+        <!-- Info de usuario del perfil -->
+        <div class="flex items-center gap-2.5 pb-3 border-b border-stone-800/80">
+          <div class="w-9 h-9 rounded-full bg-emerald-700 flex items-center justify-center text-xs font-bold text-white shrink-0" id="floating-avatar">AG</div>
+          <div class="truncate">
+            <h5 class="text-xs font-semibold text-stone-200" id="floating-user-name">Agrónomo</h5>
+            <p class="text-[9px] text-stone-500" id="floating-user-email">alexprieto1997@gmail.com</p>
+          </div>
+        </div>
+
+        <!-- Vista 1: Selector de Parcelas -->
+        <div id="farm-view-selector" class="space-y-3">
+          <h4 class="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Nombre de la Parcela</h4>
+
+          <!-- Listado de parcelas con radio selector + gear -->
+          <div class="space-y-1 max-h-48 overflow-y-auto pr-1" id="floating-parcelas-list">
+            <!-- Dinámico -->
+          </div>
+
+          <button id="btn-floating-add-parcel" class="w-full text-left flex items-center gap-2 text-xs font-bold text-emerald-400 hover:text-emerald-300 py-1 transition-colors mt-2">
+            <i class="fa-solid fa-plus text-xs"></i> Agregar Nueva Parcela
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</section>

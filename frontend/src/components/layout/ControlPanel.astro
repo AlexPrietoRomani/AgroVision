@@ -1,0 +1,15 @@
+---
+// Panel central que agrupa la cabecera, los ajustes y las vistas del asistente.
+import Header from "./Header.astro";
+import AjustesParcela from "../modules/AjustesParcela.astro";
+import AsistenteRAG from "../modules/AsistenteRAG.astro";
+import CreacionParcelas from "../modules/CreacionParcelas.astro";
+---
+
+<!-- SECCIÓN 2: PANEL CENTRAL DE AJUSTES Y CHAT (w-96 FIJO) -->
+<div id="panel-middle" class="w-96 flex-shrink-0 border-r border-stone-200 bg-white flex flex-col h-full overflow-hidden">
+  <Header />
+  <AjustesParcela />
+  <AsistenteRAG />
+  <CreacionParcelas />
+</div>
