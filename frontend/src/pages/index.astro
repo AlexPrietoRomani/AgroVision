@@ -1,5 +1,6 @@
 ---
 import "../styles/global.css";
+const publicApiUrl = import.meta.env.PUBLIC_API_URL || "";
 ---
 
 <!doctype html>
@@ -909,7 +910,17 @@ import "../styles/global.css";
     <script is:inline src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
     <script is:inline src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 
+    <!-- Base URL de Backend para despliegue desacoplado/nube -->
+    <script is:inline define:vars={{ publicApiUrl }}>
+      window.AGROVISION_API_URL = window.AGROVISION_API_URL || publicApiUrl || "";
+    </script>
+
     <script is:inline>
+      function apiUrl(path) {
+        const base = (window.AGROVISION_API_URL || "").replace(/\/$/, "");
+        const p = path.startsWith("/") ? path : `/${path}`;
+        return base ? `${base}/api${p}` : `./api${p}`;
+      }
       // ===== Estado EFÍMERO (solo memoria; se borra al refrescar) =====
       let creds = {};
       let parcels = [];
@@ -960,7 +971,7 @@ import "../styles/global.css";
           dot.className = "relative inline-flex rounded-full h-2 w-2 bg-red-500";
           return;
         }
-        fetch("./api/credentials/status")
+        fetch(apiUrl("/credentials/status"))
           .then((r) => r.ok ? r.json() : null)
           .then((s) => {
             if (!s) {
@@ -993,7 +1004,7 @@ import "../styles/global.css";
       // ===== Telemetría (Fase 9) =====
       function track(action, meta = {}) {
         try {
-          fetch("./api/events", {
+          fetch(apiUrl("/events"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action, meta, session_id: sessionId, ts: new Date().toISOString() }),
@@ -1007,7 +1018,7 @@ import "../styles/global.css";
 
       async function api(path, opts = {}) {
         try {
-          const res = await fetch("./api" + path, {
+          const res = await fetch(apiUrl(path), {
             ...opts,
             headers: { ...(opts.body ? { "Content-Type": "application/json" } : {}), ...authHeaders(), ...(opts.headers || {}) },
           });
@@ -2930,7 +2941,7 @@ import "../styles/global.css";
       });
       $("btn-check-env").addEventListener("click", async () => {
         try {
-          const r = await fetch("./api/credentials/status");
+          const r = await fetch(apiUrl("/credentials/status"));
           if (!r.ok) return notify("No disponible", "No se pudo consultar el .env del servidor.");
           const s = await r.json();
           appEnv = s.env || "development";
@@ -3056,7 +3067,7 @@ import "../styles/global.css";
         let sbUrl = creds.sbUrl;
         if (!sbUrl) {
           try {
-            const r = await fetch("./api/credentials/status");
+            const r = await fetch(apiUrl("/credentials/status"));
             if (r.ok) {
               const s = await r.json();
               if (s.supabase_url) sbUrl = s.supabase_url;
@@ -3072,7 +3083,7 @@ import "../styles/global.css";
         try {
           fingerprint = await sha256(sbUrl);
           track("profile_connect_attempt", { hash: fingerprint });
-          const r = await fetch("./api/profiles/connect", {
+          const r = await fetch(apiUrl("/profiles/connect"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ supabase_url_hash: fingerprint, display_name: $("settings-display-name").value || "Agrónomo" })
@@ -3118,7 +3129,7 @@ import "../styles/global.css";
         $("btn-telemetry").style.display = "none";
 
         try {
-          const r = await fetch(`./api/profiles/${id}`);
+          const r = await fetch(apiUrl(`/profiles/${id}`));
           if (r.ok) {
             currentProfile = await r.json();
             updateProfileUI();
@@ -3170,7 +3181,7 @@ import "../styles/global.css";
 
       async function checkMissingCredentials() {
         try {
-          const r = await fetch("./api/credentials/status");
+          const r = await fetch(apiUrl("/credentials/status"));
           if (!r.ok) return;
           const s = await r.json();
           appEnv = s.env || "development";
@@ -3237,14 +3248,14 @@ import "../styles/global.css";
         const sharedProfileId = hashParams.get("profile");
         
         try {
-          const r = await fetch("./api/status");
+          const r = await fetch(apiUrl("/status"));
           backendOk = r.ok;
           $("db-status-text").innerText = backendOk ? "Backend conectado" : "Backend no disponible";
           if (backendOk) { $("db-status-text").classList.replace("text-stone-400", "text-emerald-400"); }
         } catch { $("db-status-text").innerText = "Backend no disponible"; }
         
         try {
-          const r = await fetch("./api/credentials/status");
+          const r = await fetch(apiUrl("/credentials/status"));
           if (r.ok) {
             const s = await r.json();
             appEnv = s.env || "development";
@@ -3261,7 +3272,7 @@ import "../styles/global.css";
           const savedProfileId = localStorage.getItem("agrovision_profile_id");
           if (savedProfileId) {
             try {
-              const r = await fetch(`./api/profiles/${savedProfileId}`);
+              const r = await fetch(apiUrl(`/profiles/${savedProfileId}`));
               if (r.ok) {
                 currentProfile = await r.json();
                 profileId = currentProfile.id;

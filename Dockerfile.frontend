@@ -1,0 +1,39 @@
+# =====================================================================================
+# Dockerfile.frontend — Imagen exclusiva para el frontend Astro de AgroVisión.
+#
+# Multi-stage:
+#   (1) Compila Astro con pnpm
+#   (2) Nginx Alpine ultra-ligero con proxy reverso dinámico hacia el backend
+#
+# Uso:
+#   - Local: Se conecta al contenedor 'backend:8000'
+#   - Nube: BACKEND_URL=https://tu-backend.onrender.com
+# =====================================================================================
+
+# --- Stage 1: Build de la UI Astro ---
+FROM node:22-bookworm-slim AS builder
+WORKDIR /ui
+RUN corepack enable
+
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+
+COPY frontend/ ./
+ARG PUBLIC_API_URL=""
+ENV PUBLIC_API_URL=$PUBLIC_API_URL
+RUN pnpm build
+
+# --- Stage 2: Nginx para servir el frontend estático ---
+FROM nginx:1.27-alpine
+
+# Plantilla de Nginx procesada automáticamente por envsubst en el arranque
+COPY docker/nginx.conf.template /etc/nginx/templates/default.conf.template
+
+# Copiar el build generado
+COPY --from=builder /ui/dist /usr/share/nginx/html
+
+# URL por defecto hacia el servicio backend (sobrescribible con -e BACKEND_URL=...)
+ENV BACKEND_URL=http://backend:8000
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

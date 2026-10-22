@@ -1,0 +1,37 @@
+# =====================================================================================
+# Dockerfile.backend — Imagen exclusiva para el backend FastAPI de AgroVisión.
+#
+# No compila ni incluye frontend. Puede desplegarse en:
+#   - Docker Compose local (servicio backend)
+#   - Servicios en la nube: Render, Fly.io, Cloud Run, AWS ECS, etc.
+# =====================================================================================
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+
+# Dependencias de sistema mínimas para OpenCV y OnnxRuntime
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libglib2.0-0 libgomp1 libxcb1 libgl1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Usuario no-root (UID 1000)
+RUN useradd -m -u 1000 user
+ENV HOME=/home/user \
+    PATH=/home/user/app/.venv/bin:$PATH \
+    UV_PROJECT_ENVIRONMENT=/home/user/app/.venv \
+    UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    COUNTING_ENABLED=false \
+    EVENTS_PERSIST=false
+
+USER user
+WORKDIR /home/user/app
+
+# Dependencias Python
+COPY --chown=user pyproject.toml uv.lock ./
+RUN uv sync --no-dev --frozen --no-cache
+
+# Código de la aplicación backend
+COPY --chown=user backend/ ./backend/
+
+EXPOSE 8000
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
