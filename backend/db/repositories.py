@@ -15,7 +15,8 @@ Acciones Principales:
 
 Estructura Interna:
     - Parcelas: `create_field`, `get_field`, `list_fields`, `delete_fields_for_user`.
-    - Índices espectrales: `upsert_index_points`, `get_index_series`.
+    - Índices espectrales: `upsert_index_points`, `get_index_series`,
+      `get_calculated_indices`.
     - Chat: `save_chat_message`, `get_chat_history`, `delete_chat_for_session`.
     - Perfiles de usuario: `upsert_profile`, `get_profile`, `get_profile_by_hash`,
       `update_profile`, `delete_profile`.
@@ -52,27 +53,44 @@ def _to_date(value: Any) -> dt.date:
 
 
 async def create_field(
-    session: AsyncSession, *, name: str, geojson: dict, user_id: str | None = None
+    session: AsyncSession,
+    name: str,
+    geojson: dict,
+    user_id: str | None = None,
+    crop_variety: str | None = None,
+    selected_indices: list[str] | None = None,
 ) -> Row:
     """
-    Inserta una parcela (geometría desde GeoJSON) y devuelve id, nombre y área (ha).
+    Inserta una parcela (geometría desde GeoJSON) y devuelve sus atributos base.
 
     Args:
         session (AsyncSession): Sesión async.
         name (str): Nombre de la parcela.
         geojson (dict): Geometría GeoJSON tipo Polygon (EPSG:4326).
         user_id (str | None): Propietario (modelo BYOK monousuario).
+        crop_variety (str | None): Variedad del cultivo declarada.
+        selected_indices (list[str] | None): Índices satelitales elegidos; si se
+            omite o llega vacío se usa `["ndvi"]` para conservar el flujo histórico.
 
     Returns:
-        Row: Fila con atributos `id`, `name`, `area_ha`.
+        Row: Fila con atributos `id`, `name`, `area_ha`, `crop_variety` y
+        `selected_indices`.
     """
     result = await session.execute(
         text(
-            "insert into fields (user_id, name, geom) "
-            "values (:user_id, :name, ST_GeomFromGeoJSON(:geojson)) "
-            "returning id, name, (ST_Area(geom::geography) / 10000.0) as area_ha"
+            "insert into fields (user_id, name, geom, crop_variety, selected_indices) "
+            "values (:user_id, :name, ST_GeomFromGeoJSON(:geojson), :crop_variety, "
+            ":selected_indices) "
+            "returning id, name, (ST_Area(geom::geography) / 10000.0) as area_ha, "
+            "crop_variety, selected_indices"
         ),
-        {"user_id": user_id, "name": name, "geojson": json.dumps(geojson)},
+        {
+            "user_id": user_id,
+            "name": name,
+            "geojson": json.dumps(geojson),
+            "crop_variety": crop_variety,
+            "selected_indices": selected_indices or ["ndvi"],
+        },
     )
     row = result.first()
     await session.commit()
@@ -85,9 +103,9 @@ async def get_field(session: AsyncSession, field_id: Any) -> Row | None:
         text(
             "select id, name, (ST_Area(geom::geography) / 10000.0) as area_ha, "
             "ST_X(ST_Centroid(geom)) as lon, ST_Y(ST_Centroid(geom)) as lat, "
-            "crop_variety, field_type, soil_type, irrigation_system, pests_diseases, "
-            "plantation_date, num_plants, historical_yield, target_market, document_metadata "
-            "from fields where id = :id"
+            "crop_variety, selected_indices, field_type, soil_type, irrigation_system, "
+            "pests_diseases, plantation_date, num_plants, historical_yield, target_market, "
+            "document_metadata from fields where id = :id"
         ),
         {"id": str(field_id)},
     )
@@ -127,8 +145,8 @@ async def list_fields(session: AsyncSession, user_id: str | None = None) -> list
     cols = (
         "select id, name, ST_X(ST_Centroid(geom)) as lon, "
         "ST_Y(ST_Centroid(geom)) as lat, ST_AsGeoJSON(geom) as geojson, "
-        "crop_variety, field_type, soil_type, irrigation_system, pests_diseases, "
-        "plantation_date, num_plants, historical_yield, target_market, "
+        "crop_variety, selected_indices, field_type, soil_type, irrigation_system, "
+        "pests_diseases, plantation_date, num_plants, historical_yield, target_market, "
         "document_metadata from fields"
     )
     if user_id is None:
@@ -156,6 +174,7 @@ async def update_field_attributes(
     """
     allowed_fields = {
         "crop_variety",
+        "selected_indices",
         "field_type",
         "soil_type",
         "irrigation_system",
@@ -268,6 +287,28 @@ async def get_index_series(session: AsyncSession, field_id: Any, index: str) -> 
     except Exception:
         rows = []
     return rows
+
+
+async def get_calculated_indices(session: AsyncSession, field_id: Any) -> list[str]:
+    """
+    Devuelve los índices espectrales que ya tienen serie calculada para una parcela.
+
+    Args:
+        session (AsyncSession): Sesión async.
+        field_id (Any): Parcela consultada.
+
+    Returns:
+        list[str]: Tipos de índice distintos presentes en `vegetation_indices`,
+        ordenados alfabéticamente (vacío si aún no hay datos).
+    """
+    result = await session.execute(
+        text(
+            "select distinct index_type from vegetation_indices "
+            "where field_id = :field_id order by index_type"
+        ),
+        {"field_id": str(field_id)},
+    )
+    return [row.index_type for row in result.all()]
 
 
 async def insert_event(
