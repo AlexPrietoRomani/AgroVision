@@ -24,6 +24,40 @@
         <div><span class="text-sm font-semibold text-stone-800">Ambos</span><br><span class="text-[11px] text-stone-500">Reprocesar índices espectrales y recargar clima</span></div>
       </label>
     </div>
+    <div class="mb-5">
+      <div class="flex items-center justify-between gap-2 mb-1.5">
+        <label class="block text-[10px] font-bold text-stone-600 uppercase">Variables Satelitales a Reprocesar</label>
+        <button type="button" id="btn-reprocess-select-all-indices" class="text-[10px] font-semibold text-emerald-700 hover:underline">Todas</button>
+      </div>
+      <p class="text-[10px] text-stone-500 leading-relaxed mb-2">
+        Elige qué variables calcular o incorporar. Las variables no marcadas conservan su historial actual.
+      </p>
+      <div class="grid grid-cols-2 gap-1.5">
+        <label class="flex items-center gap-2 p-1.5 border border-stone-200 rounded bg-white hover:bg-emerald-50/40 cursor-pointer">
+          <input type="checkbox" class="reprocess-index-checkbox accent-emerald-600" value="ndvi" checked />
+          <span class="font-bold text-stone-800">NDVI</span>
+        </label>
+        <label class="flex items-center gap-2 p-1.5 border border-stone-200 rounded bg-white hover:bg-emerald-50/40 cursor-pointer">
+          <input type="checkbox" class="reprocess-index-checkbox accent-emerald-600" value="evi" />
+          <span class="font-bold text-stone-800">EVI</span>
+        </label>
+        <label class="flex items-center gap-2 p-1.5 border border-stone-200 rounded bg-white hover:bg-emerald-50/40 cursor-pointer">
+          <input type="checkbox" class="reprocess-index-checkbox accent-emerald-600" value="savi" />
+          <span class="font-bold text-stone-800">SAVI</span>
+        </label>
+        <label class="flex items-center gap-2 p-1.5 border border-stone-200 rounded bg-white hover:bg-emerald-50/40 cursor-pointer">
+          <input type="checkbox" class="reprocess-index-checkbox accent-emerald-600" value="ndwi" />
+          <span class="font-bold text-stone-800">NDWI</span>
+        </label>
+        <label class="flex items-center gap-2 p-1.5 border border-stone-200 rounded bg-white hover:bg-emerald-50/40 cursor-pointer col-span-2">
+          <input type="checkbox" class="reprocess-index-checkbox accent-emerald-600" value="ndre" />
+          <span class="font-bold text-stone-800">NDRE</span>
+        </label>
+      </div>
+      <p id="reprocess-indices-error" class="hidden text-[10px] font-semibold text-red-600 mt-1">
+        Marca al menos una variable satelital para reprocesar.
+      </p>
+    </div>
     <div class="flex gap-2 justify-end">
       <button id="btn-cancel-reprocess" class="text-xs bg-stone-100 hover:bg-stone-200 text-stone-700 px-4 py-2 rounded-lg font-semibold">Cancelar</button>
       <button id="btn-run-reprocess" class="text-xs bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-bold"><i class="fa-solid fa-play"></i> Ejecutar</button>
