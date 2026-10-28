@@ -95,18 +95,18 @@ flowchart LR
 - **Datos:** `vegetation_indices` (índices espectrales) + `fields`
 
 #### 2.2.2 Creación de Parcelas
-- **Rol:** Dibujar polígono en Leaflet-draw, nombrarlo y persistirlo. Dispara backfill automático.
-- **Endpoints:** `GET /api/fields` · `POST /api/fields` · `DELETE /api/fields/{id}`
-- **UI:** Leaflet con DrawControl, formulario de nombre, lista de parcelas
-- **Backend:** `services/parcels.py` — valida geometría, persiste, lanza backfill en background
-- **Datos:** Escribe en `fields`; dispara backfill → `vegetation_indices`
+- **Rol:** Dibujar polígono en Leaflet-draw, nombrarlo, elegir las variables satelitales iniciales y persistirlo. Dispara el backfill selectivo de los índices elegidos.
+- **Endpoints:** `GET /api/fields` · `POST /api/fields` · `GET /api/fields/{id}` · `PATCH /api/fields/{id}` · `DELETE /api/fields/{id}`
+- **UI:** Leaflet con DrawControl, formulario de nombre/variedad, selector de variables satelitales, lista de parcelas
+- **Backend:** `services/parcels.py` — valida geometría, persiste `crop_variety`/`selected_indices` y lanza `run_indices_backfill` en background
+- **Datos:** Escribe en `fields`; dispara backfill selectivo → `vegetation_indices`. El detalle expone `calculated_indices` (índices con serie ya persistida).
 
 #### 2.2.3 Teledetección (GIS)
-- **Rol:** Visualización de los 5 índices espectrales (NDVI/EVI/SAVI/NDWI/NDRE) vs clima. Heatmap generable.
-- **Endpoints:** `POST /api/vegetation/{index}` · `POST /api/vegetation/{index}/raster` · `POST /api/vegetation/reprocess` (SF13.5) · `POST /api/weather`
+- **Rol:** Visualización de los 5 índices espectrales (NDVI/EVI/SAVI/NDWI/NDRE) vs clima. Heatmap y reproceso selectivo generables.
+- **Endpoints:** `POST /api/vegetation/{index}` · `POST /api/vegetation/{index}/raster` · `POST /api/vegetation/reprocess` (SF13.5, admite `indices`) · `POST /api/weather`
 - **UI:** Selector de índice, Chart.js doble eje (índice + clima), botón heatmap, botón reprocesar
 - **Backend:** `services/remote_sensing.py` (Copernicus CDSE, Sentinel Hub Statistical + Process API)
-- **Datos:** Lee `vegetation_indices`; escribe mediante reprocess o backfill
+- **Datos:** Lee `vegetation_indices`; escribe mediante reprocess selectivo o backfill
 
 #### 2.2.4 Conteo por Dron (en desarrollo / standby)
 - **Rol:** Subir ortomosaico → worker asíncrono infiere conteo vía modelo ONNX → Signed URL del overlay
@@ -147,11 +147,12 @@ AgroVisión tiene 5 procesos core (el de visión diferido):
 
 | Proceso | Módulo | Trigger | Persistencia |
 |---------|--------|---------|--------------|
-| Backfill NDVI al crear parcela | Parcelas | `POST /api/fields` | `vegetation_indices` |
+| Backfill selectivo de índices al crear parcela | Parcelas | `POST /api/fields` | `vegetation_indices` |
+| Expansión incremental de índices | Parcelas | `PATCH /api/fields/{id}` | `vegetation_indices` (solo índices nuevos) |
 | Serie mensual de índice espectral | Teledetección | `POST /api/vegetation/{index}` | `vegetation_indices` (cache) |
 | Heatmap de índice | Teledetección | `POST /api/vegetation/{index}/raster` | No persiste (PNG en memoria) |
 | Serie climática horaria y mensual | Clima | Selección de parcela / `POST /api/weather` | `weather_data` (clima horario) |
-| Reprocesar índices + clima | Teledetección | `POST /api/vegetation/reprocess` | `vegetation_indices` y `weather_data` (sobrescribe) |
+| Reprocesar índices selectivos + clima | Teledetección | `POST /api/vegetation/reprocess` | `vegetation_indices` y `weather_data` (sobrescribe) |
 | Agente conversacional acotado | Chat | `POST /api/chat` | `chat_messages` (memoria por parcela) |
 | Conectar / guardar perfil | Ajustes | `POST /api/profiles/connect` | `user_profiles` (preferencias/sesión) |
 | Conteo por dron (standby) | Conteo | Subir ortomosaico | `plant_counts` + Storage |
@@ -196,21 +197,28 @@ flowchart LR
 - El servicio obtiene las coordenadas de la parcela desde la base de datos, consulta Open-Meteo para las variables horarias, formatea e inserta de forma idempotente en `weather_data`. Devuelve la agregación mensual histórica por defecto, o la serie horaria cruda si se solicita para que la UI realice sus propios cálculos agronómicos y acumulados client-side.
 
 
-### 3.4 Backfill al Crear Parcela
+### 3.4 Backfill Selectivo e Incremental de Índices
 
 ```
-POST /api/fields → create_parcel() → run_ndvi_backfill (BackgroundTask)
+POST /api/fields {selected_indices: ["ndvi","ndwi"]}
+        → create_parcel() → run_indices_backfill(indices=["ndvi","ndwi"]) (BackgroundTask)
                                         ↓
-                              index_series_monthly(geojson, index="ndvi")
+                    por cada índice: index_series_monthly(geojson, index)
                                         ↓
-                              Sentinal Hub Statistical API (5 años)
+                          Sentinel Hub Statistical API (5 años)
                                         ↓
-                              upsert_index_points → vegetation_indices
+                          upsert_index_points → vegetation_indices
+
+PATCH /api/fields/{id} {selected_indices: ["ndvi","ndwi","ndre"]}
+        → compara con calculated_indices (o con la selección previa)
+        → run_indices_backfill(indices=["ndre"]) (solo el diferencial)
 ```
 
-- Disparado **una sola vez** al crear la parcela
+- **Alta selectiva:** solo se consulta Sentinel-2 para las variables elegidas por el usuario; `run_ndvi_backfill` se conserva como wrapper retrocompatible de un único índice.
+- **Expansión incremental:** `PATCH /api/fields/{id}` detecta los índices nuevos respecto a los ya calculados (o a la selección anterior si no se pueden consultar) y agenda en `BackgroundTasks` únicamente esos índices. La respuesta incluye `selected_indices`.
+- **Lectura:** `GET /api/fields` y `GET /api/fields/{id}` devuelven `selected_indices`; el detalle añade `calculated_indices` (series presentes en `vegetation_indices`).
 - Idempotente: `UNIQUE(field_id, index_type, date)` evita duplicados
-- Si faltan credenciales Copernicus, se omite silenciosamente
+- Si faltan credenciales Copernicus, se emite `backfill_skip` y no se consulta la API externa. Los eventos `backfill_start`/`backfill_done`/`backfill_error` incluyen la lista de índices procesados.
 
 ### 3.5 Agente RAG Acotado a Parcela (Function Calling)
 
@@ -242,23 +250,26 @@ El servicio de perfiles `/api/profiles` gestiona y asocia los datos de usuario a
 ### 3.7 Reprocesamiento de Datos (SF13.5)
 
 ```
-POST /api/vegetation/reprocess {field_id, mode}
+POST /api/vegetation/reprocess {field_id, mode, indices?}
                     │
           ┌─────────┼─────────┐
           │         │         │
       "indices"  "weather"  "all"
           │         │         │
           ▼         ▼         ▼
-  for each index:   ─   for each index:
-   Copernicus API    │    Copernicus API
-   → upsert_index    │    → upsert_index
-                     │
-                     └─── weather: flag True
+  indices o      (sin       indices o
+  selected_      cálculo    selected_
+  indices:       de índice)  indices:
+   Copernicus API            Copernicus API
+   → upsert_index            → upsert_index
+                      │
+                      └─── weather: flag True
 ```
 
 - **Modos:** `indices` (solo Sentinel-2), `weather` (recarga clima), `all` (ambos)
-- **Uso típico:** parcelas legacy (ej. Camposol) creadas antes de Fase 13 que solo tienen NDVI
-- **Eventos:** emite `reprocess_done` con resumen de puntos por índice
+- **Selección:** si se envía `indices`, se valida cada uno, se recalcula solo ese subconjunto y se anexa a `selected_indices` de la parcela vía `update_field_attributes`. Si se omite, se usan los `selected_indices` de la parcela o, en su defecto, los cinco índices.
+- **Uso típico:** parcelas legacy (ej. Camposol) creadas antes de Fase 13 que solo tienen NDVI, o incorporación de una variable satelital nueva sin recalcular las existentes.
+- **Eventos:** emite `reprocess_done` con resumen de puntos por índice y la selección resultante.
 
 ---
 
@@ -275,19 +286,21 @@ sequenceDiagram
     participant COP as Copernicus CDSE
     participant DB as Supabase
 
-    U->>C: Dibuja polígono + nombre
-    C->>G: POST /api/fields + X-User-*-Key
-    G->>S: create_parcel(geojson, name)
+    U->>C: Dibuja polígono + nombre + variables satelitales
+    C->>G: POST /api/fields {name, geojson, crop_variety, selected_indices} + X-User-*-Key
+    G->>S: create_parcel(geojson, name, crop_variety, selected_indices)
     S->>DB: INSERT fields (ST_GeomFromGeoJSON)
     DB-->>S: field_id
-    S-->>G: {id, name, area_ha}
-    G-->>C: {id, name}
+    S-->>G: {id, name, area_ha, crop_variety, selected_indices}
+    G-->>C: {id, name, area_ha, selected_indices}
     Note over C: Parcela creada
-    par Backfill asíncrono (BackgroundTask)
-        S->>COP: index_series_monthly("ndvi", 5 años)
-        COP-->>S: Serie mensual NDVI
-        S->>DB: upsert_index_points → vegetation_indices
-        Note over S: 32-33 puntos (1/mes × 5 años)
+    par Backfill selectivo asíncrono (BackgroundTask)
+        loop por cada índice elegido
+            S->>COP: index_series_monthly(index, 5 años)
+            COP-->>S: Serie mensual del índice
+            S->>DB: upsert_index_points → vegetation_indices
+        end
+        Note over S: ~32-33 puntos por índice (1/mes × 5 años)
     end
 ```
 
@@ -335,14 +348,15 @@ sequenceDiagram
     participant DB as Supabase
 
     U->>C: Clic "Reprocesar" → modal
-    U->>C: Selecciona modo + "Ejecutar"
-    C->>G: POST /api/vegetation/reprocess {field_id, mode}
+    U->>C: Selecciona modo y variables + "Ejecutar"
+    C->>G: POST /api/vegetation/reprocess {field_id, mode, indices?}
     alt mode = "indices" o "all"
-        loop for each index (ndvi, evi, savi, ndwi, ndre)
+        loop for each index en indices o selected_indices
             G->>COP: index_series_monthly(index)
             COP-->>G: Serie mensual
             G->>DB: upsert_index_points (sobrescribe)
         end
+        G->>DB: update selected_indices (une los índices reprocesados)
     end
     alt mode = "weather" o "all"
         Note over G: Weather flag True (on-demand)
@@ -597,6 +611,7 @@ flowchart LR
 | **Credenciales efímeras (BYOK, solo memoria)** | Persistencia en localStorage o servidor | Elimina todo vector de fuga de secretos; refrescar borra todo. |
 | **5 índices espectrales en tabla genérica (vegetation_indices)** | Tabla separada por índice | Una sola tabla con `index_type` discrimina; misma estructura, un solo upsert genérico. |
 | **Reproceso vía endpoint dedicado (SF13.5)** | Solo backfill al crear parcela | Parcelas legacy necesitan recalcular índices nuevos; endpoint permite reproceso manual o por script. |
+| **Selección y expansión incremental de índices (Fase 5)** | Calcular siempre los 5 índices al crear/editar | Solo se consulta Sentinel-2 para las variables elegidas; el PATCH calcula el diferencial y evita reprocesos innecesarios. |
 | **Telemetría en buffer + tabla opcional** | Solo persistencia | Buffer en memoria es instantáneo y suficiente para depuración; BD opcional para trazabilidad larga. |
 
 ---
