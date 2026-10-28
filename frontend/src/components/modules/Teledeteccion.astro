@@ -29,14 +29,21 @@
         <h3 class="font-bold text-sm text-stone-800">Serie Temporal de Índices</h3>
         <div class="flex items-center gap-2">
           <select id="select-index" class="text-[11px] border border-stone-300 rounded-lg p-1.5 bg-stone-50 font-semibold focus:outline-none focus:border-emerald-600">
-            <option value="ndvi">NDVI — Salud vegetal</option>
-            <option value="evi">EVI — Vegetación densa</option>
-            <option value="savi">SAVI — Suelo desnudo</option>
-            <option value="ndwi">NDWI — Agua/humedad</option>
-            <option value="ndre">NDRE — Clorofila/N</option>
+            <option value="ndvi" data-index-label="NDVI — Salud vegetal">NDVI — Salud vegetal</option>
+            <option value="evi" data-index-label="EVI — Vegetación densa">EVI — Vegetación densa</option>
+            <option value="savi" data-index-label="SAVI — Suelo desnudo">SAVI — Suelo desnudo</option>
+            <option value="ndwi" data-index-label="NDWI — Agua/humedad">NDWI — Agua/humedad</option>
+            <option value="ndre" data-index-label="NDRE — Clorofila/N">NDRE — Clorofila/N</option>
           </select>
           <button id="btn-reprocess" class="text-[11px] bg-amber-100 hover:bg-amber-200 text-amber-800 px-2 py-1.5 rounded font-bold"><i class="fa-solid fa-rotate"></i> Reprocesar</button>
         </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 mb-3">
+        <span class="text-[10px] font-bold text-stone-600 uppercase">Variables activas:</span>
+        <div id="parcel-active-indices" class="flex flex-wrap items-center gap-1.5"></div>
+        <button id="btn-add-satellite-var" type="button" class="ml-auto text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg">
+          <i class="fa-solid fa-plus mr-1"></i> Agregar variable satelital
+        </button>
       </div>
       <div class="relative h-64">
         <canvas id="chart-satelite"></canvas>

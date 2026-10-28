@@ -53,6 +53,55 @@
         </select>
       </div>
 
+      <div id="creator-indices-group" class="space-y-1.5 pt-1">
+        <div class="flex items-center justify-between gap-2">
+          <label class="block text-[10px] font-bold text-stone-600 uppercase">
+            Variables Satelitales a Calcular (Sentinel-2)
+          </label>
+          <div class="flex items-center gap-2">
+            <button type="button" id="btn-creator-select-recommended-indices" class="text-[10px] font-semibold text-emerald-700 hover:underline">
+              Recomendados por cultivo
+            </button>
+            <button type="button" id="btn-creator-select-all-indices" class="text-[10px] font-semibold text-emerald-700 hover:underline">
+              Todos
+            </button>
+          </div>
+        </div>
+        <p id="creator-indices-hint" class="text-[10px] text-stone-500 leading-relaxed">
+          Elige qué variables satelitales calcular ahora según tu cultivo. En el futuro podrás agregar más variables satelitales a este cultivo-parcela sin perder las ya calculadas.
+        </p>
+        <div class="grid grid-cols-1 gap-1.5">
+          <label class="flex items-center gap-2 p-1.5 border border-stone-200 rounded bg-white hover:bg-emerald-50/40 cursor-pointer">
+            <input type="checkbox" class="creator-index-checkbox accent-emerald-600" value="ndvi" checked />
+            <span class="font-bold text-stone-800">NDVI</span>
+            <span class="text-[10px] text-stone-500">— Vigor y biomasa fotosintética</span>
+          </label>
+          <label class="flex items-center gap-2 p-1.5 border border-stone-200 rounded bg-white hover:bg-emerald-50/40 cursor-pointer">
+            <input type="checkbox" class="creator-index-checkbox accent-emerald-600" value="evi" />
+            <span class="font-bold text-stone-800">EVI</span>
+            <span class="text-[10px] text-stone-500">— Vegetación densa y aerosoles</span>
+          </label>
+          <label class="flex items-center gap-2 p-1.5 border border-stone-200 rounded bg-white hover:bg-emerald-50/40 cursor-pointer">
+            <input type="checkbox" class="creator-index-checkbox accent-emerald-600" value="savi" />
+            <span class="font-bold text-stone-800">SAVI</span>
+            <span class="text-[10px] text-stone-500">— Suelo desnudo y cultivos jóvenes</span>
+          </label>
+          <label class="flex items-center gap-2 p-1.5 border border-stone-200 rounded bg-white hover:bg-emerald-50/40 cursor-pointer">
+            <input type="checkbox" class="creator-index-checkbox accent-emerald-600" value="ndwi" />
+            <span class="font-bold text-stone-800">NDWI</span>
+            <span class="text-[10px] text-stone-500">— Agua y estrés hídrico</span>
+          </label>
+          <label class="flex items-center gap-2 p-1.5 border border-stone-200 rounded bg-white hover:bg-emerald-50/40 cursor-pointer">
+            <input type="checkbox" class="creator-index-checkbox accent-emerald-600" value="ndre" />
+            <span class="font-bold text-stone-800">NDRE</span>
+            <span class="text-[10px] text-stone-500">— Clorofila y nitrógeno</span>
+          </label>
+        </div>
+        <p id="creator-indices-error" class="hidden text-[10px] font-semibold text-red-600">
+          Marca al menos una variable satelital para continuar.
+        </p>
+      </div>
+
       <div class="pt-4 border-t border-stone-100 text-[10px] text-stone-500 leading-relaxed">
         <p class="font-semibold text-stone-600 mb-1 flex items-center gap-1"><i class="fa-solid fa-circle-info text-[9px] text-emerald-600"></i> Crea lotes más rápido</p>
         Puedes dibujar varios lotes en el mapa y crearlos de una sola vez.

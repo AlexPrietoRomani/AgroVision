@@ -12,6 +12,19 @@ const sessionId = "sess-" + Math.random().toString(36).slice(2);
 let backendOk = false;
 let appEnv = "development";
 
+const VALID_INDICES = ["ndvi", "evi", "savi", "ndwi", "ndre"];
+const INDEX_LABELS = { ndvi: "NDVI", evi: "EVI", savi: "SAVI", ndwi: "NDWI", ndre: "NDRE" };
+const RECOMMENDED_INDICES_BY_CROP = {
+  "Arándanos": ["ndvi", "ndwi", "ndre"],
+  "Uva": ["ndvi", "savi", "ndwi"],
+  "Uvas": ["ndvi", "savi", "ndwi"],
+  "Paltos": ["ndvi", "evi", "ndre"],
+  "Cítricos": ["ndvi", "evi", "ndre"],
+  "Espárragos": ["ndvi", "savi"],
+  "Otros": ["ndvi"],
+};
+let activeParcelIndices = [];
+
 // Perfiles y Modos de Sesión (Fase 15)
 let profileId = null;
 let currentProfile = null;
@@ -109,6 +122,75 @@ async function api(path, opts = {}) {
     track("api_error", { where: path, status: "network", method: opts.method || "GET" });
     throw e;
   }
+}
+
+function getCheckedIndices(selector) {
+  return Array.from(document.querySelectorAll(`${selector}:checked`)).map((checkbox) => checkbox.value);
+}
+
+function setCheckedIndices(selector, indices) {
+  const selected = new Set(indices || []);
+  document.querySelectorAll(selector).forEach((checkbox) => {
+    checkbox.checked = selected.has(checkbox.value);
+  });
+}
+
+function normalizeIndices(indices) {
+  const valid = Array.isArray(indices) ? indices.filter((index) => VALID_INDICES.includes(index)) : [];
+  return valid.length ? [...new Set(valid)] : ["ndvi"];
+}
+
+function formatIndices(indices) {
+  return (indices || []).map((index) => INDEX_LABELS[index] || index.toUpperCase()).join(", ");
+}
+
+function getParcelIndices(fieldId) {
+  const parcel = parcels.find((item) => item.id === fieldId);
+  return normalizeIndices(parcel?.selected_indices);
+}
+
+function setParcelIndices(fieldId, indices) {
+  const normalized = normalizeIndices(indices);
+  const parcel = parcels.find((item) => item.id === fieldId);
+  if (parcel) parcel.selected_indices = normalized;
+  activeParcelIndices = normalized;
+  return normalized;
+}
+
+function renderActiveIndexBadges(indices) {
+  const container = $("parcel-active-indices");
+  if (!container) return;
+  const selected = new Set(indices || []);
+  container.innerHTML = VALID_INDICES.map((index) => {
+    const isActive = selected.has(index);
+    const badgeClass = isActive
+      ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+      : "bg-stone-100 text-stone-400 border-stone-200";
+    const icon = isActive ? "fa-circle-check" : "fa-circle";
+    return `<span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full border ${badgeClass}" title="${isActive ? "Variable activa" : "Variable no activa"}"><i class="fa-solid ${icon} text-[9px]"></i>${INDEX_LABELS[index]}</span>`;
+  }).join("");
+}
+
+function updateIndexSelectOptions(indices) {
+  const selected = new Set(indices || []);
+  document.querySelectorAll("#select-index option").forEach((option) => {
+    const baseLabel = option.dataset.indexLabel || option.textContent.replace(/ · (activa|agregar)$/, "");
+    option.textContent = `${baseLabel} · ${selected.has(option.value) ? "activa" : "agregar"}`;
+  });
+}
+
+function syncSatelliteIndexControls(fieldId, field = null) {
+  const indices = fieldId ? normalizeIndices(field?.selected_indices ?? getParcelIndices(fieldId)) : [];
+  activeParcelIndices = indices;
+  setCheckedIndices(".attr-index-checkbox", indices);
+  setCheckedIndices(".reprocess-index-checkbox", indices);
+  renderActiveIndexBadges(indices);
+  updateIndexSelectOptions(indices);
+}
+
+function applyCreatorIndices(indices) {
+  setCheckedIndices(".creator-index-checkbox", normalizeIndices(indices));
+  $("creator-indices-error")?.classList.add("hidden");
 }
 
 // ===== Navegación =====
@@ -229,6 +311,10 @@ async function loadFieldAttributes(fid) {
       $("attr-target-market").value = field.target_market || "";
       $("attr-document-metadata").value = field.document_metadata || "";
 
+      const fieldIndices = Array.isArray(field.selected_indices) ? field.selected_indices : getParcelIndices(fid);
+      setParcelIndices(fid, fieldIndices);
+      syncSatelliteIndexControls(fid);
+
       $("active-parcel-name-display").innerText = field.name;
     }
   } catch (e) {
@@ -247,11 +333,15 @@ function clearFieldAttributes() {
   $("attr-historical-yield").value = "";
   $("attr-target-market").value = "";
   $("attr-document-metadata").value = "";
+  syncSatelliteIndexControls(null);
   $("active-parcel-name-display").innerText = "—";
 }
 
 async function saveFieldAttributes(fid, isAutosave) {
   if (!fid) return;
+  const previousIndices = getParcelIndices(fid);
+  const selectedIndices = getCheckedIndices(".attr-index-checkbox");
+  const nextIndices = selectedIndices.length ? normalizeIndices(selectedIndices) : ["ndvi"];
   const body = {
     crop_variety: $("attr-crop-variety").value.trim() || null,
     field_type: $("attr-field-type").value.trim() || null,
@@ -262,7 +352,8 @@ async function saveFieldAttributes(fid, isAutosave) {
     num_plants: $("attr-num-plants").value ? parseInt($("attr-num-plants").value, 10) : null,
     historical_yield: $("attr-historical-yield").value.trim() || null,
     target_market: $("attr-target-market").value.trim() || null,
-    document_metadata: $("attr-document-metadata").value.trim() || null
+    document_metadata: $("attr-document-metadata").value.trim() || null,
+    selected_indices: nextIndices
   };
 
   try {
@@ -271,10 +362,24 @@ async function saveFieldAttributes(fid, isAutosave) {
       body: JSON.stringify(body)
     });
     if (res.ok) {
+      const addedIndices = nextIndices.filter((index) => !previousIndices.includes(index));
+      setParcelIndices(fid, nextIndices);
+      syncSatelliteIndexControls(fid);
       if (!isAutosave) {
-        notify("Ajustes guardados", "Los atributos de la parcela se han guardado.");
+        if (addedIndices.length) {
+          notify("Ajustes guardados", `Se agregaron ${formatIndices(addedIndices)}. El cálculo satelital continúa en segundo plano.`);
+        } else {
+          notify("Ajustes guardados", "Los atributos de la parcela se han guardado.");
+        }
+      } else if (addedIndices.length) {
+        notify("Nuevas variables satelitales", `Calculando ${formatIndices(addedIndices)} en segundo plano.`);
       }
-      track("field_attributes_saved", { field_id: fid, autosave: isAutosave });
+      track("field_attributes_saved", {
+        field_id: fid,
+        autosave: isAutosave,
+        selected_indices: nextIndices,
+        added_indices: addedIndices
+      });
     } else {
       const e = await res.json().catch(() => ({}));
       if (!isAutosave) {
@@ -309,6 +414,10 @@ function triggerAutosave() {
     const fid = $("select-parcela").value;
     if (fid) saveFieldAttributes(fid, false); // guardar inmediatamente al perder el foco
   });
+});
+
+document.querySelectorAll(".attr-index-checkbox").forEach((checkbox) => {
+  checkbox.addEventListener("change", triggerAutosave);
 });
 
 $("btn-save-attributes").addEventListener("click", (e) => {
@@ -366,14 +475,25 @@ function selectParcel(id) {
 }
 
 async function refreshParcels() {
+  const previousIndices = new Map(parcels.map((parcel) => [parcel.id, parcel.selected_indices]));
   try {
     const r = await api("/fields");
     parcels = r.ok ? await r.json() : [];
   } catch { parcels = []; }
+  parcels = parcels.map((parcel) => {
+    const backendIndices = Array.isArray(parcel.selected_indices) ? parcel.selected_indices : null;
+    const fallbackIndices = previousIndices.get(parcel.id);
+    const indices = backendIndices?.length ? backendIndices : fallbackIndices;
+    return { ...parcel, selected_indices: normalizeIndices(indices) };
+  });
   const sel = $("select-parcela");
+  const previousActiveId = sel.value;
   sel.innerHTML = parcels.length
     ? parcels.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")
     : '<option value="">(sin parcelas)</option>';
+  if (previousActiveId && sel.querySelector(`option[value="${previousActiveId}"]`)) {
+    sel.value = previousActiveId;
+  }
 
   if ($("parcelas-list")) {
     $("parcelas-list").innerHTML = parcels.length
@@ -548,39 +668,70 @@ if ($("btn-draw-undo")) {
   });
 }
 
+if ($("creator-crop-select")) {
+  $("creator-crop-select").addEventListener("change", () => {
+    const crop = $("creator-crop-select").value;
+    applyCreatorIndices(RECOMMENDED_INDICES_BY_CROP[crop] || ["ndvi"]);
+  });
+}
+
+if ($("btn-creator-select-recommended-indices")) {
+  $("btn-creator-select-recommended-indices").addEventListener("click", () => {
+    const crop = $("creator-crop-select").value;
+    applyCreatorIndices(RECOMMENDED_INDICES_BY_CROP[crop] || ["ndvi"]);
+  });
+}
+
+if ($("btn-creator-select-all-indices")) {
+  $("btn-creator-select-all-indices").addEventListener("click", () => {
+    applyCreatorIndices(VALID_INDICES);
+  });
+}
+
 if ($("btn-creator-save")) {
   $("btn-creator-save").addEventListener("click", async () => {
     const name = $("creator-name-input").value.trim();
     const crop = $("creator-crop-select").value;
+    const selectedIndices = getCheckedIndices(".creator-index-checkbox");
     if (!drawnGeojson) return notify("Falta el polígono", "Dibuja un polígono en el mapa.");
     if (!name) return notify("Falta el nombre", "Escribe un nombre.");
+    if (!selectedIndices.length) {
+      $("creator-indices-error")?.classList.remove("hidden");
+      return notify("Falta una variable satelital", "Marca al menos una variable satelital para calcular.");
+    }
+    $("creator-indices-error")?.classList.add("hidden");
 
     // Mostrar pantalla de carga (Paso C)
     $("creator-step-details").classList.add("hidden");
     $("creator-step-loading").classList.remove("hidden");
 
     try {
-      track("parcel_draw_save", { name, crop });
+      track("parcel_draw_save", { name, crop, indices: selectedIndices });
 
       // 1. Crear la parcela en la base de datos
       const r = await api("/fields", { 
         method: "POST", 
-        body: JSON.stringify({ name, geojson: drawnGeojson }) 
+        body: JSON.stringify({
+          name,
+          geojson: drawnGeojson,
+          crop_variety: crop || null,
+          selected_indices: selectedIndices
+        })
       });
 
       if (r.ok) {
         const field = await r.json();
         const newFieldId = field.id;
 
-        // 2. Si seleccionó cultivo, guardar cultivo vía PATCH
-        if (crop) {
+        // 2. Si seleccionó cultivo o variables, guardarlas vía PATCH
+        if (crop || selectedIndices.length) {
           await api(`/fields/${newFieldId}`, {
             method: "PATCH",
-            body: JSON.stringify({ crop_variety: crop })
+            body: JSON.stringify({ crop_variety: crop || null, selected_indices: selectedIndices })
           });
         }
 
-        track("parcel_create_wizard_success", { name, crop });
+        track("parcel_create_wizard_success", { name, crop, indices: selectedIndices });
 
         // 3. Simular procesamiento para esperar recálculo e iniciar notificaciones escalonadas
         setTimeout(async () => {
@@ -594,7 +745,7 @@ if ($("btn-creator-save")) {
           }, 100);
 
           setTimeout(() => {
-            notify("Teledetección Lista", `Sentinel-2 ha completado el análisis espectral (NDVI/EVI/SAVI/NDWI/NDRE) de ${name}.`, "success");
+            notify("Teledetección Lista", `Sentinel-2 calculará ${formatIndices(selectedIndices)} en ${name}.`, "success");
           }, 800);
 
           setTimeout(() => {
@@ -605,6 +756,7 @@ if ($("btn-creator-save")) {
           drawnItems.clearLayers();
 
           await refreshParcels();
+          setParcelIndices(newFieldId, selectedIndices);
           selectParcel(newFieldId);
           flyToParcel(newFieldId);
         }, 3000);
@@ -651,7 +803,6 @@ async function loadResumen() {
 }
 
 // ===== Teledetección (GIS + Heatmap + Índices) =====
-const INDEX_LABELS = { ndvi: "NDVI", evi: "EVI", savi: "SAVI", ndwi: "NDWI", ndre: "NDRE" };
 const INDEX_RANGES = { ndvi: [0, 1], evi: [0, 1], savi: [-0.4, 0.8], ndwi: [-0.6, 0.7], ndre: [0, 0.5] };
 let currentIndex = "ndvi";
 
@@ -660,10 +811,43 @@ $("select-index").addEventListener("change", () => {
   loadTeledeteccion();
 });
 
+$("btn-add-satellite-var").addEventListener("click", async () => {
+  const fid = $("select-parcela").value;
+  if (!fid) return notify("Selecciona una parcela", "Elige una parcela antes de agregar variables satelitales.");
+  const index = $("select-index").value;
+  const currentIndices = getParcelIndices(fid);
+  if (!currentIndices.includes(index)) {
+    const nextIndices = normalizeIndices([...currentIndices, index]);
+    try {
+      const res = await api(`/fields/${fid}`, {
+        method: "PATCH",
+        body: JSON.stringify({ selected_indices: nextIndices })
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        return notify("No se pudo agregar la variable", error.detail || `Error ${res.status}`);
+      }
+      setParcelIndices(fid, nextIndices);
+      syncSatelliteIndexControls(fid);
+      track("satellite_index_added", { field_id: fid, index });
+      notify("Variable satelital habilitada", `${INDEX_LABELS[index] || index.toUpperCase()} se agregó a la parcela. Puedes calcularla ahora.`);
+    } catch (error) {
+      return notify("Error de red", String(error));
+    }
+  } else {
+    notify("Variable ya activa", `${INDEX_LABELS[index] || index.toUpperCase()} ya está activa en la parcela. Puedes reprocesarla.`);
+  }
+  showReprocessModal(index);
+});
+
 async function loadTeledeteccion() {
   const fid = $("select-parcela").value;
   if (!fid) { $("satelite-empty").classList.remove("hidden"); return; }
   $("satelite-empty").classList.add("hidden");
+  const parcelIndices = getParcelIndices(fid);
+  activeParcelIndices = parcelIndices;
+  renderActiveIndexBadges(parcelIndices);
+  updateIndexSelectOptions(parcelIndices);
 
   const rI = await api("/vegetation/" + currentIndex, { method: "POST", body: JSON.stringify({ field_id: fid }) });
   const series = rI.ok ? (await rI.json()).series : [];
@@ -1765,41 +1949,72 @@ async function loadAnalysis() {
 }
 
 // ===== Reprocesar Modal =====
-function showReprocessModal() {
+function showReprocessModal(preselectIndex = null) {
   const fid = $("select-parcela").value;
   if (!fid) return notify("Selecciona una parcela", "");
+  const indices = getParcelIndices(fid);
+  setCheckedIndices(".reprocess-index-checkbox", indices);
+  if (VALID_INDICES.includes(preselectIndex)) {
+    document.querySelectorAll(".reprocess-index-checkbox").forEach((checkbox) => {
+      if (checkbox.value === preselectIndex) checkbox.checked = true;
+    });
+  }
+  $("reprocess-indices-error")?.classList.add("hidden");
   $("reprocess-modal").classList.remove("hidden");
   $("reprocess-modal").classList.add("flex");
   $("reprocess-status").classList.add("hidden");
   $("reprocess-status").innerText = "";
-  track("reprocess_modal_open", { field_id: fid });
+  track("reprocess_modal_open", { field_id: fid, indices });
 }
 function closeReprocessModal() {
   $("reprocess-modal").classList.add("hidden");
   $("reprocess-modal").classList.remove("flex");
 }
-$("btn-reprocess").addEventListener("click", showReprocessModal);
+$("btn-reprocess").addEventListener("click", () => showReprocessModal());
 $("btn-close-reprocess").addEventListener("click", closeReprocessModal);
 $("btn-cancel-reprocess").addEventListener("click", closeReprocessModal);
 $("reprocess-modal").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeReprocessModal(); });
+$("btn-reprocess-select-all-indices").addEventListener("click", () => {
+  setCheckedIndices(".reprocess-index-checkbox", VALID_INDICES);
+});
 $("btn-run-reprocess").addEventListener("click", async () => {
   const fid = $("select-parcela").value;
   const mode = document.querySelector('input[name="reprocess-mode"]:checked')?.value || "all";
+  const selectedIndices = getCheckedIndices(".reprocess-index-checkbox");
+  const indicesError = $("reprocess-indices-error");
+  if (mode !== "weather" && !selectedIndices.length) {
+    indicesError?.classList.remove("hidden");
+    return notify("Falta una variable satelital", "Marca al menos una variable para reprocesar.");
+  }
+  indicesError?.classList.add("hidden");
   const btn = $("btn-run-reprocess");
   btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procesando…';
   $("reprocess-status").classList.remove("hidden");
   $("reprocess-status").innerText = "Reprocesando… esto puede tomar varios minutos.";
-  track("reprocess_start", { field_id: fid, mode });
+  const payload = { field_id: fid, mode };
+  if (mode !== "weather") payload.indices = selectedIndices;
+  track("reprocess_start", { field_id: fid, mode, indices: selectedIndices });
   try {
-    const r = await api("/vegetation/reprocess", { method: "POST", body: JSON.stringify({ field_id: fid, mode }) });
+    const r = await api("/vegetation/reprocess", { method: "POST", body: JSON.stringify(payload) });
     if (r.ok) {
       const data = await r.json();
       const idxCount = data.indices?.length || 0;
       const totalPoints = data.indices?.reduce((s, i) => s + i.points, 0) || 0;
-      $("reprocess-status").innerText = `Reproceso completado: ${idxCount} índices, ${totalPoints} puntos.${data.weather ? " Clima actualizado." : ""}`;
+      const mergedIndices = mode === "weather" ? getParcelIndices(fid) : normalizeIndices([...getParcelIndices(fid), ...selectedIndices]);
+      const indexSummary = mode === "weather" ? "" : ` (${formatIndices(selectedIndices)})`;
+      setParcelIndices(fid, mergedIndices);
+      syncSatelliteIndexControls(fid);
+      $("reprocess-status").innerText = `Reproceso completado: ${idxCount} índices${indexSummary}, ${totalPoints} puntos.${data.weather ? " Clima actualizado." : ""}`;
       $("reprocess-status").className = "mt-3 text-xs text-emerald-600";
-      track("reprocess_done", { field_id: fid, mode, indices: idxCount, points: totalPoints });
-      setTimeout(() => { closeReprocessModal(); loadTeledeteccion(); }, 1500);
+      track("reprocess_done", { field_id: fid, mode, indices: idxCount, points: totalPoints, selected_indices: selectedIndices });
+      setTimeout(async () => {
+        closeReprocessModal();
+        await refreshParcels();
+        setParcelIndices(fid, mergedIndices);
+        syncSatelliteIndexControls(fid);
+        await loadFieldAttributes(fid);
+        if (document.querySelector(".tab-content.active")?.id === "tab-satelite") await loadTeledeteccion();
+      }, 1500);
     } else {
       const err = await r.json().catch(() => ({}));
       $("reprocess-status").innerText = "Error: " + (err.detail || r.status);
@@ -2303,6 +2518,7 @@ $("select-parcela").addEventListener("change", async () => {
   if (fid) {
     localStorage.setItem("agrovision_last_field_id", fid);
     loadFieldAttributes(fid);
+    syncSatelliteIndexControls(fid);
     if (profileId && !isSharedMode) {
       try {
         await api(`/profiles/${profileId}`, {
@@ -2379,6 +2595,9 @@ $("select-parcela").addEventListener("change", async () => {
     $("select-parcela").value = lastFieldId;
     loadFieldAttributes(lastFieldId);
   }
+
+  const initialFieldId = $("select-parcela").value;
+  if (initialFieldId) syncSatelliteIndexControls(initialFieldId);
 
   let initial = "tab-resumen";
   if (location.hash && location.hash.startsWith("#tab-")) {
