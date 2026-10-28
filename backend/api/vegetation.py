@@ -6,10 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.deps import UserKeys, get_db, get_user_keys
 from backend.api.events import emit as emit_event
+from backend.core.schemas import VALID_SATELLITE_INDICES
 from backend.db import repositories as repo
 from backend.services import remote_sensing
 
-_VALID_INDICES = {"ndvi", "evi", "savi", "ndwi", "ndre"}
+_VALID_INDICES = set(VALID_SATELLITE_INDICES)
 _INDEX_DESCRIPTIONS = {
     "ndvi": "NDVI — Normalized Difference Vegetation Index (salud vegetal general)",
     "evi": "EVI — Enhanced Vegetation Index (corrige aerosoles, mejor en vegetación densa)",
@@ -38,6 +39,7 @@ class IndexRasterRequest(BaseModel):
 class ReprocessRequest(BaseModel):
     field_id: str
     mode: str = "all"  # "indices" | "weather" | "all"
+    indices: list[str] | None = None  # Si se omite, se usan los de la parcela
 
 
 def _require_copernicus(keys: UserKeys) -> None:
@@ -55,6 +57,25 @@ def _validate_index(index: str) -> None:
         )
 
 
+async def _parcel_selection(session: AsyncSession, field_id: str) -> list[str]:
+    """
+    Devuelve las variables satelitales seleccionadas de la parcela.
+
+    Si el repositorio aún no expone `selected_indices` (Fase 4 en curso) o la lista
+    está vacía, se usan los cinco índices disponibles como fallback.
+
+    Args:
+        session (AsyncSession): Sesión async de base de datos.
+        field_id (str): Identificador de la parcela.
+
+    Returns:
+        list[str]: Índices seleccionados o el catálogo completo como respaldo.
+    """
+    row = await repo.get_field(session, field_id)
+    selected = list(getattr(row, "selected_indices", None) or [])
+    return selected or sorted(_VALID_INDICES)
+
+
 @router.get("/indices")
 async def list_indices() -> dict:
     """Devuelve la lista de índices espectrales disponibles con descripciones."""
@@ -67,21 +88,50 @@ async def reprocess_field(
     keys: UserKeys = Depends(get_user_keys),
     session: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Recalcula TODOS los índices espectrales (y opcionalmente clima) para una parcela."""
+    """
+    Reprocesa los índices seleccionados (y opcionalmente clima) de una parcela.
+
+    Si `indices` se envía, solo esos índices se recalculan y se anexan a la selección
+    de la parcela. Si se omite, se usan los `selected_indices` de la parcela o, en su
+    defecto, los cinco índices disponibles.
+    """
     _require_copernicus(keys)
     if body.mode not in ("indices", "weather", "all"):
         raise HTTPException(status_code=422, detail="mode debe ser 'indices', 'weather' o 'all'.")
+
+    requested: list[str] | None = None
+    if body.indices is not None:
+        requested = []
+        for index in body.indices:
+            _validate_index(index)
+            if index not in requested:
+                requested.append(index)
+
     geojson = await repo.get_field_geojson(session, body.field_id)
     if not geojson:
         raise HTTPException(status_code=404, detail="Parcela no encontrada.")
-    result: dict = {"field_id": body.field_id, "mode": body.mode, "indices": [], "weather": False}
+
+    selected = await _parcel_selection(session, body.field_id)
+    result: dict = {
+        "field_id": body.field_id,
+        "mode": body.mode,
+        "indices": [],
+        "weather": False,
+        "selected_indices": selected,
+    }
     if body.mode in ("indices", "all"):
-        for index in sorted(_VALID_INDICES):
+        indices_to_process = requested if requested is not None else selected
+        for index in indices_to_process:
             series = await remote_sensing.index_series_monthly(
                 geojson, None, None, keys.copernicus_id, keys.copernicus_secret, index
             )
             count = await repo.upsert_index_points(session, body.field_id, series, index)
             result["indices"].append({"index": index, "points": count})
+        merged = list(dict.fromkeys([*selected, *indices_to_process]))
+        updater = getattr(repo, "update_field_attributes", None)
+        if callable(updater):
+            await updater(session, body.field_id, {"selected_indices": merged})
+        result["selected_indices"] = merged
     if body.mode in ("weather", "all"):
         result["weather"] = True
     emit_event("reprocess_done", result)

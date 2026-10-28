@@ -4,16 +4,20 @@ Fecha de modificación: 03/06/2026
 Autor: Equipo AgroVisión
 
 Descripción:
-Esquemas de dominio de la plataforma completa (Fase 1). Modelan las entidades
-geoespaciales y analíticas con sus invariantes: una parcela (`FieldIn`/`FieldOut`)
-lleva un polígono GeoJSON validado (anillo cerrado, EPSG:4326); un punto NDVI vive
-en [-1, 1]; un mensaje de chat solo admite los roles 'user' o 'assistant'. Validar
-aquí evita insertar geometría o índices inválidos en PostGIS.
+Esquemas de dominio de la plataforma completa (Fase 1) con la selección de variables
+satelitales (Fase 5). Modelan las entidades geoespaciales y analíticas con sus
+invariantes: una parcela (`FieldIn`/`FieldOut`) lleva un polígono GeoJSON validado
+(anillo cerrado, EPSG:4326) y una lista no vacía de índices satelitales admitidos; un
+punto NDVI vive en [-1, 1]; un mensaje de chat solo admite los roles 'user' o
+'assistant'. Validar aquí evita insertar geometría, índices o variables inválidas en
+PostGIS.
 
 Acciones Principales:
     - Declara los contratos de dominio compartidos por servicios, repos y API.
+    - Normaliza y valida la selección de variables satelitales de cada parcela.
 
 Estructura Interna:
+    - `VALID_SATELLITE_INDICES`: catálogo de índices espectrales admitidos.
     - `FieldIn` / `FieldOut`: alta y lectura de parcelas.
     - `NDVIPoint`: observación de la serie temporal NDVI.
     - `WeatherPoint`: observación agroclimática diaria/mensual.
@@ -37,12 +41,60 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+VALID_SATELLITE_INDICES: tuple[str, ...] = ("ndvi", "evi", "savi", "ndwi", "ndre")
+
+
+def _validate_selected_indices(value: list[str]) -> list[str]:
+    """
+    Normaliza y valida una selección de variables satelitales.
+
+    Convierte cada índice a minúsculas, elimina espacios y duplicados preservando el
+    orden original, y rechaza listas vacías o valores fuera del catálogo.
+
+    Args:
+        value (list[str]): Índices propuestos por el usuario.
+
+    Returns:
+        list[str]: Índices normalizados y sin duplicados.
+
+    Raises:
+        ValueError: Si la lista está vacía o contiene un índice no admitido.
+    """
+    if not value:
+        raise ValueError("Debes seleccionar al menos una variable satelital.")
+    cleaned: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise ValueError("Cada variable satelital debe ser una cadena de texto.")
+        index = item.strip().lower()
+        if index not in VALID_SATELLITE_INDICES:
+            raise ValueError(
+                f"Índice satelital no válido: '{item}'. "
+                f"Válidos: {', '.join(VALID_SATELLITE_INDICES)}."
+            )
+        if index not in cleaned:
+            cleaned.append(index)
+    return cleaned
+
 
 class FieldIn(BaseModel):
-    """Datos de alta de una parcela: nombre + polígono GeoJSON (EPSG:4326)."""
+    """Datos de alta de una parcela: nombre, polígono y variables satelitales."""
 
     name: str = Field(min_length=1, description="Nombre legible de la parcela")
     geojson: dict = Field(description="Geometría GeoJSON tipo Polygon en EPSG:4326")
+    crop_variety: str | None = Field(
+        default=None, max_length=120, description="Variedad del cultivo (p. ej. Arándanos)"
+    )
+    selected_indices: list[str] = Field(
+        default_factory=lambda: ["ndvi"],
+        description="Variables satelitales a calcular (ndvi, evi, savi, ndwi, ndre)",
+    )
+
+    @field_validator("selected_indices")
+    @classmethod
+    def _validar_selected_indices(cls, value: list[str]) -> list[str]:
+        """Valida y normaliza la selección inicial de variables satelitales."""
+        return _validate_selected_indices(value)
 
     @field_validator("geojson")
     @classmethod
@@ -85,6 +137,18 @@ class FieldUpdate(BaseModel):
     historical_yield: str | None = Field(default=None, description="Rendimiento histórico")
     target_market: str | None = Field(default=None, description="Mercados objetivo")
     document_metadata: str | None = Field(default=None, description="Metadatos de documentos")
+    selected_indices: list[str] | None = Field(
+        default=None,
+        description="Variables satelitales de la parcela (None si no se actualizan)",
+    )
+
+    @field_validator("selected_indices")
+    @classmethod
+    def _validar_selected_indices(cls, value: list[str] | None) -> list[str] | None:
+        """Valida la selección cuando se envía; `None` significa no modificarla."""
+        if value is None:
+            return None
+        return _validate_selected_indices(value)
 
 
 class FieldOut(BaseModel):
