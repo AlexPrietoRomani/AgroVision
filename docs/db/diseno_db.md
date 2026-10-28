@@ -42,6 +42,7 @@ erDiagram
         string name "NOT NULL"
         geometry geom "Polygon 4326, NOT NULL, GIST"
         string crop_variety
+        array selected_indices "TEXT[], NOT NULL DEFAULT ['ndvi'], CHECK subconjunto"
         string field_type
         string soil_type
         string irrigation_system
@@ -140,6 +141,7 @@ erDiagram
 | `name` | `TEXT` | `NOT NULL` | Nombre legible (canonicalizado a *Title Case*). |
 | `geom` | `GEOMETRY(Polygon, 4326)` | `NOT NULL` | Polígono WGS84; validado con `ST_IsValid`. |
 | `crop_variety` | `TEXT` | — | Variedad del cultivo. |
+| `selected_indices` | `TEXT[]` | `NOT NULL`, `DEFAULT ARRAY['ndvi']::TEXT[]`, `CHECK (cardinality >= 1 AND <@ catálogo)` | Variables satelitales elegidas para la parcela; subconjunto no vacío de `ndvi`, `evi`, `savi`, `ndwi`, `ndre`. Se amplía en el futuro con `PATCH /api/fields/{id}`. |
 | `field_type` | `TEXT` | — | Tipo de lote o campo. |
 | `soil_type` | `TEXT` | — | Tipo de suelo. |
 | `irrigation_system` | `TEXT` | — | Sistema de riego. |
@@ -151,7 +153,7 @@ erDiagram
 | `document_metadata` | `TEXT` | — | Metadatos de documentos asociados. |
 | `created_at` | `TIMESTAMP` | `DEFAULT now()` | Fecha de creación. |
 
-*   **Restricciones:** `CHECK (ST_IsValid(geom))` debe ser verdadero; SRID siempre 4326. Los atributos agronómicos son opcionales y los edita la UI vía `PATCH /api/fields/{id}`.
+*   **Restricciones:** `CHECK (ST_IsValid(geom))` debe ser verdadero; SRID siempre 4326. Los atributos agronómicos son opcionales y los edita la UI vía `PATCH /api/fields/{id}`. El constraint `chk_fields_selected_indices` exige `cardinality(selected_indices) >= 1` y que todos sus elementos pertenezcan a `('ndvi', 'evi', 'savi', 'ndwi', 'ndre')` (`<@`).
 
 ### 3.2 Tabla: `vegetation_indices`
 *   **Descripción:** Serie temporal histórica de 5 índices espectrales (NDVI/EVI/SAVI/NDWI/NDRE) derivados de Sentinel-2. Se persiste **agregada por mes** (un punto por mes por índice, la escena de menor nubosidad), con un **backfill inicial de 5 años** al crear la parcela y refresco **incremental** después.
@@ -291,7 +293,10 @@ erDiagram
 *   **Herramienta primaria:** **Supabase CLI** con migraciones SQL versionadas (`supabase/migrations/*.sql`), aplicadas con `supabase db push` (idempotentes).
 *   **Alternativa local (dev):** **Alembic** o script de migración nativo (`backend/db/migrate.py`) cuando se trabaja contra el Postgres+PostGIS de `docker-compose`.
 *   **Política:** prohibido alterar el esquema manualmente en producción; todo cambio pasa por una migración versionada y revisable.
-*   **Orden de bootstrap:** (1) `create extension postgis`; (2) tablas + índices; (3) políticas RLS; (4) bucket de Storage privado. La extensión/cola PGMQ queda **diferida** a la fase de activación del conteo y no se crea en `0001_initial_schema.sql`.
+*   **Migraciones versionadas:**
+    *   `0001_initial_schema.sql` — esquema inicial completo (PostGIS, tablas, índices y RLS).
+    *   `0002_field_selected_indices.sql` — añade `fields.selected_indices TEXT[] NOT NULL DEFAULT ARRAY['ndvi']::TEXT[]` y el constraint `chk_fields_selected_indices`, de forma idempotente. El default mantiene compatibles las parcelas preexistentes.
+*   **Orden de bootstrap:** (1) `create extension postgis`; (2) tablas + índices; (3) políticas RLS; (4) bucket de Storage privado; (5) migraciones incrementales (`0002_...`). La extensión/cola PGMQ queda **diferida** a la fase de activación del conteo y no se crea en `0001_initial_schema.sql`.
 
 ---
 
