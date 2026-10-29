@@ -38,7 +38,7 @@ Para **abrir** la app no necesitas nada. Para **usar** cada módulo en local, cr
 
 **Migraciones de BD** (una vez, tras configurar `DATABASE_URL`): `uv run python -m backend.db.migrate` crea tablas, índices, RLS y la extensión PGMQ.
 
-Para **desplegar** (ver §5): un único servicio (el **gateway FastAPI** que sirve UI + API) en **Hugging Face Spaces** (SDK Docker) vía `scripts/deploy_hf.ps1`; la BD es **Supabase**; y Hugging Face Hub alojará el modelo de conteo cuando se publique. Alternativas: **Render** (Docker) o **Posit Connect** (de pago). Todas las variables están en `.env.example`.
+Para **desplegar** (ver §5): un único servicio (el **gateway FastAPI** que sirve UI + API) en **Hugging Face Spaces** (SDK Docker) vía `scripts/deploy_hf.sh` (Linux/macOS) o `scripts/deploy_hf.ps1` (Windows); la BD es **Supabase**; y Hugging Face Hub alojará el modelo de conteo cuando se publique. Alternativas: **Render** (Docker) o **Posit Connect** (de pago). Todas las variables están en `.env.example`.
 
 ---
 
@@ -199,7 +199,25 @@ Cada `git push` posterior **reconstruye el mismo Space** (no manejas ids de app:
    HF_SPACE_ID=<tu_usuario>/agrovision  # <usuario>/<space>
    ```
 
-### 5.4 Ejecución del Despliegue (`deploy_hf.ps1`)
+### 5.4 Ejecución del Despliegue (`deploy_hf.sh` / `deploy_hf.ps1`)
+
+**Linux/macOS (POSIX, recomendado):**
+
+```bash
+# Validar entorno y argumentos sin compilar ni hacer push:
+./scripts/deploy_hf.sh --dry-run
+
+# Primer deploy (sobrescribe el commit inicial del Space):
+./scripts/deploy_hf.sh --force
+
+# Despliegues siguientes (cada push reconstruye el Space):
+./scripts/deploy_hf.sh
+
+# Space alternativo (prevalece sobre HF_SPACE_ID):
+./scripts/deploy_hf.sh --space <usuario>/<space>
+```
+
+**Windows (PowerShell):**
 
 ```powershell
 # Primer deploy (sobrescribe el commit inicial del Space):
@@ -208,7 +226,7 @@ Cada `git push` posterior **reconstruye el mismo Space** (no manejas ids de app:
 .\scripts\deploy_hf.ps1
 ```
 
-El script lee `HF_TOKEN`/`HF_SPACE_ID` del `.env`, arma la URL autenticada del Space y hace `git push HEAD:main`. **No compila en local** (HF construye el `Dockerfile` en su lado). Detalle en **§8.5**.
+Ambos scripts leen `HF_TOKEN`/`HF_SPACE_ID` del entorno o del `.env` (sin imprimir el token) y arman la URL autenticada del Space para hacer `git push HEAD:main`. Si `HF_SPACE_ID` está vacío o usa el valor heredado `alexprieto/agrovision`, se normaliza a `alexp97/agrovision`. El script Bash además **compila la UI con `./scripts/build.sh`** e inyecta temporalmente `.huggingface_frontmatter` en `README.md` (restaurado con `trap EXIT`); el de PowerShell solo hace el push. En ambos casos HF construye el `Dockerfile` en su lado. Detalle en **§8.5**.
 
 > **BYOK / seguridad:** el `.env` está en `.gitignore`, así que **no se sube** al Space; las `HF_TOKEN`/`HF_SPACE_ID` solo se usan **en tu máquina** para autenticar el push. Las llaves de datos (Supabase/Copernicus/Groq) las pone cada usuario por sesión (cabeceras `X-User-*`).
 > **Migraciones (BYOK):** el Space no tiene BD propia; para la demo, aplica las migraciones contra **tu** Supabase (`uv run python -m backend.db.migrate`) y pega tus llaves en la pestaña *Credenciales*.
@@ -288,14 +306,15 @@ uv run python -m pytest tests/e2e -v
 
 ## 8. Referencia de Scripts (`scripts/`)
 
-Todos los `.ps1` viven en `scripts/`, se ejecutan **desde la raíz del repo** (resuelven la raíz solos con `Split-Path -Parent $PSScriptRoot`, así que da igual desde dónde los llames) y fijan `UV_PROJECT_ENVIRONMENT` al venv fuera de OneDrive. Cada uno tiene su **equivalente manual** por si prefieres la terminal.
+Todos los `.ps1` y `.sh` viven en `scripts/`, se ejecutan **desde la raíz del repo** (resuelven la raíz solos con `Split-Path -Parent $PSScriptRoot` o `dirname "${BASH_SOURCE[0]}"`, así que da igual desde dónde los llames). Los `.ps1` fijan `UV_PROJECT_ENVIRONMENT` al venv fuera de OneDrive; los `.sh` son los equivalentes POSIX para Linux/macOS. Cada uno tiene su **equivalente manual** por si prefieres la terminal.
 
 | Script | Para qué sirve | Uso típico |
 |--------|----------------|------------|
 | `run_backend.ps1` | Gateway FastAPI (`:8000`) con `--reload` | `.\scripts\run_backend.ps1` |
 | `dev.ps1` | Levanta **backend + Astro dev** en 2 ventanas | `.\scripts\dev.ps1` |
 | `build.ps1` | Compila la UI Astro → `backend/static` | `.\scripts\build.ps1` |
-| `deploy_hf.ps1` | **Despliega a Hugging Face Spaces** (vía activa) | `.\scripts\deploy_hf.ps1 -Force` (primer deploy) |
+| `deploy_hf.ps1` | **Despliega a Hugging Face Spaces** desde Windows (vía activa) | `.\scripts\deploy_hf.ps1 -Force` (primer deploy) |
+| `deploy_hf.sh` | **Despliega a Hugging Face Spaces** desde Linux/macOS (build + push) | `./scripts/deploy_hf.sh --dry-run` |
 | `inline_js.py` | Post-proceso del HTML (lo invoca `build.ps1`) | *(automático; ver abajo)* |
 | `make_sample_orthomosaic.py` | Genera ortomosaico mock para el conteo | `uv run python scripts/make_sample_orthomosaic.py` |
 
@@ -365,11 +384,28 @@ Abre **dos ventanas PowerShell**: una con `run_backend.ps1` (`:8000`) y otra con
 
 No se llama a mano normalmente (lo invoca `build.ps1`). Reescribe `frontend/dist/index.html` *in place*: inyecta inline cualquier `/_astro/*.js`, y relativiza rutas absolutas (favicon, assets) para que la SPA funcione bajo un sub-path dinámico. Es **idempotente**. Ejecutarlo suelto (depurar): `uv run python scripts/inline_js.py` (requiere haber hecho `pnpm build` antes). *(En HF Spaces y Render la app se sirve en la raíz del dominio, así que la "Regla de Oro" no es estrictamente necesaria; el script queda como salvaguarda.)*
 
-### 8.5 `deploy_hf.ps1` — despliegue a Hugging Face Spaces (**vía activa**)
+### 8.5 `deploy_hf.sh` / `deploy_hf.ps1` — despliegue a Hugging Face Spaces (**vía activa**)
 
-Publica el gateway en un **Docker Space**. No compila en local: hace `git push` del repo al Space y **HF construye el `Dockerfile`** de la raíz (multi-stage Astro→FastAPI, usuario `1000`, puerto `app_port: 8000` del `README.md`).
+Publican el gateway en un **Docker Space**. Ambos hacen `git push` del repo al Space y **HF construye el `Dockerfile`** de la raíz (multi-stage Astro→FastAPI, usuario `1000`, puerto `app_port: 8000` del `README.md`). El script Bash además compila la UI en local con `./scripts/build.sh` antes del push; el de PowerShell no compila.
 
-**Requisitos en `.env`** (no se versiona): `HF_TOKEN` (token *write*) y `HF_SPACE_ID` (`<usuario>/<space>`). El Space debe existir (créalo en la web con **SDK: Docker**). Ver §5.3.
+**Requisitos en `.env`** (no se versiona): `HF_TOKEN` (token *write*) y `HF_SPACE_ID` (`<usuario>/<space>`). El Space debe existir (créalo en la web con **SDK: Docker**). Ver §5.3. Si `HF_SPACE_ID` falta o vale `alexprieto/agrovision`, el script Bash usa `alexp97/agrovision`.
+
+**Linux/macOS — `deploy_hf.sh`:**
+
+| Parámetro | Obligatorio | Descripción |
+|-----------|:-----------:|-------------|
+| `--dry-run` | No | Valida argumentos y entorno; muestra el plan sin compilar ni hacer push. |
+| `--force` | No | Fuerza el push (necesario en el **primer** deploy: sobrescribe el commit inicial del Space). |
+| `--space <u/s>` | No | Id del Space; prevalece sobre `HF_SPACE_ID` del `.env`. |
+
+```bash
+./scripts/deploy_hf.sh --dry-run         # validación sin efectos
+./scripts/deploy_hf.sh --force           # primer deploy
+./scripts/deploy_hf.sh                   # siguientes (cada push reconstruye el Space)
+./scripts/deploy_hf.sh --space otro/space
+```
+
+**Windows — `deploy_hf.ps1`:**
 
 | Parámetro | Obligatorio | Descripción |
 |-----------|:-----------:|-------------|
@@ -381,4 +417,4 @@ Publica el gateway en un **Docker Space**. No compila en local: hace `git push` 
 .\scripts\deploy_hf.ps1          # siguientes (cada push reconstruye el Space)
 ```
 
-> El token va en la URL solo durante el push (no se guarda como remote). El `.env` está en `.gitignore`, así que no se sube al Space. Tras el push, sigue el build en la pestaña *Logs* del Space (§5.5).
+> El token va en la URL solo durante el push (no se guarda como remote) y el script Bash lo redacta si git lo incluyera en un error. El `.env` está en `.gitignore`, así que no se sube al Space. Tras el push, sigue el build en la pestaña *Logs* del Space (§5.5).
