@@ -6,9 +6,13 @@
 >
 > **Módulos de la UI (8):** Resumen de Campo · Creación de Parcelas · Teledetección (5 índices espectrales) · **Conteo por Dron (EN DESARROLLO)** · Asistente Agéntico · Credenciales · Explorador de Datos · Telemetría.
 >
-> **La app abre SIN credenciales** (verás los 8 módulos). Para *usar* cada módulo necesitas las llaves BYOK (todas de capa gratuita), que pones en `.env` (local) o en la pestaña **Credenciales** (sesión):
-> - **Parcelas / Teledetección / Resumen** → Supabase (`DATABASE_URL`) y, para índices espectrales, **Copernicus** (`DEV_COPERNICUS_CLIENT_ID/SECRET`). El clima (Open-Meteo) no necesita llave.
-> - **Asistente** → **Groq** (`DEV_GROQ_API_KEY`).
+> **La app abre SIN credenciales** (verás los 8 módulos). Para *usar* cada módulo necesitas las llaves BYOK (todas de capa gratuita), que pones en `.env` (local) o en la pestaña **Credenciales** (sesión). Cada credencial se explica con su formato realista y ruta paso a paso a continuación.
+>
+> **BYOK vs local:** Las variables de Supabase, Copernicus y Groq son *Bring Your Own Key* — las introduces por sesión (cabeceras `X-User-*`) y no se persisten en la imagen. Solo `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY` son necesarias para que la app se conecte a tu propia BD de parcela; el resto (`DEV_GROQ_API_KEY`, `DEV_COPERNICUS_CLIENT_ID/SECRET`) son opcionales para desarrollo local sin el flujo BYOK activo.
+>
+> - **Parcelas / Teledetección / Resumen** → Tu propia base de datos Supabase (`DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`). Sin estas llaves, la app funciona en modo *standby* sin persistencia. Para índices espectrales, **Copernicus** (`DEV_COPERNICUS_CLIENT_ID/SECRET`) es opcional para datos de prueba.
+> - **Asistente** → **Groq** (`DEV_GROQ_API_KEY`). Si no está configurada, el asistente usa un mock local. En producción, el usuario inyecta la clave por sesión (BYOK).
+> - **Clima** → Open-Meteo no necesita llave; los datos se obtienen por coordenadas. Copernicus es opcional para índices adicionales.
 > - **Conteo** → **EN DESARROLLO** (standby): la pestaña muestra *"Módulo en preparación"*. Se habilita cuando el **repo del modelo** (proyecto separado) publique el artefacto. Para demostrar el flujo con datos de prueba (mock) — ver §3.5.
 
 ---
@@ -31,10 +35,10 @@ Para **abrir** la app no necesitas nada. Para **usar** cada módulo en local, cr
 
 | Servicio | Habilita | Cómo obtenerlo | Variable(s) en `.env` |
 |----------|----------|----------------|------------------------|
-| **Supabase** (BD PostGIS) | Parcelas, Teledetección, Resumen | Crea proyecto → Settings (API + Database). Usa el **Session pooler** para `DATABASE_URL` (IPv4). | `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` |
-| **Copernicus CDSE** | NDVI satelital + heatmap | dataspace.copernicus.eu → OAuth client (id/secret) | `DEV_COPERNICUS_CLIENT_ID`, `DEV_COPERNICUS_CLIENT_SECRET` |
-| **Groq** | Asistente Agéntico (RAG) | console.groq.com/keys (`gsk_...`) | `DEV_GROQ_API_KEY` |
-| Open-Meteo | Clima | — (sin llave) | — |
+| **Supabase** (BD PostGIS) | Parcelas, Teledetección, Resumen | 1. Crea proyecto en https://supabase.com/dashboard → **Project Settings → API**. Anota `SUPABASE_URL` y `SUPABASE_ANON_KEY`.<br>2. **Database URI**: Project Settings → Database → Connection String. Selecciona Session pooler (puerto 5432) o Transaction pooler (puerto 6543), copia la URI y antepone `postgresql+asyncpg://` → `DATABASE_URL`.<br>3. **Service Role Key**: Project Settings → API → "Reset secret" → `SUPABASE_SERVICE_ROLE_KEY` (solo backend, nunca UI). | `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` |
+| **Copernicus CDSE** | NDVI satelital + heatmap | 1. Regístrate en https://dataspace.copernicus.eu/ → MyAccess → Client OAuth.<br>2. Crea una aplicación OAuth y anota `Client ID` y `Client Secret`.<br>3. Nivel gratuito: 100 MB/día de datos Sentinel-2. | `DEV_COPERNICUS_CLIENT_ID`, `DEV_COPERNICUS_CLIENT_SECRET` |
+| **Groq** | Asistente Agéntico (RAG) | 1. Ve a https://console.groq.com/keys.<br>2. Haz click en "Create Key" y genera un key tipo `gsk_...`.<br>3. Nivel gratuito: ~100 tokens/segundo, suficiente para RAG ligero. | `DEV_GROQ_API_KEY` |
+| Open-Meteo | Clima | — (sin llave; datos por coordenadas públicas) | — |
 
 **Migraciones de BD** (una vez, tras configurar `DATABASE_URL`): `uv run python -m backend.db.migrate` crea tablas, índices, RLS y la extensión PGMQ.
 
