@@ -192,7 +192,7 @@ async def run_indices_backfill(
             "backfill_start",
             {"field_id": field_id, "name": name, "indices": requested},
         )
-        async with get_sessionmaker()() as session:
+        async with get_sessionmaker(keys.database_url)() as session:
             for index in requested:
                 series = await remote_sensing.index_series_monthly(
                     geojson,

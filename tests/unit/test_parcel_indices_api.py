@@ -228,7 +228,7 @@ def test_run_indices_backfill_persiste_cada_indice(monkeypatch: pytest.MonkeyPat
 
     monkeypatch.setattr(parcels.remote_sensing, "index_series_monthly", fake_series)
     monkeypatch.setattr(parcels.repo, "upsert_index_points", fake_upsert)
-    monkeypatch.setattr(parcels, "get_sessionmaker", lambda: _fake_sessionmaker)
+    monkeypatch.setattr(parcels, "get_sessionmaker", lambda *args, **kwargs: _fake_sessionmaker)
     monkeypatch.setattr(
         parcels,
         "emit_event",
