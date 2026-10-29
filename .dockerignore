@@ -44,7 +44,8 @@ requirements.txt
 docs/
 tests/
 scripts/
-supabase/
+supabase/.temp/
+supabase/.branches/
 models/
 sample_data/
 notebooks/

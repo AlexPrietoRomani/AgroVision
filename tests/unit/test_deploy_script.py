@@ -99,6 +99,20 @@ def test_dockerignore_excludes_agent_workspaces() -> None:
     assert ".project-suite/" in ignored
 
 
+def test_dockerfile_and_dockerignore_include_supabase_migrations() -> None:
+    """Dockerfile debe copiar supabase/migrations/ y .dockerignore no debe ignorarlo."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    assert "COPY --chown=user supabase/migrations/ ./supabase/migrations/" in dockerfile
+
+    ignored = {
+        line.strip()
+        for line in DOCKERIGNORE.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    }
+    assert "supabase/" not in ignored
+    assert "supabase/migrations/" not in ignored
+
+
 def test_dry_run_succeeds_without_token_and_preserves_readme(tmp_path: Path) -> None:
     """Un dry-run sin token valida el entorno y no toca README ni compila."""
     workspace = _copy_workspace(tmp_path)

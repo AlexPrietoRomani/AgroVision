@@ -51,8 +51,9 @@ WORKDIR /home/user/app
 COPY --chown=user pyproject.toml uv.lock ./
 RUN uv sync --no-dev --frozen --no-cache
 
-# Código + UI Astro compilada (servida por el gateway en /).
+# Código + UI Astro compilada (servida por el gateway en /) + migraciones SQL BYOK.
 COPY --chown=user backend/ ./backend/
+COPY --chown=user supabase/migrations/ ./supabase/migrations/
 COPY --chown=user --from=ui /ui/dist/ ./backend/static/
 
 # --- (Conteo, EN DESARROLLO) Para activar el modelo real, descomenta y rebuild con

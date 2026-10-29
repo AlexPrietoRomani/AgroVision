@@ -76,7 +76,7 @@ async def apply_migrations(dsn: str | None = None) -> list[str]:
 
     dsn = _normalize_dsn(dsn or os.environ["DATABASE_URL"])
     applied: list[str] = []
-    conn = await asyncpg.connect(dsn=dsn, timeout=30)
+    conn = await asyncpg.connect(dsn=dsn, timeout=30, statement_cache_size=0)
     try:
         for path in paths:
             await conn.execute(path.read_text(encoding="utf-8"))
