@@ -29,17 +29,25 @@
         El modo <strong>Guardada Temporal</strong> utiliza un fingerprint SHA-256 basado en tu URL de Supabase para almacenar de forma segura tu nombre y la parcela activa. Las API keys <strong>nunca se guardan en la base de datos ni en localStorage</strong> por motivos de seguridad.
       </p>
     </div>
-    <div><label class="block text-xs font-bold text-stone-600 mb-1">Supabase Database URI (DATABASE_URL)</label><input id="cfg-db-url" type="text" placeholder="postgresql://postgres.<ref>:<password>@aws-0-...pooler.supabase.com:5432/postgres" class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-stone-50" /></div>
-    <div class="bg-stone-50 border border-stone-200 rounded-lg p-3 flex items-center justify-between gap-3">
-      <details class="text-[10px] text-stone-600">
-        <summary>Cómo obtener DATABASE_URL en Supabase</summary>
-        <ol class="list-decimal pl-5 space-y-1">
-          <li>En Supabase proyecto ve a <kbd>Connect</kbd> → pestaña <kbd>Connection String</kbd>.</li>
-          <li>Selecciona <kbd>Transaction Pooler</kbd> o <kbd>Session Pooler</kbd>.</li>
-          <li>Copia la URI y úsala como valor de <code>DATABASE_URL</code>.</li>
+    <div class="bg-stone-50 border border-stone-200 rounded-lg p-4 mb-5">
+      <label class="block text-xs font-bold text-stone-600 mb-1" for="cfg-db-url">Supabase Database URI (DATABASE_URL — Direct / Transaction o Session Pooler)</label>
+      <input id="cfg-db-url" type="text" placeholder="postgresql://postgres.&lt;ref&gt;:&lt;password&gt;@aws-0-...pooler.supabase.com:5432/postgres" class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-white" />
+      <details class="mt-2 text-[10px] text-stone-600">
+        <summary class="cursor-pointer select-none font-semibold">¿Cómo obtengo mi DATABASE_URL? (clic por clic en Supabase)</summary>
+        <ol class="list-decimal pl-4 pt-1 space-y-0.5">
+          <li>Abre tu proyecto en <code>supabase.com/dashboard</code>.</li>
+          <li>En la barra superior pulsa el botón <kbd>Connect</kbd>.</li>
+          <li>Elige la pestaña <kbd>Connection String</kbd> y selecciona el formato <kbd>URI</kbd>.</li>
+          <li>Marca <kbd>Session pooler</kbd> (puerto 5432, recomendado) o <kbd>Transaction pooler</kbd> (puerto 6543).</li>
+          <li>Reemplaza <code>[YOUR-PASSWORD]</code> por la contraseña de tu base de datos y copia la URI en este campo.</li>
         </ol>
-        <p class="mt-2 text-xs"><code>postgresql://postgres.abc123.supabase.com:5432/postgres</code> (Transaction) o <code>postgresql://postgres.abc123.supabase.com:5432/postgres?pgbouncer=true</code> (Session)</p>
+        <p class="pt-1">
+          Ejemplos de formato:
+          <code>postgresql://postgres.&lt;ref&gt;:&lt;password&gt;@aws-0-&lt;region&gt;.pooler.supabase.com:5432/postgres</code> (Session) ·
+          <code>postgresql://postgres.&lt;ref&gt;:&lt;password&gt;@aws-0-&lt;region&gt;.pooler.supabase.com:6543/postgres</code> (Transaction)
+        </p>
       </details>
+      <p class="text-[10px] text-stone-500 mt-2"><i class="fa-solid fa-plug-circle-check mr-1 text-emerald-600"></i>Al guardar ajustes, esta URI se envía como <code>X-User-Database-Url</code>: si tu base está vacía se crea el esquema PostGIS automáticamente y se detectan tus parcelas existentes.</p>
     </div>
 
     <div class="flex items-center justify-between pt-4 border-t border-stone-100 gap-3">

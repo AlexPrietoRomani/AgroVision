@@ -5,9 +5,10 @@ Autor: Alex Prieto Romani <alexprieto1997@gmail.com>
 
 Descripción:
 Pruebas de humo de la UI. Las pruebas estáticas verifican que el build de Astro
-incluya los controles de selección y expansión de variables satelitales; las pruebas
-dinámicas (Playwright) quedan pendientes de habilitarse con la UI y el backend en
-ejecución.
+incluya los controles de selección y expansión de variables satelitales, además del
+campo guiado de `DATABASE_URL` (Fase 10) y las guías clic por clic de credenciales
+BYOK. Las pruebas dinámicas (Playwright) quedan pendientes de habilitarse con la UI
+y el backend en ejecución.
 
 Ejemplo de Integración:
     ./scripts/build.sh && uv run pytest tests/e2e/test_ui_smoke.py -q
@@ -78,8 +79,22 @@ def test_existing_parcel_includes_satellite_variable_expansion() -> None:
     assert 'id="parcel-active-indices"' in html
     assert 'id="btn-add-satellite-var"' in html
     assert _class_count(html, "reprocess-index-checkbox") == 5
+
+
+def test_credenciales_incluye_database_url_y_guias() -> None:
+    """Verifica el campo DATABASE_URL guiado, las ayudas clic por clic y la auto-conexión."""
+    html = _static_html()
     assert 'id="cred-db-url"' in html
     assert 'id="cfg-db-url"' in html
+    for guia in ("Connection String", "Session pooler", "Transaction pooler"):
+        assert guia in html, f"Falta la guía clic por clic: {guia}"
+    assert "console.groq.com" in html
+    assert "dataspace.copernicus.eu" in html
+    assert "X-User-Database-Url" in html
+    assert "credentials/connect-db" in html
+    assert "loadParcels" in html
+    assert "Session" in html and "5432" in html
+    assert "6543" in html
 
 
 @pytest.mark.skip(reason=PLAYWRIGHT_SKIP_REASON)

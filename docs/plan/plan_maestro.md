@@ -374,6 +374,7 @@ La persistencia detallada se documenta en `docs/db/diseno_db.md`.
 ---
 
 ### Fase 10 — UI de Credenciales Guiada y Auto-Conexión de Base de Datos BYOK
+- **Estado:** [X] Fase 10 completada — Subfase 10.1 y Tarea 10.1.1 en verde (2026-10-28).
 - **Macro-objetivo:** Actualizar el modal de credenciales (`CredentialsModal.astro`), la pestaña de ajustes (`AjustesPerfil.astro`) y la lógica cliente (`frontend/src/scripts/app.js`) para que el usuario pueda ingresar la URI de conexión PostgreSQL de su propio Supabase (`DATABASE_URL` — Direct / Transaction o Session Pooler) con instrucciones desplegables paso a paso y ejemplos claros para cada credencial (Supabase, Copernicus, Groq), enviando `X-User-Database-Url` en cada petición y disparando al guardar la conexión/auto-migración (`POST /api/credentials/connect-db`) y la recarga inmediata de sus parcelas (`loadParcels()`).
 - **Entregable global:** `CredentialsModal.astro`, `AjustesPerfil.astro`, `frontend/src/scripts/app.js` y `tests/e2e/test_ui_smoke.py` actualizados, con compilación limpia en `./scripts/build.sh`.
 - **AC global de la Fase:**

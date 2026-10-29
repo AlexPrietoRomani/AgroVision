@@ -506,6 +506,11 @@ async function refreshParcels() {
   renderParcelsOnMap();
 }
 
+// Recarga canónica de parcelas (Fase 10: delega en refreshParcels).
+function loadParcels() {
+  return refreshParcels();
+}
+
 function initMap() {
   if (map) { map.invalidateSize(); return; }
   const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap" });
@@ -2225,6 +2230,45 @@ $("btn-run-query").addEventListener("click", async () => {
 $("btn-clear-query").addEventListener("click", () => { $("sql-query").value = ""; $("query-result").innerHTML = ""; });
 
 // ===== Credenciales =====
+async function connectUserDatabase() {
+  if (!creds.dbUrl) return null;
+  track("connect_db_attempt", {});
+  try {
+    const r = await fetch("./api/credentials/connect-db", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ database_url: creds.dbUrl })
+    });
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      track("connect_db_error", { status: r.status });
+      notify(
+        r.status === 404 ? "Auto-conexión no disponible" : "Error al conectar la base de datos",
+        r.status === 404
+          ? "El backend todavía no expone connect-db (pendiente Fase 9)."
+          : (e.detail || `Error ${r.status} al conectar con tu Supabase.`)
+      );
+      return null;
+    }
+    const data = await r.json();
+    const migraciones = Array.isArray(data.migrations_applied) ? data.migrations_applied.length : 0;
+    if (migraciones > 0) {
+      notify("Esquema inicializado", `Se creó la arquitectura PostGIS automáticamente (${migraciones} migración(es) aplicadas).`);
+    } else if ((data.existing_parcels ?? 0) > 0) {
+      notify("Base de datos conectada", `Se detectaron ${data.existing_parcels} parcela(s) existentes en tu Supabase.`);
+    } else {
+      notify("Base de datos conectada", "Tu Supabase se conectó correctamente.");
+    }
+    track("connect_db_success", { migraciones, existing_parcels: data.existing_parcels ?? 0 });
+    updateStatus();
+    return data;
+  } catch (e) {
+    track("connect_db_error", { error: String(e) });
+    notify("Error de red", `No se pudo conectar a tu base de datos: ${e}`);
+    return null;
+  }
+}
+
 $("btn-save-creds").addEventListener("click", async () => {
   creds = { groq: $("in-groq").value, copId: $("in-copid").value, copSecret: $("in-copsecret").value, sbUrl: $("in-sburl").value, sbKey: $("in-sbkey").value, dbUrl: $("cred-db-url").value };
   const n = Object.values(creds).filter(Boolean).length;
@@ -2233,26 +2277,9 @@ $("btn-save-creds").addEventListener("click", async () => {
   notify("Credenciales en sesión", `${n} llave(s) activas solo en esta sesión.`);
   updateStatus();
   checkMissingCredentials();
+  await connectUserDatabase();
+  loadParcels();
   await connectUserProfile();
-  if (creds.dbUrl) {
-    try {
-      const r = await fetch("./api/credentials/connect-db", {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({ dbUrl: creds.dbUrl })
-      });
-      if (r.ok) {
-        const data = await r.json();
-        notify("Esquema inicializado", data.migrations_applied?.length > 0 ? `Schema initialized with ${data.migrations_applied.length} migrations. ${data.existing_parcels > 0 ? `${data.existing_parcels} parcels detected.` : ''}` : "Conexión a base de datos establecida.");
-      } else {
-        const e = await r.json().catch(() => ({}));
-        notify("Error connect-db", e.detail || "Error desconocido");
-      }
-    } catch (e) {
-      notify("Error de red", String(e));
-    }
-  }
-  refreshParcels();
 });
 $("btn-check-env").addEventListener("click", async () => {
   try {
@@ -2303,6 +2330,11 @@ $("btn-save-settings").addEventListener("click", async () => {
   if (isSharedMode) return notify("Modo compartido", "No puedes editar ajustes en modo de solo lectura.");
   const displayName = $("settings-display-name").value.trim();
   const sessionMode = $("settings-session-mode").value;
+  const cfgDbUrl = ($("cfg-db-url")?.value || "").trim();
+  if (cfgDbUrl) {
+    creds.dbUrl = cfgDbUrl;
+    updateStatus();
+  }
   if (!displayName) return notify("Falta el nombre", "Escribe un nombre para el perfil.");
   if (!profileId) return notify("Error", "No hay un perfil conectado.");
 
@@ -2325,6 +2357,10 @@ $("btn-save-settings").addEventListener("click", async () => {
         localStorage.removeItem("agrovision_profile_id");
       }
       track("profile_update_success", { displayName, sessionMode });
+      if (creds.dbUrl) {
+        await connectUserDatabase();
+        loadParcels();
+      }
     } else {
       const e = await r.json().catch(() => ({}));
       notify("Error " + r.status, e.detail || "No se pudo actualizar el perfil.");
@@ -2367,6 +2403,7 @@ function logout() {
   $("in-sburl").value = "";
   $("in-sbkey").value = "";
   $("cred-db-url").value = "";
+  $("cfg-db-url").value = "";
   $("creds-state").innerText = "0 llaves activas (se borran al refrescar)";
   $("settings-display-name").value = "Agrónomo";
   $("settings-session-mode").value = "ephemeral";

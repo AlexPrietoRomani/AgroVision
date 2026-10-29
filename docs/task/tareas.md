@@ -65,8 +65,8 @@
   - [X] SF8.1 — Rediseño Pedagógico de `.env.example` y Tests de Plantilla
 - [X] [**F9 — Conexión BYOK Dinámica a Supabase del Usuario y Auto-Migración de Esquema en Backend**](fases/F09-conexion-byok-dinamica-supabase-y-auto-migracion.md)
   - [X] SF9.1 — Sesión Multi-DSN por Usuario y Auto-Bootstrap de Migraciones SQL
-- [ ] [**F10 — UI de Credenciales Guiada y Auto-Conexión de Base de Datos BYOK**](fases/F10-ui-credenciales-guiadas-y-autoconexion-bd.md)
-  - [ ] SF10.1 — Modal y Panel de Credenciales con `DATABASE_URL`, Guías Paso a Paso y Auto-Carga de Parcelas
+- [X] [**F10 — UI de Credenciales Guiada y Auto-Conexión de Base de Datos BYOK**](fases/F10-ui-credenciales-guiadas-y-autoconexion-bd.md)
+  - [X] SF10.1 — Modal y Panel de Credenciales con `DATABASE_URL`, Guías Paso a Paso y Auto-Carga de Parcelas
 
 <!-- indice-tareas:fin -->
 
