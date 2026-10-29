@@ -350,6 +350,7 @@ La persistencia detallada se documenta en `docs/db/diseno_db.md`.
 ---
 
 ### Fase 9 — Conexión BYOK Dinámica a Supabase del Usuario y Auto-Migración de Esquema en Backend
+- **Estado:** [X] Fase 9 completada — Subfase 9.1 y Tarea 9.1.1 en verde (2026-10-28).
 - **Macro-objetivo:** Lograr que AgroVisión en `https://alexp97-agrovision.hf.space` no dependa de ninguna base de datos global en el servidor: cada usuario se conecta con su propia base de datos Supabase por sesión (`X-User-Database-Url`), y si su base de datos está totalmente vacía, el backend ejecuta automáticamente las migraciones idempotentes (`0001_initial_schema.sql` + `0002_field_selected_indices.sql`) para construir toda la arquitectura PostGIS; si ya tiene la arquitectura y datos, los detecta y devuelve sus parcelas existentes.
 - **Entregable global:** `backend/db/session.py` multi-DSN con `ensure_schema_initialized(dsn)`, `backend/api/deps.py` leyendo `X-User-Database-Url`, `backend/api/credentials.py` con `POST /api/credentials/connect-db` y `GET /api/credentials/status` consciente de headers BYOK, `backend/services/parcels.py` propagando el DSN del usuario al backfill en segundo plano, y suite de pruebas `tests/unit/test_byok_db_session.py`.
 - **AC global de la Fase:**

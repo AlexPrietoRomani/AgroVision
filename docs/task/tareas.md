@@ -39,32 +39,10 @@
 > Una Fase por archivo, bajo [`fases/`](fases/). Regenerar con
 > `python scripts/tablero.py --indice`; `--verificar` avisa si quedo viejo.
 
-- [X] [**F1 — Estabilización Backend, Robustez de Tests y Tooling Cross-Platform**](fases/F01-estabilizacion-backend-robustez-tests.md)
-  - [X] SF1.1 — Corrección de Linters y Conformidad Python
-  - [X] SF1.2 — Aislamiento y Robustez de Pruebas Unitarias
-  - [X] SF1.3 — Tooling y Scripts de Automatización Cross-Platform
-- [X] [**F2 — Esquema, DDL y Migraciones Versionadas de Base de Datos**](fases/F02-esquema-ddl-migraciones-versionadas.md)
-  - [X] SF2.1 — Estructura de Migraciones y Reglas Git
-  - [X] SF2.2 — Generación y Verificación de Migraciones SQL Idempotentes
-- [X] [**F3 — Refactorización y Modularización de la UI (Astro 5)**](fases/F03-refactorizacion-modularizacion-ui-astro.md)
-  - [X] SF3.1 — Tooling y Verificación Frontend
-  - [X] SF3.2 — Extracción de Layout, Controles y Modales Base
-  - [X] SF3.3 — Modularización de Vistas de Dominio y Ensamblado de `index.astro`
-- [X] [**F4 — Persistencia de Índices Satelitales por Parcela**](fases/F04-persistencia-indices-satelitales-parcela.md)
-  - [X] SF4.1 — Migración DDL Idempotente y Documentación de BD
-  - [X] SF4.2 — Extensión del Repositorio de Parcelas e Índices Calculados
-- [X] [**F5 — API y Backfill Selectivo/Incremental de Índices**](fases/F05-api-backfill-selectivo-incremental.md)
-  - [X] SF5.1 — Esquemas de Dominio y Backfill Multivariable en Servicio
-  - [X] SF5.2 — Endpoints de Creación, Expansión Incremental y Reproceso Selectivo
-- [X] [**F6 — UI de Selección y Expansión de Variables Satelitales**](fases/F06-ui-seleccion-expansion-variables.md)
-  - [X] SF6.1 — Selección de Variables Satelitales en el Alta de Parcela
-  - [X] SF6.2 — Expansión Futura de Variables en Ajustes, Teledetección y Reproceso
-- [X] [**F7 — Despliegue POSIX a Hugging Face Spaces**](fases/F07-despliegue-posix-huggingface-spaces.md)
-  - [X] SF7.1 — Script Bash `deploy_hf.sh`, Contexto Docker y Tests
 - [ ] [**F8 — Plantilla .env.example Documentada con Ejemplos y Guías Paso a Paso**](fases/F08-plantilla-env-example-guiada-paso-a-paso.md)
   - [ ] SF8.1 — Rediseño Pedagógico de `.env.example` y Tests de Plantilla
-- [ ] [**F9 — Conexión BYOK Dinámica a Supabase del Usuario y Auto-Migración de Esquema en Backend**](fases/F09-conexion-byok-dinamica-supabase-y-auto-migracion.md)
-  - [ ] SF9.1 — Sesión Multi-DSN por Usuario y Auto-Bootstrap de Migraciones SQL
+- [X] [**F9 — Conexión BYOK Dinámica a Supabase del Usuario y Auto-Migración de Esquema en Backend**](fases/F09-conexion-byok-dinamica-supabase-y-auto-migracion.md)
+  - [X] SF9.1 — Sesión Multi-DSN por Usuario y Auto-Bootstrap de Migraciones SQL
 - [ ] [**F10 — UI de Credenciales Guiada y Auto-Conexión de Base de Datos BYOK**](fases/F10-ui-credenciales-guiadas-y-autoconexion-bd.md)
   - [ ] SF10.1 — Modal y Panel de Credenciales con `DATABASE_URL`, Guías Paso a Paso y Auto-Carga de Parcelas
 
