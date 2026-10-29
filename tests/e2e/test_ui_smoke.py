@@ -78,6 +78,8 @@ def test_existing_parcel_includes_satellite_variable_expansion() -> None:
     assert 'id="parcel-active-indices"' in html
     assert 'id="btn-add-satellite-var"' in html
     assert _class_count(html, "reprocess-index-checkbox") == 5
+    assert 'id="cred-db-url"' in html
+    assert 'id="cfg-db-url"' in html
 
 
 @pytest.mark.skip(reason=PLAYWRIGHT_SKIP_REASON)

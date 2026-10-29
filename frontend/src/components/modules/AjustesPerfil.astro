@@ -29,6 +29,18 @@
         El modo <strong>Guardada Temporal</strong> utiliza un fingerprint SHA-256 basado en tu URL de Supabase para almacenar de forma segura tu nombre y la parcela activa. Las API keys <strong>nunca se guardan en la base de datos ni en localStorage</strong> por motivos de seguridad.
       </p>
     </div>
+    <div><label class="block text-xs font-bold text-stone-600 mb-1">Supabase Database URI (DATABASE_URL)</label><input id="cfg-db-url" type="text" placeholder="postgresql://postgres.<ref>:<password>@aws-0-...pooler.supabase.com:5432/postgres" class="w-full text-xs p-3 border border-stone-300 rounded-lg bg-stone-50" /></div>
+    <div class="bg-stone-50 border border-stone-200 rounded-lg p-3 flex items-center justify-between gap-3">
+      <details class="text-[10px] text-stone-600">
+        <summary>Cómo obtener DATABASE_URL en Supabase</summary>
+        <ol class="list-decimal pl-5 space-y-1">
+          <li>En Supabase proyecto ve a <kbd>Connect</kbd> → pestaña <kbd>Connection String</kbd>.</li>
+          <li>Selecciona <kbd>Transaction Pooler</kbd> o <kbd>Session Pooler</kbd>.</li>
+          <li>Copia la URI y úsala como valor de <code>DATABASE_URL</code>.</li>
+        </ol>
+        <p class="mt-2 text-xs"><code>postgresql://postgres.abc123.supabase.com:5432/postgres</code> (Transaction) o <code>postgresql://postgres.abc123.supabase.com:5432/postgres?pgbouncer=true</code> (Session)</p>
+      </details>
+    </div>
 
     <div class="flex items-center justify-between pt-4 border-t border-stone-100 gap-3">
       <button id="btn-delete-profile" class="bg-red-50 hover:bg-red-100 text-red-700 hover:text-red-800 border border-red-200 font-bold text-xs px-5 py-3 rounded-lg transition-all">

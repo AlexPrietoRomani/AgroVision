@@ -47,6 +47,7 @@ function authHeaders() {
   if (creds.copSecret) h["X-User-Copernicus-Secret"] = creds.copSecret;
   if (creds.sbUrl) h["X-User-Supabase-Url"] = creds.sbUrl;
   if (creds.sbKey) h["X-User-Supabase-Key"] = creds.sbKey;
+  if (creds.dbUrl) h["X-User-Database-Url"] = creds.dbUrl;
   return h;
 }
 
@@ -65,7 +66,7 @@ function updateStatus() {
     dot.className = "relative inline-flex rounded-full h-2 w-2 bg-red-500";
     return;
   }
-  fetch("./api/credentials/status")
+  fetch("./api/credentials/status", { headers: authHeaders() })
     .then((r) => r.ok ? r.json() : null)
     .then((s) => {
       if (!s) {
@@ -2225,7 +2226,7 @@ $("btn-clear-query").addEventListener("click", () => { $("sql-query").value = ""
 
 // ===== Credenciales =====
 $("btn-save-creds").addEventListener("click", async () => {
-  creds = { groq: $("in-groq").value, copId: $("in-copid").value, copSecret: $("in-copsecret").value, sbUrl: $("in-sburl").value, sbKey: $("in-sbkey").value };
+  creds = { groq: $("in-groq").value, copId: $("in-copid").value, copSecret: $("in-copsecret").value, sbUrl: $("in-sburl").value, sbKey: $("in-sbkey").value, dbUrl: $("cred-db-url").value };
   const n = Object.values(creds).filter(Boolean).length;
   track("creds_set", { count: n });
   $("creds-state").innerText = `${n} llave(s) activas (se borran al refrescar)`;
@@ -2233,6 +2234,24 @@ $("btn-save-creds").addEventListener("click", async () => {
   updateStatus();
   checkMissingCredentials();
   await connectUserProfile();
+  if (creds.dbUrl) {
+    try {
+      const r = await fetch("./api/credentials/connect-db", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ dbUrl: creds.dbUrl })
+      });
+      if (r.ok) {
+        const data = await r.json();
+        notify("Esquema inicializado", data.migrations_applied?.length > 0 ? `Schema initialized with ${data.migrations_applied.length} migrations. ${data.existing_parcels > 0 ? `${data.existing_parcels} parcels detected.` : ''}` : "Conexión a base de datos establecida.");
+      } else {
+        const e = await r.json().catch(() => ({}));
+        notify("Error connect-db", e.detail || "Error desconocido");
+      }
+    } catch (e) {
+      notify("Error de red", String(e));
+    }
+  }
   refreshParcels();
 });
 $("btn-check-env").addEventListener("click", async () => {
@@ -2347,6 +2366,7 @@ function logout() {
   $("in-copsecret").value = "";
   $("in-sburl").value = "";
   $("in-sbkey").value = "";
+  $("cred-db-url").value = "";
   $("creds-state").innerText = "0 llaves activas (se borran al refrescar)";
   $("settings-display-name").value = "Agrónomo";
   $("settings-session-mode").value = "ephemeral";
