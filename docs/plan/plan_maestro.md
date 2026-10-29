@@ -330,6 +330,7 @@ La persistencia detallada se documenta en `docs/db/diseno_db.md`.
 ---
 
 ### Fase 8 — Plantilla .env.example Documentada con Ejemplos y Guías Paso a Paso
+- **Estado:** [X] Fase 8 completada — Subfase 8.1 y Tarea 8.1.1 en verde (2026-10-28).
 - **Macro-objetivo:** Mejorar `.env.example` y `docs/ejecucion.md` para explicar qué credenciales se necesitan realmente en cada escenario (uso BYOK en `https://alexp97-agrovision.hf.space` vs desarrollo local), incluyendo para cada variable un ejemplo de formato realista (dummy seguro) y la ruta exacta clic por clic dentro de cada plataforma (Supabase, Copernicus CDSE, Groq, Hugging Face) para obtenerla.
 - **Entregable global:** `.env.example` rediseñado con ejemplos y rutas paso a paso, actualización de `docs/ejecucion.md` y suite de validación `tests/unit/test_env_example.py`.
 - **AC global de la Fase:**
