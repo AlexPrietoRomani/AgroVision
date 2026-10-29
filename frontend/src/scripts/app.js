@@ -507,9 +507,7 @@ async function refreshParcels() {
 }
 
 // Recarga canónica de parcelas (Fase 10: delega en refreshParcels).
-function loadParcels() {
-  return refreshParcels();
-}
+const loadParcels = refreshParcels;
 
 function initMap() {
   if (map) { map.invalidateSize(); return; }
@@ -2236,7 +2234,7 @@ async function connectUserDatabase() {
   try {
     const r = await fetch("./api/credentials/connect-db", {
       method: "POST",
-      headers: authHeaders(),
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ database_url: creds.dbUrl })
     });
     if (!r.ok) {
@@ -2278,7 +2276,7 @@ $("btn-save-creds").addEventListener("click", async () => {
   updateStatus();
   checkMissingCredentials();
   await connectUserDatabase();
-  loadParcels();
+  await refreshParcels();
   await connectUserProfile();
 });
 $("btn-check-env").addEventListener("click", async () => {
@@ -2359,7 +2357,7 @@ $("btn-save-settings").addEventListener("click", async () => {
       track("profile_update_success", { displayName, sessionMode });
       if (creds.dbUrl) {
         await connectUserDatabase();
-        loadParcels();
+        await refreshParcels();
       }
     } else {
       const e = await r.json().catch(() => ({}));
@@ -2417,10 +2415,10 @@ function logout() {
 
 async function connectUserProfile() {
   if (isSharedMode) return;
-  let sbUrl = creds.sbUrl;
+  let sbUrl = creds.sbUrl || creds.dbUrl;
   if (!sbUrl) {
     try {
-      const r = await fetch("./api/credentials/status");
+      const r = await fetch("./api/credentials/status", { headers: authHeaders() });
       if (r.ok) {
         const s = await r.json();
         if (s.supabase_url) sbUrl = s.supabase_url;
@@ -2534,7 +2532,7 @@ function updateProfileUI() {
 
 async function checkMissingCredentials() {
   try {
-    const r = await fetch("./api/credentials/status");
+    const r = await fetch("./api/credentials/status", { headers: authHeaders() });
     if (!r.ok) return;
     const s = await r.json();
     appEnv = s.env || "development";
@@ -2543,7 +2541,7 @@ async function checkMissingCredentials() {
       const missing = [];
       const hasGroq = creds.groq || s.groq;
       const hasCop = (creds.copId && creds.copSecret) || s.copernicus;
-      const hasSb = (creds.sbUrl && creds.sbKey) || s.supabase;
+      const hasSb = Boolean(creds.dbUrl || (creds.sbUrl && creds.sbKey) || s.supabase);
 
       if (!hasGroq) missing.push("Groq API Key");
       if (!hasCop) missing.push("Copernicus Credentials");

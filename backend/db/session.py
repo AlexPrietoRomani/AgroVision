@@ -41,17 +41,22 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async
 
 
 def _is_valid_dsn(url: str | None) -> bool:
-    """Valida que la DSN no sea None/buena y no contenga placeholders <pwd>@<host>."""
+    """Valida que la DSN no sea None/vacía y no contenga placeholders."""
     if not url or not url.strip():
         return False
-    return "<pwd>" not in url and "<host>" not in url
+    return (
+        "<pwd>" not in url
+        and "<host>" not in url
+        and "<proyecto>" not in url
+        and "placeholder_" not in url
+    )
 
 
 def _async_url(dsn: str | None = None) -> URL:
     """
     Construye la URL async de SQLAlchemy a partir de un DSN.
 
-    Si `dsn` es None o vacío, caeback a `DATABASE_URL` del entorno.
+    Si `dsn` es None o vacío, fallback a `DATABASE_URL` del entorno.
     """
     dsn = dsn or os.environ.get("DATABASE_URL", "")
     if not _is_valid_dsn(dsn):
@@ -67,7 +72,7 @@ def _async_url(dsn: str | None = None) -> URL:
     )
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=32)
 def get_engine(dsn: str | None = None) -> AsyncEngine:
     """Crea (una vez por DSN) el motor async; `statement_cache_size=0` por el pooler pgbouncer."""
     return create_async_engine(
@@ -77,7 +82,7 @@ def get_engine(dsn: str | None = None) -> AsyncEngine:
     )
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=32)
 def get_sessionmaker(dsn: str | None = None) -> async_sessionmaker:
     """Devuelve (una vez por DSN) la fábrica de sesiones async."""
     return async_sessionmaker(get_engine(dsn), expire_on_commit=False)

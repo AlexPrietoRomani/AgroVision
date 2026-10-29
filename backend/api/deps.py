@@ -30,7 +30,7 @@ import os
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
-from fastapi import Header
+from fastapi import Depends, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import get_settings
@@ -47,6 +47,18 @@ class UserKeys:
     supabase_url: str | None = None
     supabase_key: str | None = None
     database_url: str | None = None
+
+
+def _is_placeholder(url: str | None) -> bool:
+    """Devuelve True si la URL es el placeholder genérico <pwd>, <host> o <proyecto>."""
+    if url is None or not isinstance(url, str):
+        return False
+    return (
+        "<pwd>" in url
+        or "<host>" in url
+        or "<proyecto>" in url
+        or "placeholder_" in url
+    )
 
 
 def get_user_keys(
@@ -69,56 +81,53 @@ def get_user_keys(
     Returns:
         UserKeys: Credenciales de la sesión (nunca se persisten).
     """
+    # Normalizar argumentos que no sean str a None (soporta llamadas directas en tests sin Depends)
+    groq = x_user_groq_key if isinstance(x_user_groq_key, str) else None
+    cop_id = x_user_copernicus_id if isinstance(x_user_copernicus_id, str) else None
+    cop_sec = x_user_copernicus_secret if isinstance(x_user_copernicus_secret, str) else None
+    sb_url = x_user_supabase_url if isinstance(x_user_supabase_url, str) else None
+    sb_key = x_user_supabase_key if isinstance(x_user_supabase_key, str) else None
+    db_url = x_user_database_url if isinstance(x_user_database_url, str) else None
+
     settings = get_settings()
     is_dev = settings.app_env == "development"
 
-    # En producción, NO usar fallback del entorno (cada usuario pone sus llaves)
-    dev_groq = os.getenv("DEV_GROQ_API_KEY") if is_dev else None
-    dev_cop_id = os.getenv("DEV_COPERNICUS_CLIENT_ID") if is_dev else None
-    dev_cop_secret = os.getenv("DEV_COPERNICUS_CLIENT_SECRET") if is_dev else None
+    # En producción solo valen las cabeceras x_user_* enviadas por el usuario
+    if is_dev:
+        groq = groq or os.getenv("DEV_GROQ_API_KEY") or None
+        cop_id = cop_id or os.getenv("DEV_COPERNICUS_CLIENT_ID") or None
+        cop_sec = cop_sec or os.getenv("DEV_COPERNICUS_CLIENT_SECRET") or None
+        sb_url = sb_url or os.getenv("SUPABASE_URL") or None
+        sb_key = sb_key or os.getenv("SUPABASE_ANON_KEY") or None
+        env_db_url = os.getenv("DATABASE_URL")
+        if not db_url and env_db_url and not _is_placeholder(env_db_url):
+            db_url = env_db_url
 
-    # x_user_database_url puede ser un objeto Header de FastAPI cuando no viene el header;
-    # lo convertimos a str o None adecuadamente
-    _dsliteral = x_user_database_url
-    if not isinstance(_dsliteral, str):
-        _dsliteral = os.getenv("DATABASE_URL")
-
-    database_url = _dsliteral or None
-
-    # Fallback a DATABASE_URL del entorno solo si no es el placeholder <pwd>@<host>
-    if database_url and _is_placeholder(database_url):
-        database_url = None
+    if db_url and _is_placeholder(db_url):
+        db_url = None
 
     return UserKeys(
-        groq=x_user_groq_key or dev_groq or None,
-        copernicus_id=x_user_copernicus_id or dev_cop_id or None,
-        copernicus_secret=(x_user_copernicus_secret or dev_cop_secret or None),
-        supabase_url=x_user_supabase_url or os.getenv("SUPABASE_URL") or None,
-        supabase_key=x_user_supabase_key or os.getenv("SUPABASE_ANON_KEY") or None,
-        database_url=database_url,
+        groq=groq,
+        copernicus_id=cop_id,
+        copernicus_secret=cop_sec,
+        supabase_url=sb_url,
+        supabase_key=sb_key,
+        database_url=db_url,
     )
 
 
-def _is_placeholder(url: str | None) -> bool:
-    """Devuelve True si la URL es el placeholder genérico <pwd>@<host>."""
-    if url is None:
-        return False
-    if not isinstance(url, str):
-        return False
-    return "<pwd>" in url or "<host>" in url
-
-
-async def get_db() -> AsyncIterator[AsyncSession]:
+async def get_db(keys: UserKeys = Depends(get_user_keys)) -> AsyncIterator[AsyncSession]:
     """Cede una sesión async de SQLAlchemy y la cierra al terminar el request."""
-    from backend.api.deps import get_user_keys
-    keys = get_user_keys()
+    if not isinstance(keys, UserKeys):
+        keys = get_user_keys()
     dsn = keys.database_url
     if not dsn:
         from fastapi import HTTPException
         from starlette.status import HTTP_503_SERVICE_UNAVAILABLE
+
         raise HTTPException(
             status_code=HTTP_503_SERVICE_UNAVAILABLE,
-            detail="No hay DSN de base de datos configurado.",
+            detail="No hay DSN de base de datos configurado. Conecta tu Supabase en Credenciales.",
         )
     await ensure_schema_initialized(dsn)
     async with get_sessionmaker(dsn)() as session:

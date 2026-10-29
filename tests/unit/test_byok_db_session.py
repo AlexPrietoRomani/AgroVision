@@ -106,3 +106,56 @@ class TestEnsureSchemaInitialized:
 
             assert len(_INITIALIZED_DSNS) == 2
             assert mock_apply.await_count == 2
+
+class TestUserKeysAndDeps:
+    def test_placeholder_extended(self) -> None:
+        from backend.api.deps import _is_placeholder
+        assert _is_placeholder("postgresql://postgres.<proyecto>:pass@host:5432/postgres") is True
+        assert _is_placeholder("postgresql://user:placeholder_pass@host/db") is True
+        assert _is_placeholder("postgresql://user:secret@host/db") is False
+
+    def test_production_no_env_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from backend.api.deps import get_user_keys
+        from backend.config import get_settings
+
+        monkeypatch.setenv("APP_ENV", "production")
+        monkeypatch.setenv("DATABASE_URL", "postgresql://user:secret@db.supabase.co:5432/postgres")
+        monkeypatch.setenv("SUPABASE_URL", "https://xyz.supabase.co")
+        monkeypatch.setenv("SUPABASE_ANON_KEY", "anon_key")
+        get_settings.cache_clear()
+
+        try:
+            # Sin headers en producción -> todo None
+            keys = get_user_keys()
+            assert keys.database_url is None
+            assert keys.supabase_url is None
+            assert keys.supabase_key is None
+
+            # Con header en producción -> toma el header
+            keys_with_header = get_user_keys(
+                x_user_database_url="postgresql://user:pass@host/db"
+            )
+            assert keys_with_header.database_url == "postgresql://user:pass@host/db"
+        finally:
+            get_settings.cache_clear()
+
+    @pytest.mark.asyncio
+    async def test_credentials_status_does_not_expose_dsn(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from backend.api.credentials import credentials_status
+        from backend.api.deps import UserKeys
+        from backend.config import get_settings
+
+        monkeypatch.setenv("APP_ENV", "production")
+        get_settings.cache_clear()
+
+        try:
+            res = await credentials_status(
+                keys=UserKeys(database_url="postgresql://user:pass@host:5432/db")
+            )
+            assert "dsn" not in res
+            assert res["env"] == "production"
+            assert res["dsn_valid"] is True
+        finally:
+            get_settings.cache_clear()
