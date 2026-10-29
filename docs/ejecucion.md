@@ -35,14 +35,142 @@ Para **abrir** la app no necesitas nada. Para **usar** cada módulo en local, cr
 
 | Servicio | Habilita | Cómo obtenerlo | Variable(s) en `.env` |
 |----------|----------|----------------|------------------------|
-| **Supabase** (BD PostGIS) | Parcelas, Teledetección, Resumen | 1. Crea proyecto en https://supabase.com/dashboard → **Project Settings → API**. Anota `SUPABASE_URL` y `SUPABASE_ANON_KEY`.<br>2. **Database URI**: Project Settings → Database → Connection String. Selecciona Session pooler (puerto 5432) o Transaction pooler (puerto 6543), copia la URI y antepone `postgresql+asyncpg://` → `DATABASE_URL`.<br>3. **Service Role Key**: Project Settings → API → "Reset secret" → `SUPABASE_SERVICE_ROLE_KEY` (solo backend, nunca UI). | `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` |
-| **Copernicus CDSE** | NDVI satelital + heatmap | 1. Regístrate en https://dataspace.copernicus.eu/ → MyAccess → Client OAuth.<br>2. Crea una aplicación OAuth y anota `Client ID` y `Client Secret`.<br>3. Nivel gratuito: 100 MB/día de datos Sentinel-2. | `DEV_COPERNICUS_CLIENT_ID`, `DEV_COPERNICUS_CLIENT_SECRET` |
-| **Groq** | Asistente Agéntico (RAG) | 1. Ve a https://console.groq.com/keys.<br>2. Haz click en "Create Key" y genera un key tipo `gsk_...`.<br>3. Nivel gratuito: ~100 tokens/segundo, suficiente para RAG ligero. | `DEV_GROQ_API_KEY` |
+| **Supabase** (BD PostGIS) | Parcelas, Teledetección, Resumen | Ver guía paso a paso en **§1.2.1**: Crear proyecto en dashboard -> Project Settings -> Data API / API Keys -> Connect URI. | `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` |
+| **Copernicus CDSE** | NDVI satelital + heatmap | Ver guía paso a paso en **§1.2.3**: Registrarse en dataspace.copernicus.eu -> My Access -> OAuth Clients. Capa gratuita 100 MB/día. | `DEV_COPERNICUS_CLIENT_ID`, `DEV_COPERNICUS_CLIENT_SECRET` |
+| **Groq** | Asistente Agéntico (RAG) | Ver guía paso a paso en **§1.2.2**: Crear API key tipo `gsk_...` en console.groq.com/keys. Capa gratuita rápida. | `DEV_GROQ_API_KEY` |
 | Open-Meteo | Clima | — (sin llave; datos por coordenadas públicas) | — |
 
 **Migraciones de BD** (una vez, tras configurar `DATABASE_URL`): `uv run python -m backend.db.migrate` crea tablas, índices, RLS y la extensión PGMQ.
 
-Para **desplegar** (ver §5): un único servicio (el **gateway FastAPI** que sirve UI + API) en **Hugging Face Spaces** (SDK Docker) vía `scripts/deploy_hf.sh` (Linux/macOS) o `scripts/deploy_hf.ps1` (Windows); la BD es **Supabase**; y Hugging Face Hub alojará el modelo de conteo cuando se publique. Alternativas: **Render** (Docker) o **Posit Connect** (de pago). Todas las variables están en `.env.example`.
+Para **desplegar** (ver §5 y **§1.2.4**): un único servicio (el **gateway FastAPI** que sirve UI + API) en **Hugging Face Spaces** (SDK Docker) vía `scripts/deploy_hf.sh` (Linux/macOS) o `scripts/deploy_hf.ps1` (Windows); la BD es **Supabase**; y Hugging Face Hub alojará el modelo de conteo cuando se publique. Alternativas: **Render** (Docker) o **Posit Connect** (de pago). Todas las variables están detalladas en `.env.example`.
+
+#### 1.2.1 Guía Paso a Paso: Supabase (para quien nunca ha usado Supabase)
+
+Supabase provee la base de datos PostgreSQL con PostGIS, la API REST/PostgREST y el almacenamiento de objetos. Sigue estos pasos clic por clic:
+
+##### Paso 0 — Crear proyecto en Supabase (desde cero)
+1. Entra a [https://supabase.com/dashboard](https://supabase.com/dashboard) e inicia sesión (o regístrate gratis con GitHub o email).
+2. En el panel principal, haz clic en el botón verde **New project** (Nuevo proyecto).
+3. Selecciona tu **Organization** (o crea una gratuita si es tu primera vez).
+4. Asigna un **Name** al proyecto (ej. `agrovision-db`).
+5. En **Database Password**, escribe una contraseña segura y **¡GUÁRDALA EN UN LUGAR SEGURO!** *(La necesitarás para armar `DATABASE_URL`)*.
+6. Elige la **Region** más cercana a tu ubicación (ej. `East US (North Virginia) - us-east-1` o `South America (São Paulo) - sa-east-1`) y el plan **Free**.
+7. Haz clic en **Create new project** y espera ~1 a 2 minutos mientras Supabase completa el aprovisionamiento.
+
+##### Obtener `SUPABASE_URL` (Project URL)
+1. En el panel de tu proyecto en Supabase, ve a la barra lateral izquierda abajo del todo y haz clic en **Project Settings** (ícono de engranaje ⚙️).
+2. En el menú de navegación lateral (**Configuration**), haz clic en **Data API** (en proyectos creados con interfaces anteriores puede llamarse simplemente **API**).
+3. En el bloque **Project URL**, haz clic en el botón **Copy** al lado de la URL.
+- **Ejemplo de formato:** `https://xyzcompanyabcdefgh.supabase.co`
+- **En `.env`:**
+  ```bash
+  SUPABASE_URL=https://xyzcompanyabcdefgh.supabase.co
+  ```
+
+##### Obtener `SUPABASE_ANON_KEY` (Clave pública del cliente)
+1. En la barra lateral izquierda de tu proyecto en Supabase, ve a **Project Settings (⚙️)**.
+2. En el menú **Configuration**, haz clic en **API Keys** (o en **Project Settings -> API -> Project API keys**; si aparece la vista moderna, abre la pestaña **Legacy API keys**).
+3. Busca la fila con el nombre **`anon` (`public`)** y haz clic en el botón **Copy**.
+- **Ejemplo de formato:** `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiJ9.placeholder_anon_key`
+- **En `.env`:**
+  ```bash
+  SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiJ9.placeholder_anon_key
+  ```
+
+##### Obtener `SUPABASE_SERVICE_ROLE_KEY` (Clave secreta de administración backend)
+1. En la misma pantalla **Project Settings (⚙️) -> API Keys** (o pestaña **Legacy API keys**).
+2. Busca la fila con el nombre **`service_role` (`secret`)**.
+3. Haz clic en el botón **Reveal** (mostrar) para desbloquear la clave y luego haz clic en **Copy**.
+- > [!CAUTION]
+  > La clave `service_role` tiene privilegios de superadministrador y salta todas las políticas de Row Level Security (RLS). Es exclusiva para procesos backend y **NUNCA** debe exponerse en el navegador, frontend o repositorios públicos.
+- **Ejemplo de formato:** `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.placeholder_service_role`
+- **En `.env`:**
+  ```bash
+  SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.placeholder_service_role
+  ```
+
+##### Obtener y armar `DATABASE_URL` (Conexión PostgreSQL asyncpg)
+1. En el panel superior de tu proyecto en Supabase, haz clic en el botón **Connect** (ubicado arriba a la derecha, al lado del nombre del proyecto).
+2. En el diálogo emergente, selecciona la pestaña **Connection String** y luego la pestaña **URI**.
+3. En el selector **Method** o **Mode**, elige:
+   - **Session pooler (puerto 5432)**: recomendado para desarrollo local y ejecución de migraciones DDL (`uv run python -m backend.db.migrate`).
+   - o **Transaction pooler (puerto 6543)**: recomendado para producción con alta concurrencia o despliegues serverless.
+4. Haz clic en el botón de copiar para copiar la URI generada.
+5. Reemplaza `[YOUR-PASSWORD]` por la contraseña de base de datos que definiste en el **Paso 0**.
+   *(¿Olvidaste tu contraseña? Puedes resetearla en cualquier momento en **Project Settings ⚙️ -> Database -> Database password -> Reset database password** sin perder tus datos ni tus tablas)*.
+6. Cambia el prefijo inicial `postgresql://` o `postgres://` por `postgresql+asyncpg://` para que SQLAlchemy y asyncpg se comuniquen asíncronamente.
+- **Ejemplo con Session pooler (puerto 5432):**
+  ```bash
+  DATABASE_URL=postgresql+asyncpg://postgres.xyzcompanyabcdefgh:MiClaveSegura123@aws-0-us-east-1.pooler.supabase.com:5432/postgres
+  ```
+- **Ejemplo con Transaction pooler (puerto 6543):**
+  ```bash
+  DATABASE_URL=postgresql+asyncpg://postgres.xyzcompanyabcdefgh:MiClaveSegura123@aws-0-us-east-1.pooler.supabase.com:6543/postgres
+  ```
+
+##### Crear `SUPABASE_STORAGE_BUCKET` (Opcional, para imágenes de dron)
+1. En la barra lateral izquierda de Supabase, haz clic en **Storage** (ícono de carpeta/caja).
+2. Haz clic en el botón **New bucket** (o "Create bucket").
+3. Escribe el nombre: `drone-images`.
+4. Configura la privacidad y haz clic en **Save bucket**.
+- **En `.env`:**
+  ```bash
+  SUPABASE_STORAGE_BUCKET=drone-images
+  ```
+
+---
+
+#### 1.2.2 Guía Paso a Paso: Groq (Asistente Agéntico RAG / Llama 3)
+
+1. Entra a [https://console.groq.com/](https://console.groq.com/) e inicia sesión (o crea cuenta gratis).
+2. En la barra lateral izquierda, haz clic en **API Keys** (o ve directo a [https://console.groq.com/keys](https://console.groq.com/keys)).
+3. Haz clic en el botón **Create API Key**.
+4. Escribe un nombre descriptivo (ej. `AgroVision-Dev`) y haz clic en **Submit**.
+5. Copia la clave generada (inicia con el prefijo `gsk_...`). Guárdala de inmediato, ya que no se volverá a mostrar en la interfaz.
+- **Ejemplo de formato:** `gsk_abcdefghijklmnopqrstuvwxyz0123456789`
+- **En `.env`:**
+  ```bash
+  DEV_GROQ_API_KEY=gsk_placeholder_groq_key
+  ```
+
+---
+
+#### 1.2.3 Guía Paso a Paso: Copernicus CDSE (Sentinel-2 Satelital)
+
+1. Regístrate gratis en el portal oficial Copernicus Data Space Ecosystem: [https://dataspace.copernicus.eu/](https://dataspace.copernicus.eu/).
+2. Inicia sesión, haz clic sobre tu usuario (esquina superior derecha) y selecciona **My Access** (o ve directo a tu perfil de usuario).
+3. En la sección **OAuth Clients** (o **Keycloak / API Access**), haz clic en el botón **Create OAuth Client** (o **Add Client**).
+4. Asigna un nombre para tu aplicación cliente (ej. `agrovision-sentinel`) y confirma la creación.
+5. Copia el **Client ID** y el **Client Secret** generados.
+   *(La capa gratuita incluye 100 MB diarios para consultas y descargas de Sentinel-2 L2A)*.
+- **En `.env`:**
+  ```bash
+  DEV_COPERNICUS_CLIENT_ID=placeholder_copernicus_id
+  DEV_COPERNICUS_CLIENT_SECRET=placeholder_copernicus_secret
+  ```
+
+---
+
+#### 1.2.4 Guía Paso a Paso: Hugging Face Spaces (Despliegue y Token de Escritura)
+
+1. Para crear el Space del proyecto:
+   - Ve a [https://huggingface.co/new-space](https://huggingface.co/new-space).
+   - En **Owner**, selecciona tu usuario personal o de organización.
+   - En **Space name**, escribe `agrovision`.
+   - En **Space SDK**, selecciona **Docker** (plantilla *Blank*).
+   - En **Visibility**, elige *Public*.
+   - Haz clic en **Create Space**. Tu `HF_SPACE_ID` será `<tu_usuario>/agrovision` (ej. `alexp97/agrovision`).
+2. Para generar el token con permisos de despliegue:
+   - Ve a [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
+   - Haz clic en **Create new token** (o "New token").
+   - Nombre: `agrovision-deploy`.
+   - Tipo / Permisos: Selecciona **Write** (permite a `git push` actualizar el repositorio del Space).
+   - Haz clic en **Create token** y copia el token generado.
+- **En `.env`:**
+  ```bash
+  HF_SPACE_ID=alexp97/agrovision
+  HF_TOKEN=hf_placeholder_write_token
+  ```
 
 ---
 
@@ -76,7 +204,8 @@ El gateway sirve ese build en `/`. Para hot-reload usa `pnpm dev` (ver §3.2). D
 cp .env.example .env
 ```
 
-- Para correr el MVP en local **no necesitas ningún secreto**: los valores por defecto bastan.
+- Para correr el MVP en local **no necesitas ningún secreto**: los valores por defecto bastan para abrir la UI y explorar los módulos.
+- `.env.example` está exhaustivamente documentado con guías clic por clic y ejemplos de formato para cada servicio (Supabase, Groq, Copernicus CDSE, Hugging Face). Consulta también las secciones **§1.2.1 a §1.2.4** para el paso a paso detallado de cada plataforma.
 - `COUNTING_ENABLED=false` deja el conteo **en desarrollo** (standby).
 - Los tokens de despliegue (Hugging Face/Render/Supabase) se completan solo cuando toque desplegar (§5).
 

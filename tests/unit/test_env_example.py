@@ -180,7 +180,8 @@ class TestEnvExampleExamplesAndSteps:
         supabase_steps = [
             "connect",
             "connection string",
-            "pooler",
+            "session pooler",
+            "transaction pooler",
             "postgresql+asyncpg",
             "supabase",
         ]
@@ -190,6 +191,42 @@ class TestEnvExampleExamplesAndSteps:
             "pooler -> postgresql+asyncpg://) en .env.example. "
             "Añade los comentarios de instrucción paso a paso."
         )
+
+    def test_supabase_step_zero_project_creation_present(self):
+        """DOC: .env.example debe documentar el Paso 0 para crear un proyecto desde cero."""
+        content_lower = self.content.lower()
+        assert "new project" in content_lower, "Falta instrucción 'New project' en .env.example"
+        assert "database password" in content_lower, (
+            "Falta mención a guardar 'Database Password' en .env.example"
+        )
+
+    def test_supabase_url_steps_present(self):
+        """DOC: .env.example debe explicar cómo llegar a SUPABASE_URL (Settings -> Data API)."""
+        content_lower = self.content.lower()
+        url_steps = ["project settings", "data api", "project url", "copy"]
+        for step in url_steps:
+            assert step in content_lower, f"Paso faltante para SUPABASE_URL: '{step}'"
+
+    def test_supabase_anon_key_steps_present(self):
+        """DOC: .env.example debe explicar cómo llegar a SUPABASE_ANON_KEY (anon public)."""
+        content_lower = self.content.lower()
+        anon_steps = ["project settings", "api keys", "anon", "public", "copy"]
+        for step in anon_steps:
+            assert step in content_lower, f"Paso faltante para SUPABASE_ANON_KEY: '{step}'"
+
+    def test_supabase_service_role_key_steps_present(self):
+        """DOC: .env.example debe explicar cómo llegar a SUPABASE_SERVICE_ROLE_KEY (Reveal)."""
+        content_lower = self.content.lower()
+        sr_steps = ["service_role", "secret", "reveal", "copy"]
+        for step in sr_steps:
+            assert step in content_lower, f"Paso faltante para SUPABASE_SERVICE_ROLE_KEY: '{step}'"
+
+    def test_supabase_storage_bucket_steps_present(self):
+        """DOC: .env.example debe documentar la creación del bucket drone-images en Storage."""
+        content_lower = self.content.lower()
+        storage_steps = ["storage", "new bucket", "drone-images"]
+        for step in storage_steps:
+            assert step in content_lower, f"Paso faltante para SUPABASE_STORAGE_BUCKET: '{step}'"
 
     def test_supabase_url_anon_key_service_role_present(self):
         """DOC: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY deben aparecer."""
