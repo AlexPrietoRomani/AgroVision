@@ -22,6 +22,7 @@ dependencies = [
     "geoalchemy2>=0.15",             # tipo Geometry para PostGIS
     "shapely>=2.0",                  # geometría: GeoJSON -> WKT, área
     "python-dateutil>=2.9",          # relativedelta para el rango de 5 años (Fase 3)
+    "pytest-asyncio>=1.4.1",
 ]
 # Nota: la UI es Astro (estática, servida por el gateway). Las antiguas deps de Shiny
 # (shiny/shinywidgets/ipyleaflet/plotly) se eliminaron en la Fase 10.

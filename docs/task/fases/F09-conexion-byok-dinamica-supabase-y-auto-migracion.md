@@ -1,6 +1,6 @@
 # Fase 9 — Conexión BYOK Dinámica a Supabase del Usuario y Auto-Migración de Esquema en Backend
 
-## [ ] Fase 9 — Conexión BYOK Dinámica a Supabase del Usuario y Auto-Migración de Esquema en Backend
+## [X] Fase 9 — Conexión BYOK Dinámica a Supabase del Usuario y Auto-Migración de Esquema en Backend
 
 
 <!-- indice-fase:inicio -->

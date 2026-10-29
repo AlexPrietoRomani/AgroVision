@@ -34,7 +34,7 @@ from fastapi import Header
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import get_settings
-from backend.db.session import get_sessionmaker
+from backend.db.session import ensure_schema_initialized, get_sessionmaker
 
 
 @dataclass
@@ -46,6 +46,7 @@ class UserKeys:
     copernicus_secret: str | None = None
     supabase_url: str | None = None
     supabase_key: str | None = None
+    database_url: str | None = None
 
 
 def get_user_keys(
@@ -54,6 +55,7 @@ def get_user_keys(
     x_user_copernicus_secret: str | None = Header(default=None),
     x_user_supabase_url: str | None = Header(default=None),
     x_user_supabase_key: str | None = Header(default=None),
+    x_user_database_url: str | None = Header(default=None),
 ) -> UserKeys:
     """
     Construye las `UserKeys` del request.
@@ -75,16 +77,49 @@ def get_user_keys(
     dev_cop_id = os.getenv("DEV_COPERNICUS_CLIENT_ID") if is_dev else None
     dev_cop_secret = os.getenv("DEV_COPERNICUS_CLIENT_SECRET") if is_dev else None
 
+    # x_user_database_url puede ser un objeto Header de FastAPI cuando no viene el header;
+    # lo convertimos a str o None adecuadamente
+    _dsliteral = x_user_database_url
+    if not isinstance(_dsliteral, str):
+        _dsliteral = os.getenv("DATABASE_URL")
+
+    database_url = _dsliteral or None
+
+    # Fallback a DATABASE_URL del entorno solo si no es el placeholder <pwd>@<host>
+    if database_url and _is_placeholder(database_url):
+        database_url = None
+
     return UserKeys(
         groq=x_user_groq_key or dev_groq or None,
         copernicus_id=x_user_copernicus_id or dev_cop_id or None,
         copernicus_secret=(x_user_copernicus_secret or dev_cop_secret or None),
         supabase_url=x_user_supabase_url or os.getenv("SUPABASE_URL") or None,
         supabase_key=x_user_supabase_key or os.getenv("SUPABASE_ANON_KEY") or None,
+        database_url=database_url,
     )
+
+
+def _is_placeholder(url: str | None) -> bool:
+    """Devuelve True si la URL es el placeholder genérico <pwd>@<host>."""
+    if url is None:
+        return False
+    if not isinstance(url, str):
+        return False
+    return "<pwd>" in url or "<host>" in url
 
 
 async def get_db() -> AsyncIterator[AsyncSession]:
     """Cede una sesión async de SQLAlchemy y la cierra al terminar el request."""
-    async with get_sessionmaker()() as session:
+    from backend.api.deps import get_user_keys
+    keys = get_user_keys()
+    dsn = keys.database_url
+    if not dsn:
+        from fastapi import HTTPException
+        from starlette.status import HTTP_503_SERVICE_UNAVAILABLE
+        raise HTTPException(
+            status_code=HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No hay DSN de base de datos configurado.",
+        )
+    await ensure_schema_initialized(dsn)
+    async with get_sessionmaker(dsn)() as session:
         yield session
