@@ -289,10 +289,31 @@ Reinicia el backend, ve a la pestaña **Conteo** (verás *"(datos de prueba / mo
 El MVP no requiere transpilación. Como alternativa al arranque con `uv`, hay imágenes Docker:
 
 ```bash
-docker compose up --build    # gateway en :8000 (sirve API + UI Astro compilada)
+docker compose up --build    # gateway en :8000 (sirve API + UI Astro compilada en 1 solo contenedor)
 ```
 
 > Para activar el conteo real en la imagen, descomenta el bloque `hf_hub_download` en el `Dockerfile` (raíz) y pon `COUNTING_ENABLED=true`, `MODEL_BACKEND=onnx`.
+
+### 4.1 Despliegue Desacoplado / Multi-Contenedor (Front y Back Separados)
+
+Si deseas desacoplar la interfaz y el servidor (para correr todo en local por separado, o conectar un Frontend local con un Backend en la nube):
+
+```bash
+docker compose -f docker-compose.split.yml up --build -d
+```
+
+- **Frontend (Nginx + Astro estático)**: `http://localhost:3000/`
+- **Backend (FastAPI)**: `http://localhost:8000/`
+
+**Modo Mixto (Frontend local -> Backend en la nube):**
+En `docker-compose.split.yml`, cambia la variable `BACKEND_URL` del servicio frontend por tu URL en la nube:
+```yaml
+services:
+  frontend:
+    environment:
+      - BACKEND_URL=https://tu-backend.onrender.com
+```
+Nginx redirigirá internamente las llamadas `/api/*` hacia tu backend en la nube, evitando problemas de CORS en el navegador.
 
 ---
 

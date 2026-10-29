@@ -122,6 +122,9 @@ docs/logs/
 !docs/assets/*.png
 docs/ejecucion.md
 
+# project-suite working files
+.project-suite/
+
 # Playwright MCP artifacts
 .playwright-mcp/
 localhost-*.png

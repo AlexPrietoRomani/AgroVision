@@ -1,0 +1,46 @@
+# =====================================================================================
+# AgroVisión — Despliegue Desacoplado (Front y Back en contenedores independientes)
+#
+# Uso:
+#   docker compose -f docker-compose.split.yml up --build
+#
+# Modos posibles:
+#   1. Todo en Local:
+#      - Backend en http://localhost:8000
+#      - Frontend en http://localhost:3000
+#   2. Frontend Local conectándose a Backend en la Nube:
+#      - Cambia en 'frontend' -> BACKEND_URL=https://tu-backend-en-nube.com
+# =====================================================================================
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: agrovision-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - APP_ENV=development
+      - COUNTING_ENABLED=false
+      - RATE_LIMIT_PER_MIN=120
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/status')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: agrovision-frontend
+    ports:
+      - "3000:80"
+    environment:
+      # URL a la que Nginx redirige las llamadas /api/
+      - BACKEND_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
