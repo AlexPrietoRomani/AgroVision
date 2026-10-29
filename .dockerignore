@@ -36,6 +36,8 @@ requirements.txt
 .idea/
 .claude/
 .agents/
+.opencode/
+.project-suite/
 .playwright-mcp/
 
 # --- No necesarios en runtime (la imagen no los usa) ---
